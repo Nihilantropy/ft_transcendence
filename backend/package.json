@@ -1,0 +1,21 @@
+{
+  "name": "ft-transcendence-backend",
+  "version": "1.0.0",
+  "description": "ft_transcendence Backend (will migrate to Fastify)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.25.0",
+    "sqlite3": "^5.1.6",
+    "@fastify/cors": "^8.5.0",
+    "@fastify/websocket": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "nodemon": "^3.0.0",
+    "typescript": "^5.0.0"
+  }
+}

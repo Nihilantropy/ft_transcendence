@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # Nginx reverse proxy service
+  nginx:
+    build: 
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - frontend_build:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - transcendence_network
+    restart: unless-stopped
+
+  # Backend service (PHP for mandatory part, will be replaced by Fastify later)
+  backend:
+    build:
+      context: ./docker/backend
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_backend
+    environment:
+      - NODE_ENV=development
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+    networks:
+      - transcendence_network
+    restart: unless-stopped
+
+  # Frontend service (TypeScript)
+  frontend:
+    build:
+      context: ./docker/frontend
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_frontend
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_build:/app/dist
+    networks:
+      - transcendence_network
+    restart: unless-stopped
+
+  # Database service (SQLite will be embedded, but we prepare for potential migration)
+  # This service is optional for SQLite but included for future flexibility
+  database:
+    build:
+      context: ./docker/database
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_database
+    environment:
+      - SQLITE_DATABASE=/data/transcendence.db
+    volumes:
+      - db_data:/data
+    networks:
+      - transcendence_network
+    restart: unless-stopped
+
+volumes:
+  backend_node_modules:
+    driver: local
+  frontend_node_modules:
+    driver: local
+  frontend_build:
+    driver: local
+  db_data:
+    driver: local
+
+networks:
+  transcendence_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
