@@ -18,7 +18,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy application code
 COPY . .
@@ -42,14 +42,14 @@ RUN apk update && apk add --no-cache \
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -g 1000 -S appuser && \
-    adduser -u 1000 -S appuser -G appuser
+RUN addgroup -S appuser && \
+    adduser -S appuser -G appuser
 
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Change ownership
 RUN chown -R appuser:appuser /app

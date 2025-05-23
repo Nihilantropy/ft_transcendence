@@ -4,7 +4,7 @@ services:
   # Nginx reverse proxy service
   nginx:
     build: 
-      context: ./docker/nginx
+      context: ./srcs/nginx
       dockerfile: Dockerfile
     container_name: ft_transcendence_nginx
     ports:
@@ -24,7 +24,7 @@ services:
   # Backend service (PHP for mandatory part, will be replaced by Fastify later)
   backend:
     build:
-      context: ./docker/backend
+      context: ./srcs/backend
       dockerfile: Dockerfile
     container_name: ft_transcendence_backend
     environment:
@@ -41,7 +41,7 @@ services:
   # Frontend service (TypeScript)
   frontend:
     build:
-      context: ./docker/frontend
+      context: ./srcs/frontend
       dockerfile: Dockerfile
     container_name: ft_transcendence_frontend
     environment:
@@ -58,7 +58,7 @@ services:
   # This service is optional for SQLite but included for future flexibility
   database:
     build:
-      context: ./docker/database
+      context: ./srcs/database
       dockerfile: Dockerfile
     container_name: ft_transcendence_database
     environment:
