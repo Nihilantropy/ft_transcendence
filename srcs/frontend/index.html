@@ -4,16 +4,83 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ft_transcendence - Pong Game</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="./src/styles.css">
 </head>
-<body>
-    <div id="app">
-        <h1>ft_transcendence</h1>
-        <p>Pong Game - Ready for Implementation</p>
-        <div id="game-container">
-            <!-- Pong game will be rendered here -->
-        </div>
+<body class="min-h-screen bg-pong-bg text-pong-primary">
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="border-b-2 border-pong-primary py-4">
+            <div class="container mx-auto px-4">
+                <h1 class="text-4xl font-bold text-center text-glow">ft_transcendence</h1>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="bg-gray-900 border-b border-gray-800">
+            <div class="container mx-auto px-4">
+                <ul class="flex space-x-8 py-4">
+                    <li><a href="/" class="nav-link nav-link-active">Home</a></li>
+                    <li><a href="/game" class="nav-link">Play</a></li>
+                    <li><a href="/tournament" class="nav-link">Tournament</a></li>
+                    <li><a href="/profile" class="nav-link">Profile</a></li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-1 container mx-auto px-4 py-8">
+            <div class="max-w-6xl mx-auto">
+                <!-- Welcome Section -->
+                <section class="text-center mb-12">
+                    <h2 class="text-2xl font-bold mb-4">Welcome to Pong Championship</h2>
+                    <p class="text-gray-400 mb-8">Challenge players worldwide in the classic game of Pong</p>
+                    
+                    <div class="flex justify-center space-x-4">
+                        <button class="btn-primary">Quick Match</button>
+                        <button class="btn-secondary">Create Tournament</button>
+                    </div>
+                </section>
+
+                <!-- Game Container -->
+                <section id="game-container" class="mb-12">
+                    <div class="pong-container aspect-[4/3] glow">
+                        <!-- Pong game canvas will be rendered here -->
+                        <canvas id="pong-canvas" class="w-full h-full"></canvas>
+                        
+                        <!-- Game UI Overlay -->
+                        <div class="absolute top-0 left-0 w-full p-4 flex justify-between">
+                            <div class="pong-score">0</div>
+                            <div class="pong-score">0</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Stats Section -->
+                <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">Win Rate</h3>
+                        <p class="text-3xl text-pong-accent">0%</p>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">Total Games</h3>
+                        <p class="text-3xl text-pong-accent">0</p>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">Ranking</h3>
+                        <p class="text-3xl text-pong-accent">-</p>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t-2 border-pong-primary py-4 mt-auto">
+            <div class="container mx-auto px-4 text-center text-gray-500">
+                <p>&copy; 2025 ft_transcendence - A 42 Project</p>
+            </div>
+        </footer>
     </div>
-    <script type="module" src="main.ts"></script>
+    
+    <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

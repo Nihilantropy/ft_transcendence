@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-pong-bg text-pong-primary font-mono;
+  }
+}
+
+@layer components {
+  /* Pong game specific components */
+  .pong-container {
+    @apply relative w-full max-w-4xl mx-auto bg-black border-4 border-pong-primary rounded-lg shadow-2xl;
+  }
+
+  .pong-paddle {
+    @apply absolute bg-pong-primary transition-all duration-75;
+  }
+
+  .pong-ball {
+    @apply absolute bg-pong-primary rounded-full;
+  }
+
+  .pong-score {
+    @apply text-4xl font-bold text-pong-primary text-center;
+  }
+
+  /* Button styles */
+  .btn-primary {
+    @apply px-6 py-3 bg-pong-primary text-black font-bold rounded-lg hover:bg-pong-secondary transition-colors duration-200 active:scale-95 transform;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 border-2 border-pong-primary text-pong-primary font-bold rounded-lg hover:bg-pong-primary hover:text-black transition-all duration-200;
+  }
+
+  /* Input styles */
+  .input-primary {
+    @apply w-full px-4 py-2 bg-black border-2 border-pong-primary text-pong-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-pong-accent;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-gray-900 border-2 border-pong-primary rounded-lg p-6 shadow-xl;
+  }
+
+  /* Navigation styles */
+  .nav-link {
+    @apply text-pong-primary hover:text-pong-accent transition-colors duration-200 font-semibold;
+  }
+
+  .nav-link-active {
+    @apply text-pong-accent border-b-2 border-pong-accent;
+  }
+}
+
+@layer utilities {
+  /* Custom utilities for game animations */
+  .glow {
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.8);
+  }
+
+  /* Retro CRT effect */
+  .crt-effect {
+    animation: crt-flicker 0.15s infinite;
+  }
+
+  @keyframes crt-flicker {
+    0% { opacity: 0.97; }
+    50% { opacity: 1; }
+    100% { opacity: 0.98; }
+  }
+}
