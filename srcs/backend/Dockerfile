@@ -25,6 +25,8 @@ WORKDIR /app
 # Copy PHP configuration
 COPY php.ini /usr/local/etc/php/conf.d/custom.ini
 
+COPY index.php .
+
 # Create non-root user
 RUN addgroup -g 1000 -S appuser && \
     adduser -u 1000 -S appuser -G appuser

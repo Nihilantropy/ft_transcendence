@@ -13,12 +13,6 @@ RUN apk update && apk add --no-cache \
 # Create SSL directory
 RUN mkdir -p /etc/nginx/ssl
 
-# Generate self-signed certificate for development
-RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/selfsigned.key \
-    -out /etc/nginx/ssl/selfsigned.crt \
-    -subj "/C=IT/ST=Rome/L=Rome/O=42/OU=ft_transcendence/CN=localhost"
-
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 

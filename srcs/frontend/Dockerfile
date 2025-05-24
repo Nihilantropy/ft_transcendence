@@ -41,24 +41,14 @@ RUN apk update && apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S appuser && \
-    adduser -S appuser -G appuser
-
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Change ownership
-RUN chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
-
 # Copy application code
-COPY --chown=appuser:appuser . .
+COPY . .
 
 # Expose development server port
 EXPOSE 5173
