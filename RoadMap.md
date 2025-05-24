@@ -7,7 +7,7 @@
 
 #### 1.1 Project Setup
 - [x] Initialize Docker environment
-- [ ] Set up Fastify backend with TypeScript
+- [x] Set up Fastify backend with TypeScript
 - [ ] Configure Tailwind CSS frontend
 - [ ] Implement basic routing and SPA functionality
 - [ ] Set up SQLite database connection
