@@ -6,7 +6,7 @@
 **Goal**: Establish basic project structure and mandatory requirements
 
 #### 1.1 Project Setup
-- [ ] Initialize Docker environment
+- [x] Initialize Docker environment
 - [ ] Set up Fastify backend with TypeScript
 - [ ] Configure Tailwind CSS frontend
 - [ ] Implement basic routing and SPA functionality

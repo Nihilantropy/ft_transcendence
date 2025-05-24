@@ -1,43 +1,69 @@
 # ---------------------------------------------------------------------------- #
-#                                    RUNNER                                    #
+#                                   BUILDER                                    #
 # ---------------------------------------------------------------------------- #
 
-FROM alpine:3.19
+FROM node:20-alpine AS builder
 
-# Install SQLite and utilities
+# Install dependencies
 RUN apk update && apk add --no-cache \
-    sqlite \
-    sqlite-dev \
+    python3 \
+    make \
+    g++ \
     curl \
-    bash \
     && rm -rf /var/cache/apk/*
 
-# Create data directory
-RUN mkdir -p /data
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# ---------------------------------------------------------------------------- #
+#                                   RUNNER                                     #
+# ---------------------------------------------------------------------------- #
+
+FROM node:20-alpine AS runner
+
+# Install only production dependencies
+RUN apk update && apk add --no-cache \
+    curl \
+    && rm -rf /var/cache/apk/*
 
 # Create non-root user
-RUN addgroup -g 1000 -S dbuser && \
-    adduser -u 1000 -S dbuser -G dbuser
-
-# Set ownership
-RUN chown -R dbuser:dbuser /data
-
-# Switch to non-root user
-USER dbuser
+RUN addgroup -g 1000 -S appuser && \
+    adduser -u 1000 -S appuser -G appuser
 
 # Set working directory
-WORKDIR /data
+WORKDIR /app
 
-# Create initialization script
-COPY --chown=dbuser:dbuser init-db.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/init-db.sh
+# Copy package files
+COPY package*.json ./
 
-# Volume for database persistence
-VOLUME ["/data"]
+# Install only production dependencies
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Copy built application from builder
+COPY --from=builder --chown=appuser:appuser /app/dist ./dist
+
+# Switch to non-root user
+USER appuser
+
+# Expose application port
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD sqlite3 /data/transcendence.db "SELECT 1;" || exit 1
+    CMD curl -f http://localhost:3000/api/health || exit 1
 
-# Run initialization and keep container running
-CMD ["/usr/local/bin/init-db.sh"]
+# Start the application
+CMD ["node", "dist/server.js"]

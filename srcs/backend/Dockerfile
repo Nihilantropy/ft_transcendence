@@ -1,56 +1,8 @@
 # ---------------------------------------------------------------------------- #
-#                                 RUNNER-PHP                                   #
+#                                   BUILDER                                    #
 # ---------------------------------------------------------------------------- #
 
-# Multi-stage Dockerfile to support both PHP (mandatory) and Node.js (modules)
-FROM php:8.2-fpm-alpine AS php-backend
-
-# Install PHP extensions and dependencies
-RUN apk update && apk add --no-cache \
-    postgresql-dev \
-    sqlite-dev \
-    curl \
-    zip \
-    unzip \
-    git \
-    && docker-php-ext-install pdo pdo_pgsql pdo_sqlite \
-    && rm -rf /var/cache/apk/*
-
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Set working directory
-WORKDIR /app
-
-# Copy PHP configuration
-COPY php.ini /usr/local/etc/php/conf.d/custom.ini
-
-COPY index.php .
-
-# Create non-root user
-RUN addgroup -g 1000 -S appuser && \
-    adduser -u 1000 -S appuser -G appuser
-
-# Change ownership
-RUN chown -R appuser:appuser /app
-
-USER appuser
-
-# Expose PHP-FPM port
-EXPOSE 9000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD php-fpm -t || exit 1
-
-CMD ["php-fpm"]
-
-# ---------------------------------------------------------------------------- #
-#                                 RUNNER-NODEJS                                #
-# ---------------------------------------------------------------------------- #
-
-# Node.js backend stage (for future Fastify implementation)
-FROM node:20-alpine AS node-backend
+FROM node:20-alpine AS builder
 
 # Install dependencies
 RUN apk update && apk add --no-cache \
@@ -63,38 +15,55 @@ RUN apk update && apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# ---------------------------------------------------------------------------- #
+#                                   RUNNER                                     #
+# ---------------------------------------------------------------------------- #
+
+FROM node:20-alpine AS runner
+
+# Install only production dependencies
+RUN apk update && apk add --no-cache \
+    curl \
+    && rm -rf /var/cache/apk/*
+
 # Create non-root user
 RUN addgroup -g 1000 -S appuser && \
     adduser -u 1000 -S appuser -G appuser
 
+# Set working directory
+WORKDIR /app
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies as root
-RUN npm ci --only=production
+# Install only production dependencies
+RUN npm ci --only=production && \
+    npm cache clean --force
 
-# Change ownership
-RUN chown -R appuser:appuser /app
+# Copy built application from builder
+COPY --from=builder --chown=appuser:appuser /app/dist ./dist
 
 # Switch to non-root user
 USER appuser
-
-# Copy application code
-COPY --chown=appuser:appuser . .
 
 # Expose application port
 EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:3000/api/health || exit 1
 
 # Start the application
-CMD ["node", "server.js"]
-
-# ---------------------------------------------------------------------------- #
-#                                 DEFAULT                                      #
-# ---------------------------------------------------------------------------- #
-
-# Default to PHP for mandatory requirements
-FROM php-backend AS final
+CMD ["node", "dist/server.js"]
