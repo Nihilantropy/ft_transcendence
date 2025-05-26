@@ -14,7 +14,6 @@ import { apiRoutes } from './routes/api';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { errorHandler } from './plugins/errorHandler';
-import { logger } from './utils/logger';
 
 /**
  * @brief Initialize and configure Fastify server
@@ -23,7 +22,7 @@ import { logger } from './utils/logger';
  */
 const buildServer = () => {
   const fastify = Fastify({
-    logger: logger,
+    logger: true,
     trustProxy: true,
   });
 
@@ -60,7 +59,7 @@ const buildServer = () => {
 
   // Graceful shutdown
   const gracefulShutdown = async () => {
-    logger.info('Shutting down gracefully...');
+    fastify.log.info('Shutting down gracefully...');
     await fastify.close();
     process.exit(0);
   };
@@ -73,6 +72,8 @@ const buildServer = () => {
 
 /**
  * @brief Start the Fastify server
+ * 
+ * @description Initializes server and starts listening on configured port
  */
 const start = async () => {
   const server = buildServer();
@@ -83,9 +84,9 @@ const start = async () => {
       host: config.HOST,
     });
     
-    logger.info(`🚀 Server running at ${config.HOST}:${config.PORT}`);
+    server.log.info(`🚀 Server running at ${config.HOST}:${config.PORT}`);
   } catch (err) {
-    logger.error(err);
+    server.log.error(err);
     process.exit(1);
   }
 };

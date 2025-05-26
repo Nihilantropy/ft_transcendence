@@ -42,11 +42,16 @@ clean:
 	@echo "Cleaning up containers and networks..."
 	@docker compose down -v
 
-# Full clean including images
+# Full clean including images (only ft_transcendence project)
 fclean: clean
-	@echo "Removing Docker images..."
+	@echo "Removing ft_transcendence Docker images..."
 	@docker compose down --rmi all -v
-	@docker system prune -af
+	@echo "Cleaning up any remaining ft_transcendence images..."
+	@docker images --filter "reference=ft_transcendence*" -q | xargs -r docker rmi -f 2>/dev/null || true
+	@docker images --filter "reference=*ft_transcendence*" -q | xargs -r docker rmi -f 2>/dev/null || true
+	@echo "Removing unused networks and volumes for this project..."
+	@docker network prune -f --filter "label=com.docker.compose.project=ft_transcendence" 2>/dev/null || true
+	@docker volume prune -f --filter "label=com.docker.compose.project=ft_transcendence" 2>/dev/null || true
 
 # Rebuild everything
 re: fclean build up
@@ -93,7 +98,7 @@ help:
 	@echo "Maintenance targets:"
 	@echo "  build        - Build Docker images"
 	@echo "  clean        - Remove containers and volumes"
-	@echo "  fclean       - Full clean including images"
+	@echo "  fclean       - Full clean including images (project only)"
 	@echo "  re           - Full rebuild"
 	@echo ""
 	@echo "Development targets:"

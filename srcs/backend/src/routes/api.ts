@@ -11,7 +11,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
    * 
    * @return API information
    */
-  fastify.get('/info', async (request, reply) => {
+  fastify.get('/info', async () => {
     return {
       app: 'ft_transcendence',
       version: '1.0.0',
@@ -26,7 +26,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
    * 
    * @return API version info
    */
-  fastify.get('/version', async (request, reply) => {
+  fastify.get('/version', async () => {
     return {
       api: 'v1',
       version: '1.0.0',

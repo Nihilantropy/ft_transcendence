@@ -4,7 +4,7 @@
 
 import { FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { config } from '../config/config';
 import { AppError } from '../plugins/errorHandler';
 
@@ -18,6 +18,20 @@ interface RegisterBody {
   email: string;
   password: string;
 }
+
+/**
+ * @brief Generate JWT token for user
+ * 
+ * @param payload User payload for token
+ * @return JWT token string
+ */
+const generateToken = (payload: { id: number; username: string }): string => {
+  return (jwt as any).sign(
+    payload, 
+    config.JWT_SECRET,
+    { expiresIn: config.JWT_EXPIRATION }
+  );
+};
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -53,11 +67,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     };
 
     // Generate JWT
-    const token = jwt.sign(
-      { id: user.id, username: user.username },
-      config.JWT_SECRET,
-      { expiresIn: config.JWT_EXPIRATION }
-    );
+    const token = generateToken({
+      id: user.id,
+      username: user.username,
+    });
 
     return {
       user: {
@@ -103,11 +116,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Generate JWT
-    const token = jwt.sign(
-      { id: user.id, username: user.username },
-      config.JWT_SECRET,
-      { expiresIn: config.JWT_EXPIRATION }
-    );
+    const token = generateToken({
+      id: user.id,
+      username: user.username,
+    });
 
     return {
       user: {

@@ -3,6 +3,7 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
+import { RawData } from 'ws';
 
 interface CreateGameBody {
   player1: string;
@@ -14,6 +15,20 @@ interface UpdateScoreBody {
   player1Score: number;
   player2Score: number;
 }
+
+/**
+ * @brief Parse WebSocket message safely
+ * 
+ * @param message Raw WebSocket message data
+ * @return Parsed message object or null if invalid
+ */
+const parseWebSocketMessage = (message: RawData): any | null => {
+  try {
+    return JSON.parse(message.toString());
+  } catch (error) {
+    return null;
+  }
+};
 
 export const gameRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -132,9 +147,23 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.register(async function (fastify) {
     fastify.get('/ws', { websocket: true }, (connection, req) => {
-      connection.socket.on('message', (message) => {
-        // TODO: Handle game messages
-        const data = JSON.parse(message.toString());
+      /**
+       * @brief Handle incoming WebSocket messages
+       * 
+       * @param message Raw message data from WebSocket
+       * @return void
+       */
+      connection.socket.on('message', (message: RawData) => {
+        // Parse message safely
+        const data = parseWebSocketMessage(message);
+        
+        if (!data) {
+          connection.socket.send(JSON.stringify({
+            type: 'error',
+            message: 'Invalid message format',
+          }));
+          return;
+        }
         
         // Echo message back for now
         connection.socket.send(JSON.stringify({

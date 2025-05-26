@@ -11,7 +11,9 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 /**
- * @brief Validate and export configuration
+ * @brief Application configuration object
+ * 
+ * @description Contains all configuration values with defaults
  */
 export const config = {
   // Server
@@ -49,9 +51,11 @@ export const config = {
 /**
  * @brief Validate required configuration
  * 
+ * @description Checks for required environment variables
+ * 
  * @throws Error if required configuration is missing
  */
-export const validateConfig = () => {
+export const validateConfig = (): void => {
   const required = ['JWT_SECRET'];
   const missing = required.filter(key => !process.env[key]);
   

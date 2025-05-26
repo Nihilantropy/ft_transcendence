@@ -19,7 +19,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including dev)
-RUN npm ci
+RUN npm i
 
 # Copy source code
 COPY . .
@@ -39,8 +39,8 @@ RUN apk update && apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 # Create non-root user
-RUN addgroup -g 1000 -S appuser && \
-    adduser -u 1000 -S appuser -G appuser
+RUN addgroup -g 1001 -S appuser && \
+    adduser -u 1001 -S appuser -G appuser
 
 # Set working directory
 WORKDIR /app
@@ -49,7 +49,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production && \
+RUN npm i --omit=dev && \
     npm cache clean --force
 
 # Copy built application from builder
