@@ -4,7 +4,7 @@
 
 FROM node:20-alpine AS builder
 
-# Install dependencies
+# Install build dependencies
 RUN apk update && apk add --no-cache \
     python3 \
     make \
@@ -14,55 +14,48 @@ RUN apk update && apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install dependencies
 COPY package*.json ./
+RUN npm ci --only=production
 
-# Install dependencies
-RUN npm install
-
-# Copy application code
+# Copy source code
 COPY . .
 
-# Build the application
+# Build the application for production
 RUN npm run build
 
 # ---------------------------------------------------------------------------- #
-#                               RUNNER-DEV                                     #
+#                                DEVELOPMENT                                   #
 # ---------------------------------------------------------------------------- #
 
-# Development stage
 FROM node:20-alpine AS development
 
 # Install dependencies
-RUN apk update && apk add --no-cache \
-    curl \
-    && rm -rf /var/cache/apk/*
+RUN apk update && apk add --no-cache curl
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install all dependencies
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy application code
+# Copy source code
 COPY . .
 
 # Expose development server port
 EXPOSE 5173
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:5173 || exit 1
 
 # Start development server
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # ---------------------------------------------------------------------------- #
-#                                 DEFAULT                                      #
+#                                    DEFAULT                                   #
 # ---------------------------------------------------------------------------- #
 
-# Default to development stage
+# Default to development for docker-compose
 FROM development AS final

@@ -1,9 +1,11 @@
 /**
- * @brief Game-related routes for Pong
+ * @brief Game routes with database integration and WebSocket support
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { RawData } from 'ws';
+import { db } from '../services/database';
+import { wsService } from '../services/websocketService';
+import { AppError } from '../plugins/errorHandler';
 
 interface CreateGameBody {
   player1: string;
@@ -16,26 +18,9 @@ interface UpdateScoreBody {
   player2Score: number;
 }
 
-/**
- * @brief Parse WebSocket message safely
- * 
- * @param message Raw WebSocket message data
- * @return Parsed message object or null if invalid
- */
-const parseWebSocketMessage = (message: RawData): any | null => {
-  try {
-    return JSON.parse(message.toString());
-  } catch (error) {
-    return null;
-  }
-};
-
 export const gameRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * @brief Create a new game
-   * 
-   * @param request - Contains game creation data
-   * @return New game information
    */
   fastify.post<{ Body: CreateGameBody }>('/create', {
     schema: {
@@ -52,47 +37,45 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { player1, player2, gameType = 'pong' } = request.body;
 
-    // TODO: Create game in database
-    const game = {
-      id: 1,
-      player1,
-      player2,
-      gameType,
+    // Get or create players
+    let player1User = await db.getUserByUsername(player1);
+    let player2User = await db.getUserByUsername(player2);
+
+    if (!player1User) {
+      throw new AppError(404, `Player ${player1} not found`, 'PLAYER_NOT_FOUND');
+    }
+    if (!player2User) {
+      throw new AppError(404, `Player ${player2} not found`, 'PLAYER_NOT_FOUND');
+    }
+
+    const game = await db.createGame({
+      player1_id: player1User.id,
+      player2_id: player2User.id,
+      player1_score: 0,
+      player2_score: 0,
+      game_type: gameType,
       status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
+    });
 
     return { game };
   });
 
   /**
    * @brief Get game by ID
-   * 
-   * @param request - Contains game ID
-   * @return Game information
    */
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const { id } = request.params;
+    const gameId = parseInt(request.params.id);
+    const game = await db.getGameById(gameId);
 
-    // TODO: Get game from database
-    const game = {
-      id: parseInt(id),
-      player1: 'player1',
-      player2: 'player2',
-      player1Score: 0,
-      player2Score: 0,
-      status: 'in_progress',
-      createdAt: new Date().toISOString(),
-    };
+    if (!game) {
+      throw new AppError(404, 'Game not found', 'GAME_NOT_FOUND');
+    }
 
     return { game };
   });
 
   /**
    * @brief Update game score
-   * 
-   * @param request - Contains game ID and new scores
-   * @return Updated game information
    */
   fastify.put<{ 
     Params: { id: string }, 
@@ -109,36 +92,22 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
   }, async (request, reply) => {
-    const { id } = request.params;
+    const gameId = parseInt(request.params.id);
     const { player1Score, player2Score } = request.body;
 
-    // TODO: Update game in database
-    const game = {
-      id: parseInt(id),
-      player1Score,
-      player2Score,
-      updatedAt: new Date().toISOString(),
-    };
+    const game = await db.updateGameScore(gameId, player1Score, player2Score);
+    if (!game) {
+      throw new AppError(404, 'Game not found', 'GAME_NOT_FOUND');
+    }
 
     return { game };
   });
 
   /**
    * @brief List active games
-   * 
-   * @return List of active games
    */
   fastify.get('/active', async (request, reply) => {
-    // TODO: Get active games from database
-    const games = [
-      {
-        id: 1,
-        player1: 'player1',
-        player2: 'player2',
-        status: 'in_progress',
-      },
-    ];
-
+    const games = await db.getActiveGames();
     return { games };
   });
 
@@ -147,36 +116,10 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.register(async function (fastify) {
     fastify.get('/ws', { websocket: true }, (connection, req) => {
-      /**
-       * @brief Handle incoming WebSocket messages
-       * 
-       * @param message Raw message data from WebSocket
-       * @return void
-       */
-      connection.socket.on('message', (message: RawData) => {
-        // Parse message safely
-        const data = parseWebSocketMessage(message);
-        
-        if (!data) {
-          connection.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Invalid message format',
-          }));
-          return;
-        }
-        
-        // Echo message back for now
-        connection.socket.send(JSON.stringify({
-          type: 'echo',
-          data,
-        }));
-      });
-
-      // Send initial connection message
-      connection.socket.send(JSON.stringify({
-        type: 'connected',
-        timestamp: Date.now(),
-      }));
+      // Extract user from query or auth header (simplified)
+      const userId = req.query?.userId ? parseInt(req.query.userId as string) : undefined;
+      
+      wsService.addConnection(connection.socket, userId);
     });
   });
 };

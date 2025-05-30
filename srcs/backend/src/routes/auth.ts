@@ -1,11 +1,12 @@
 /**
- * @brief Authentication routes
+ * @brief Authentication routes with real database integration
  */
 
 import { FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcrypt';
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { config } from '../config/config';
+import { db } from '../services/database';
 import { AppError } from '../plugins/errorHandler';
 
 interface LoginBody {
@@ -26,19 +27,12 @@ interface RegisterBody {
  * @return JWT token string
  */
 const generateToken = (payload: { id: number; username: string }): string => {
-  return (jwt as any).sign(
-    payload, 
-    config.JWT_SECRET,
-    { expiresIn: config.JWT_EXPIRATION }
-  );
+  return jwt.sign(payload, config.JWT_SECRET, { expiresIn: config.JWT_EXPIRATION });
 };
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * @brief User registration endpoint
-   * 
-   * @param request - Contains user registration data
-   * @return User data and JWT token
    */
   fastify.post<{ Body: RegisterBody }>('/register', {
     schema: {
@@ -55,28 +49,29 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { username, email, password } = request.body;
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, config.BCRYPT_ROUNDS);
+    // Check if user exists
+    const existingUser = await db.getUserByUsername(username);
+    if (existingUser) {
+      throw new AppError(409, 'Username already taken', 'USERNAME_EXISTS');
+    }
 
-    // TODO: Save user to database
-    const user = {
-      id: 1,
+    // Hash password and create user
+    const passwordHash = await bcrypt.hash(password, config.BCRYPT_ROUNDS);
+    const user = await db.createUser({
       username,
       email,
-      passwordHash,
-    };
-
-    // Generate JWT
-    const token = generateToken({
-      id: user.id,
-      username: user.username,
+      password_hash: passwordHash,
+      display_name: username,
     });
+
+    const token = generateToken({ id: user.id, username: user.username });
 
     return {
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
+        displayName: user.display_name,
       },
       token,
     };
@@ -84,9 +79,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * @brief User login endpoint
-   * 
-   * @param request - Contains login credentials
-   * @return User data and JWT token
    */
   fastify.post<{ Body: LoginBody }>('/login', {
     schema: {
@@ -102,45 +94,50 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { username, password } = request.body;
 
-    // TODO: Get user from database
-    const user = {
-      id: 1,
-      username: 'testuser',
-      passwordHash: await bcrypt.hash('password123', config.BCRYPT_ROUNDS),
-    };
+    const user = await db.getUserByUsername(username);
+    if (!user) {
+      throw new AppError(401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+    }
 
-    // Verify password
-    const isValid = await bcrypt.compare(password, user.passwordHash);
+    const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
       throw new AppError(401, 'Invalid credentials', 'INVALID_CREDENTIALS');
     }
 
-    // Generate JWT
-    const token = generateToken({
-      id: user.id,
-      username: user.username,
-    });
+    // Update online status
+    await db.updateUserOnlineStatus(user.id, true);
+
+    const token = generateToken({ id: user.id, username: user.username });
 
     return {
       user: {
         id: user.id,
         username: user.username,
+        email: user.email,
+        displayName: user.display_name,
       },
       token,
     };
   });
 
   /**
-   * @brief Token validation endpoint
-   * 
-   * @return Current user data
+   * @brief Get current user info (protected route)
    */
-  fastify.get('/me', async (request, reply) => {
-    // TODO: Implement JWT middleware and get current user
+  fastify.get('/me', {
+    preHandler: [fastify.authenticate],
+  }, async (request, reply) => {
+    const user = await db.getUserById(request.user!.id);
+    if (!user) {
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
+    }
+
     return {
       user: {
-        id: 1,
-        username: 'testuser',
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        displayName: user.display_name,
+        isOnline: user.is_online,
       },
     };
   });

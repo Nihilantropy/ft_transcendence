@@ -8,12 +8,12 @@
 #### 1.1 Project Setup
 - [x] Initialize Docker environment
 - [x] Set up Fastify backend with TypeScript
-- [ ] Configure Tailwind CSS frontend
-- [ ] Implement basic routing and SPA functionality
-- [ ] Set up SQLite database connection
+- [x] Configure Tailwind CSS frontend
+- [x] Implement basic routing and SPA functionality
+- [x] Set up SQLite database connection
 
 #### 1.2 Basic Security Implementation
-- [ ] HTTPS/WSS configuration
+- [x] HTTPS/WSS configuration
 - [ ] Basic input validation
 - [ ] Environment variable management (.env)
 - [ ] Password hashing implementation

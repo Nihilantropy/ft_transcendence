@@ -1,14 +1,14 @@
 /**
- * @brief Main Fastify server entry point for ft_transcendence
- * 
- * @description Initializes Fastify server with TypeScript, routes, and plugins
+ * @brief Main Fastify server with database and WebSocket integration
  */
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import websocket from '@fastify/websocket';
-import { config } from './config/config';
+import { config, validateConfig } from './config/config';
+import { db } from './services/database';
+import { authMiddleware } from './middleware/auth';
 import { healthRoutes } from './routes/health';
 import { apiRoutes } from './routes/api';
 import { authRoutes } from './routes/auth';
@@ -17,8 +17,6 @@ import { errorHandler } from './plugins/errorHandler';
 
 /**
  * @brief Initialize and configure Fastify server
- * 
- * @return Configured Fastify instance
  */
 const buildServer = () => {
   const fastify = Fastify({
@@ -39,17 +37,14 @@ const buildServer = () => {
     },
   });
 
-  // Register CORS
   fastify.register(cors, {
     origin: config.CORS_ORIGIN,
     credentials: true,
   });
 
-  // Register WebSocket support
   fastify.register(websocket);
-
-  // Register error handler
   fastify.register(errorHandler);
+  fastify.register(authMiddleware);
 
   // Register routes
   fastify.register(healthRoutes, { prefix: '/api' });
@@ -57,28 +52,32 @@ const buildServer = () => {
   fastify.register(authRoutes, { prefix: '/api/auth' });
   fastify.register(gameRoutes, { prefix: '/api/game' });
 
-  // Graceful shutdown
-  const gracefulShutdown = async () => {
-    fastify.log.info('Shutting down gracefully...');
-    await fastify.close();
-    process.exit(0);
-  };
-
-  process.on('SIGINT', gracefulShutdown);
-  process.on('SIGTERM', gracefulShutdown);
-
   return fastify;
 };
 
 /**
- * @brief Start the Fastify server
- * 
- * @description Initializes server and starts listening on configured port
+ * @brief Start the server with database initialization
  */
 const start = async () => {
-  const server = buildServer();
-  
   try {
+    validateConfig();
+    
+    // Initialize database
+    await db.connect();
+    
+    const server = buildServer();
+    
+    // Graceful shutdown
+    const gracefulShutdown = async () => {
+      server.log.info('Shutting down gracefully...');
+      await db.close();
+      await server.close();
+      process.exit(0);
+    };
+
+    process.on('SIGINT', gracefulShutdown);
+    process.on('SIGTERM', gracefulShutdown);
+    
     await server.listen({
       port: config.PORT,
       host: config.HOST,
@@ -86,12 +85,11 @@ const start = async () => {
     
     server.log.info(`🚀 Server running at ${config.HOST}:${config.PORT}`);
   } catch (err) {
-    server.log.error(err);
+    console.error(err);
     process.exit(1);
   }
 };
 
-// Start server if this file is run directly
 if (require.main === module) {
   start();
 }
