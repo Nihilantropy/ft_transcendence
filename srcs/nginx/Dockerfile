@@ -18,9 +18,6 @@ RUN mkdir -p /etc/nginx/conf.d \
              /var/log/nginx \
              /var/cache/nginx
 
-# Enable headers-more module (proper way)
-RUN echo "load_module modules/ngx_http_headers_more_filter_module.so;" > /etc/nginx/conf.d/00-modules.conf
-
 # Copy nginx configuration files
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY conf.d/ /etc/nginx/conf.d/

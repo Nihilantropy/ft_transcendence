@@ -7,15 +7,7 @@ COMPOSE_FILE = docker-compose.yml
 PROJECT_NAME = ft_transcendence
 
 # ft_transcendence service names
-TRANSCENDENCE_SERVICES = nginx \
-                        backend \
-                        frontend \
-                        database
-
-# ft_transcendence volumes and networks  
-TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_frontend_build \
-                       $(PROJECT_NAME)_backend_node_modules \
-                       $(PROJECT_NAME)_db_data
+TRANSCENDENCE_SERVICES = nginx
 
 TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 
