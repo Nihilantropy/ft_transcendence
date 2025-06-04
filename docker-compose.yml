@@ -11,12 +11,6 @@ services:
       - "443:443"
     networks:
       - proxy
-    # volumes:
-      # - ./srcs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      # - ./srcs/nginx/conf.d/:/etc/nginx/conf.d/:ro
-      # - ./srcs/nginx/ssl/:/etc/nginx/ssl/:ro
-      # - ./srcs/nginx/error_pages/:/usr/share/nginx/html/error_pages/:ro
-      # - frontend-data:/var/www/html
     restart: on-failure
     healthcheck:
       test: ["CMD", "nginx", "-t"]
