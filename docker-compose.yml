@@ -24,27 +24,31 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-  ### FRONTEND ###
+### FRONTEND ###
   frontend:
     container_name: ft_transcendence_frontend
-    image: node:lts-alpine3.22
-    # build:
-    #   context: ./srcs/frontend
-    #   dockerfile: Dockerfile
+    build:
+      context: ./srcs/frontend
+      dockerfile: Dockerfile
     env_file:
       - ./srcs/.env
     volumes:
-    - ./srcs/frontend/:/app/:rw
-    restart: on-failure
-    command:
-    - sh
-    - -c
-    - "cd /app && npm run dev"
-    # ports:
-    #   - "5173:5173"
+      # Mount source code for development hot reload
+      - ./srcs/frontend/src:/app/src:rw
+      - ./srcs/frontend/public:/app/public:rw
+      # Use named volume for node_modules to avoid conflicts
+      - frontend-node-modules:/app/node_modules
+    ports:
+      - "5173:5173"  # Enable for direct access during development
     networks:
       - proxy
-
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 ### NETWORKS ###
 networks:
   proxy:
@@ -53,4 +57,6 @@ networks:
 ### VOLUMES ###
 volumes:
   frontend-data:
+    driver: local
+  frontend-node-modules:
     driver: local
