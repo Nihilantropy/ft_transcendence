@@ -1,0 +1,73 @@
+/**
+ * @brief Tailwind CSS configuration for ft_transcendence
+ * 
+ * @description Basic Tailwind configuration implementing the gaming theme
+ * with matrix green colors and retro styling. This is the Phase A2 minimal
+ * setup to get Tailwind working with custom colors.
+ */
+
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx,html}",
+  ],
+  theme: {
+    extend: {
+      // Gaming Color Palette for ft_transcendence
+      colors: {
+        primary: {
+          DEFAULT: '#00ff41',  // Matrix green
+          dark: '#00cc33',     // Darker green
+          light: '#33ff66'     // Lighter green
+        },
+        secondary: '#ff0080',    // Neon pink
+        accent: '#00ffff',       // Cyan accent
+        
+        // Game-specific colors
+        game: {
+          paddle: '#ffffff',     // White paddles
+          ball: '#ffff00',       // Yellow ball
+          field: '#000000'       // Black game field
+        },
+        
+        // Extended gray scale for dark theme
+        gray: {
+          850: '#1f2937',
+          950: '#0f172a'
+        }
+      },
+      
+      // Gaming typography
+      fontFamily: {
+        mono: ['Courier New', 'monospace'],
+        game: ['Orbitron', 'monospace'] // For future game UI
+      },
+      
+      // Gaming-specific animations
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'glow': 'glow 2s ease-in-out infinite alternate',
+      },
+      
+      // Custom keyframes for glow effect
+      keyframes: {
+        glow: {
+          'from': {
+            'box-shadow': '0 0 5px currentColor',
+          },
+          'to': {
+            'box-shadow': '0 0 20px currentColor, 0 0 30px currentColor',
+          }
+        }
+      },
+      
+      // Gaming-specific spacing
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+      }
+    },
+  },
+  plugins: [],
+}

@@ -2,10 +2,10 @@
  * @brief Base styles and CSS resets
  * 
  * @description Foundation CSS including resets, typography,
- * and core layout styles. To be implemented in Phase A3.
+ * and core layout styles. Phase A1 minimal implementation.
  */
 
-/* CSS Custom Properties (to be implemented in Phase A2) */
+/* CSS Custom Properties - Phase A1 Basic Implementation */
 :root {
   /* Gaming Color Palette */
   --color-primary: #00ff41;        /* Matrix green */
@@ -35,10 +35,7 @@
   --color-info: #3b82f6;           /* Info blue */
 }
 
-/* CSS Reset and Base Styles will be implemented in Phase A3 */
-
-/* Modern CSS Reset */
-/*
+/* Modern CSS Reset - Phase A1 Essential */
 *,
 *::before,
 *::after {
@@ -46,7 +43,7 @@
 }
 
 html {
-  font-family: system-ui, sans-serif;
+  font-family: 'Courier New', monospace;
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
   -moz-tab-size: 4;
@@ -57,28 +54,25 @@ body {
   margin: 0;
   font-family: inherit;
   line-height: inherit;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
 }
-*/
 
-/* Base Typography */
-/*
+/* Base Typography - Phase A1 Essential */
 h1, h2, h3, h4, h5, h6 {
   font-weight: bold;
   line-height: 1.2;
+  margin: 0;
 }
 
 p {
-  margin-bottom: 1rem;
+  margin: 0 0 1rem 0;
 }
-*/
 
-/* Gaming Theme Base */
-/*
-body {
-  background-color: var(--color-background);
-  color: var(--color-text-primary);
-  font-family: 'Courier New', monospace;
+/* Focus styles for accessibility */
+*:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
-*/
 
-/* Placeholder comment - actual styles will be implemented in Phase A3 */
+/* Placeholder comment - extended styles will be implemented in Phase A3 */

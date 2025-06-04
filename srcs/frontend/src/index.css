@@ -1,0 +1,14 @@
+/**
+ * @brief Main CSS entry point for ft_transcendence frontend
+ * 
+ * @description Imports Tailwind CSS and custom styles in proper order.
+ * Phase A1 implementation with working Tailwind and basic gaming theme.
+ */
+
+/* Import Tailwind CSS - Phase A1 Essential */
+@import 'tailwindcss';
+
+/* Import custom styles in order - Phase A1 Basic Implementation */
+@import './styles/base.css';
+@import './styles/components.css';
+@import './styles/utilities.css';

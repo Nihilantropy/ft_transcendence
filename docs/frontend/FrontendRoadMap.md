@@ -15,9 +15,9 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 > **Goal**: Basic TypeScript architecture and Tailwind configuration
 
 #### A1. Project Structure Setup
-- [ ] Create directory structure (`src/components/`, `src/pages/`, `src/services/`, etc.)
-- [ ] Configure TypeScript path mapping (`@/components`, `@/utils`, etc.)
-- [ ] Set up base CSS with Tailwind imports
+- [x] Create directory structure (`src/components/`, `src/pages/`, `src/services/`, etc.)
+- [x] Configure TypeScript path mapping (`@/components`, `@/utils`, etc.)
+- [x] Set up base CSS with Tailwind imports
 
 *Reference: [TypeScript Project Structure](./docs/frontend/project-structure.md)*
 
