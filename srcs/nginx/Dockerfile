@@ -6,9 +6,7 @@ FROM nginx:1.25-alpine
 
 # Install required packages
 RUN apk update && apk add --no-cache \
-    openssl \
     curl \
-    nginx-mod-http-headers-more \
     && rm -rf /var/cache/apk/*
 
 # Create directory structure

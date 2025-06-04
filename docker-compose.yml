@@ -1,0 +1,34 @@
+services:
+  ### NGINX ###
+  nginx:
+    container_name: ft_transcendence_nginx
+    image: nginx:ft_transcendence
+    build:
+      context: ./srcs/nginx
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/.env
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - proxy
+    volumes:
+      - wp-data:/var/www/html
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+### NETWORKS ###
+networks:
+  proxy:
+    driver: bridge
+
+### VOLUMES ###
+volumes:
+  wp-data:
+    driver: local
