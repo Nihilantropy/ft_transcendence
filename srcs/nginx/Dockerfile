@@ -12,14 +12,14 @@ RUN apk update && apk add --no-cache \
 # Create directory structure
 RUN mkdir -p /etc/nginx/conf.d \
              /etc/nginx/ssl \
-             /usr/share/nginx/html/error-pages \
+             /usr/share/nginx/html/error_pages \
              /var/log/nginx \
              /var/cache/nginx
 
 # Copy nginx configuration files
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY conf.d/ /etc/nginx/conf.d/
-COPY error-pages/ /usr/share/nginx/html/error-pages/
+COPY error_pages/ /usr/share/nginx/html/error_pages/
 
 # Copy SSL certificates
 COPY ssl/ /etc/nginx/ssl/
