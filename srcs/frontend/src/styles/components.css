@@ -1,0 +1,111 @@
+/**
+ * @brief Component-specific styles
+ * 
+ * @description Tailwind component classes and custom component styles.
+ * Implements the gaming theme component library. To be implemented in Phase A2.
+ */
+
+/* Button Components (to be implemented in Phase A2) */
+/*
+.btn-base {
+  @apply 
+    px-4 py-2 rounded-md font-medium
+    transition-all duration-200
+    focus:outline-none focus:ring-2 focus:ring-offset-2
+    disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply 
+    btn-base
+    bg-primary text-black
+    hover:bg-primary-dark
+    focus:ring-primary;
+}
+
+.btn-game {
+  @apply 
+    btn-base
+    bg-transparent border-2 border-primary text-primary
+    hover:bg-primary hover:text-black
+    focus:ring-primary;
+}
+*/
+
+/* Card Components (to be implemented in Phase A2) */
+/*
+.card {
+  @apply 
+    bg-surface rounded-lg border border-border
+    shadow-lg p-6;
+}
+
+.card-game {
+  @apply 
+    card
+    border-primary/20
+    shadow-primary/10;
+}
+*/
+
+/* Form Components (to be implemented in Phase A2) */
+/*
+.input-base {
+  @apply 
+    w-full px-3 py-2 rounded-md
+    bg-surface border border-border
+    text-text-primary placeholder-text-muted
+    focus:border-primary focus:ring-1 focus:ring-primary
+    transition-colors duration-200;
+}
+
+.label-base {
+  @apply 
+    block text-sm font-medium text-text-secondary
+    mb-2;
+}
+*/
+
+/* Game-Specific Components (to be implemented in Phase G3) */
+/*
+.pong-paddle {
+  @apply 
+    w-2 h-16 bg-white rounded-sm
+    transition-transform duration-75 ease-linear;
+}
+
+.pong-ball {
+  @apply 
+    w-4 h-4 bg-yellow-400 rounded-full
+    transition-transform duration-75 ease-linear;
+}
+
+.pong-field {
+  @apply 
+    relative bg-black border-2 border-primary
+    aspect-video overflow-hidden;
+}
+
+.pong-score {
+  @apply 
+    font-mono text-4xl font-bold text-primary
+    text-center;
+}
+*/
+
+/* Navigation Components (to be implemented in Phase F3) */
+/*
+.nav-link {
+  @apply 
+    flex items-center px-3 py-2 rounded-md
+    text-text-secondary hover:text-primary
+    hover:bg-surface transition-colors;
+}
+
+.nav-link.active {
+  @apply 
+    text-primary bg-surface border-l-2 border-primary;
+}
+*/
+
+/* Placeholder comment - actual component styles will be implemented as needed */

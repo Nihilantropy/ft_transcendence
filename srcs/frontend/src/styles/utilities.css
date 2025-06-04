@@ -1,0 +1,142 @@
+/**
+ * @brief Custom utility classes
+ * 
+ * @description Custom Tailwind utilities and one-off helper classes.
+ * Extends Tailwind with project-specific utilities. To be implemented in Phase A2.
+ */
+
+/* Accessibility Utilities (to be implemented in Phase D4) */
+/*
+.sr-only {
+  @apply 
+    absolute w-px h-px p-0 -m-px 
+    overflow-hidden clip-[rect(0,0,0,0)] 
+    whitespace-nowrap border-0;
+}
+
+.skip-link {
+  @apply 
+    sr-only 
+    focus:not-sr-only focus:absolute focus:top-0 focus:left-0 
+    focus:z-50 focus:p-4 focus:bg-primary focus:text-black;
+}
+
+.focus-visible {
+  @apply 
+    focus:outline-none 
+    focus-visible:ring-4 focus-visible:ring-yellow-400 
+    focus-visible:ring-offset-2 focus-visible:ring-offset-black;
+}
+*/
+
+/* Gaming Theme Utilities (to be implemented in Phase A2) */
+/*
+.text-glow {
+  text-shadow: 0 0 10px currentColor;
+}
+
+.border-glow {
+  box-shadow: 0 0 10px currentColor;
+}
+
+.gaming-gradient {
+  background: linear-gradient(45deg, var(--color-primary), var(--color-secondary));
+}
+*/
+
+/* Layout Utilities (to be implemented in Phase E1) */
+/*
+.container-game {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.full-height {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.touch-target {
+  @apply 
+    min-h-[44px] min-w-[44px] 
+    tap-highlight-transparent;
+}
+*/
+
+/* Animation Utilities (to be implemented in Phase G3) */
+/*
+.animate-pulse-slow {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px currentColor;
+  }
+  to {
+    box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+}
+*/
+
+/* Responsive Utilities (to be implemented in Phase E1) */
+/*
+.mobile-nav {
+  @apply 
+    fixed bottom-0 left-0 right-0 bg-surface border-t border-border
+    flex justify-around py-2
+    lg:relative lg:bottom-auto lg:flex-col lg:w-64 lg:h-screen
+    lg:border-t-0 lg:border-r lg:py-4;
+}
+*/
+
+/* High Contrast Mode Support (to be implemented in Phase D4) */
+/*
+@media (prefers-contrast: high) {
+  .btn-primary {
+    @apply 
+      border-2 border-white
+      text-black bg-white
+      hover:bg-yellow-400 hover:border-yellow-400;
+  }
+  
+  .card {
+    @apply border-2 border-white;
+  }
+  
+  .pong-field {
+    @apply border-4 border-white;
+  }
+}
+*/
+
+/* Reduced Motion Support (to be implemented in Phase D4) */
+/*
+@media (prefers-reduced-motion: reduce) {
+  * {
+    @apply !transition-none !animate-none;
+  }
+  
+  .pong-ball {
+    @apply !transition-none;
+  }
+}
+*/
+
+/* Print Styles (to be implemented in Phase F1) */
+/*
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+}
+*/
+
+/* Placeholder comment - actual utility styles will be implemented as needed */

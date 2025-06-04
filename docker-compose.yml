@@ -32,8 +32,6 @@ services:
       - ./srcs/frontend/public:/app/public:rw
       # Use named volume for node_modules to avoid conflicts
       - frontend-node-modules:/app/node_modules
-    ports:
-      - "5173:5173"  # Enable for direct access during development
     networks:
       - proxy
     restart: on-failure

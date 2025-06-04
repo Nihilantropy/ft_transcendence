@@ -1,0 +1,28 @@
+{
+  "app": {
+    "title": "ft_transcendance",
+    "tagline": "L'Expérience Pong Ultime"
+  },
+  "navigation": {
+    "home": "Accueil",
+    "game": "Jeu",
+    "tournament": "Tournoi",
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "save": "Sauvegarder",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "close": "Fermer"
+  },
+  "placeholder": {
+    "note": "Ceci est un fichier temporaire. Les traductions complètes seront implémentées en Phase C2."
+  }
+}

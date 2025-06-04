@@ -13,6 +13,22 @@
     "moduleDetection": "force",
     "noEmit": true,
 
+    /* Path mapping for clean imports */
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@/components/*": ["components/*"],
+      "@/pages/*": ["pages/*"],
+      "@/services/*": ["services/*"],
+      "@/stores/*": ["stores/*"],
+      "@/types/*": ["types/*"],
+      "@/utils/*": ["utils/*"],
+      "@/router/*": ["router/*"],
+      "@/i18n/*": ["i18n/*"],
+      "@/assets/*": ["assets/*"],
+      "@/styles/*": ["styles/*"]
+    },
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

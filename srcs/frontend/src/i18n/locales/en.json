@@ -1,0 +1,28 @@
+{
+  "app": {
+    "title": "ft_transcendence",
+    "tagline": "The Ultimate Pong Experience"
+  },
+  "navigation": {
+    "home": "Home",
+    "game": "Game",
+    "tournament": "Tournament",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
+  },
+  "placeholder": {
+    "note": "This is a placeholder file. Complete translations will be implemented in Phase C2."
+  }
+}
