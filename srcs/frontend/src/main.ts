@@ -1,9 +1,8 @@
 /**
  * @brief Application entry point for ft_transcendence frontend
  * 
- * @description Main entry point that initializes the application with
- * a working placeholder page for Phase A1 testing. Fixed import issues
- * and provided proper fallbacks for missing assets.
+ * @description Main entry point that initializes the application.
+ * Phase A3 implementation with Component class demonstration.
  */
 
 // Import global styles
@@ -13,20 +12,69 @@ import './index.css'
 import viteLogo from '/vite.svg'
 import typescriptLogo from '/typescript.svg'
 
+// Phase A3: Import Component base class for testing
+import { Component } from '@/components'
+
 // Development imports (to be replaced in Phase B1)
 import { setupCounter } from './counter'
 
-// Future imports (to be added in respective phases)
-// import { router } from '@/router'              // Phase B1
-// import { i18n } from '@/i18n'                  // Phase C1
-// import { appStore } from '@/stores'            // Phase B2
+/**
+ * @brief Simple test component demonstrating Component base class
+ * 
+ * @description Shows that our Component<TProps, TState> system works correctly
+ * with type safety, state management, and lifecycle methods.
+ */
+interface TestComponentProps {
+  title: string
+  subtitle: string
+}
+
+interface TestComponentState {
+  clickCount: number
+}
+
+class TestComponent extends Component<TestComponentProps, TestComponentState> {
+  constructor(props: TestComponentProps) {
+    super(props, { clickCount: 0 })
+  }
+
+  render(): string {
+    const { title, subtitle } = this.props
+    const { clickCount } = this.state
+
+    return `
+      <div class="bg-gray-800 border-2 border-green-500 rounded-lg p-6 max-w-md mx-auto mb-8">
+        <h2 class="text-2xl font-bold text-green-500 mb-2">${title}</h2>
+        <p class="text-green-300 mb-4">${subtitle}</p>
+        <button 
+          type="button"
+          class="btn-game"
+          id="test-button"
+        >
+          Component Test (${clickCount} clicks)
+        </button>
+        <p class="text-sm text-green-500 mt-2">✅ Component base class working!</p>
+      </div>
+    `
+  }
+
+  protected afterMount(): void {
+    const button = this.element?.querySelector('#test-button')
+    if (button) {
+      this.addEventListener(button as HTMLElement, 'click', this.handleClick)
+    }
+  }
+
+  private handleClick = (): void => {
+    this.setState({ clickCount: this.state.clickCount + 1 })
+  }
+}
 
 /**
  * @brief Initialize application
  * 
  * @description Bootstrap the application with all necessary systems.
- * Currently shows a working placeholder page for Phase A1 testing.
- * Will be refactored in Phase B1 to use proper SPA architecture.
+ * Phase A3 implementation demonstrating Component base class.
  */
 async function initApp(): Promise<void> {
   const appElement = document.querySelector<HTMLDivElement>('#app')
@@ -36,7 +84,7 @@ async function initApp(): Promise<void> {
     return
   }
 
-  // Phase A1: Working placeholder page with ft_transcendence branding
+  // Phase A3: Demonstrate Component base class working
   appElement.innerHTML = `
     <div class="min-h-screen bg-gray-900 text-green-400 font-mono">
       <div class="container mx-auto px-4 py-8 text-center">
@@ -60,30 +108,44 @@ async function initApp(): Promise<void> {
           The Ultimate Pong Experience
         </p>
         
+        <!-- Component Test Container -->
+        <div id="component-test"></div>
+        
         <!-- Interactive Counter Card -->
         <div class="bg-gray-800 border-2 border-green-400 rounded-lg p-6 max-w-md mx-auto mb-8">
           <button 
             id="counter" 
             type="button"
-            class="bg-transparent border-2 border-green-400 text-green-400 px-6 py-3 rounded-md font-bold hover:bg-green-400 hover:text-black transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-400"
+            class="btn-primary"
           ></button>
         </div>
         
         <!-- Development Status -->
         <div class="text-green-300 space-y-2">
-          <p class="text-lg font-semibold">🎯 Phase A1: Project Structure Complete!</p>
-          <p class="text-base">✅ TypeScript + Tailwind CSS Setup Working</p>
-          <p class="text-base">✅ Docker Container Ready</p>
-          <p class="text-base">⏭️  Next: Phase A2 - Tailwind Configuration</p>
+          <p class="text-lg font-semibold">🎯 Phase A3: Component System Complete!</p>
+          <p class="text-base">✅ TypeScript Component&lt;TProps, TState&gt; Base Class</p>
+          <p class="text-base">✅ Lifecycle Methods (mount/unmount/setState)</p>
+          <p class="text-base">✅ Event Handling & Cleanup System</p>
+          <p class="text-base">⏭️  Next: Phase B1 - SPA Routing System</p>
         </div>
         
         <!-- Version Info -->
         <div class="mt-8 text-sm text-green-500 border-t border-green-800 pt-4">
-          <p>Frontend Development Phase A1 | Docker + Vite + TypeScript + Tailwind CSS</p>
+          <p>Frontend Development Phase A3 | Component Architecture Ready</p>
         </div>
       </div>
     </div>
   `
+
+  // Test Component base class
+  const testContainer = document.getElementById('component-test')
+  if (testContainer) {
+    const testComponent = new TestComponent({
+      title: 'Component Base Class Test',
+      subtitle: 'Demonstrating TypeScript component system'
+    })
+    testComponent.mount(testContainer)
+  }
 
   // Set up the interactive counter
   const counterButton = document.querySelector<HTMLButtonElement>('#counter')
@@ -91,14 +153,8 @@ async function initApp(): Promise<void> {
     setupCounter(counterButton)
   }
 
-  // Future initialization steps (to be implemented):
-  // 1. Initialize i18n system (Phase C1)
-  // 2. Set up router (Phase B1)  
-  // 3. Initialize state stores (Phase B2)
-  // 4. Load user preferences (Phase C1)
-  // 5. Mount root component (Phase F1)
-  
-  console.log('✅ ft_transcendence frontend initialized - Phase A1')
+  console.log('✅ ft_transcendence frontend initialized - Phase A3')
+  console.log('✅ Component base class system ready for Phase B development')
 }
 
 /**

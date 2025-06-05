@@ -29,7 +29,7 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 *Reference: [Tailwind CSS Strategy](./docs/frontend/tailwindcss.md)*
 
 #### A3. Base Component System
-- [ ] Implement `Component<TProps, TState>` base class
+- [x] Implement `Component<TProps, TState>` base class
 - [ ] Create component lifecycle methods (`mount`, `unmount`, `render`)
 - [ ] Add event handling utilities
 
