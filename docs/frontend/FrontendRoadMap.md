@@ -22,9 +22,9 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 *Reference: [TypeScript Project Structure](./docs/frontend/project-structure.md)*
 
 #### A2. Tailwind Configuration
-- [ ] Create `tailwind.config.js` with custom theme
-- [ ] Add gaming color palette (matrix green, neon accents)
-- [ ] Set up component base classes (`.btn-base`, `.card`, `.input-base`)
+- [x] Create `tailwind.config.js` with custom theme
+- [x] Add gaming color palette (matrix green, neon accents)
+- [x] Set up component base classes (`.btn-base`, `.card`, `.input-base`)
 
 *Reference: [Tailwind CSS Strategy](./docs/frontend/tailwindcss.md)*
 
