@@ -1,9 +1,9 @@
 /**
  * @brief Tailwind CSS configuration for ft_transcendence
  * 
- * @description Basic Tailwind configuration implementing the gaming theme
- * with matrix green colors and retro styling. This is the Phase A2 minimal
- * setup to get Tailwind working with custom colors.
+ * @description Implements custom gaming theme with matrix green colors,
+ * retro styling, and Pong-specific design tokens. Phase A2 Point 1 implementation
+ * following the gaming aesthetic specifications from docs/frontend/tailwindcss.md
  */
 
 /** @type {import('tailwindcss').Config} */
@@ -14,60 +14,95 @@ export default {
   ],
   theme: {
     extend: {
-      // Gaming Color Palette for ft_transcendence
+      /**
+       * @brief Gaming color palette for ft_transcendence
+       * 
+       * @description Primary colors based on retro gaming and Matrix aesthetic
+       * with specific colors for Pong game elements
+       */
       colors: {
+        // Primary Brand Colors - Matrix green theme
         primary: {
-          DEFAULT: '#00ff41',  // Matrix green
-          dark: '#00cc33',     // Darker green
-          light: '#33ff66'     // Lighter green
+          DEFAULT: '#00ff41',    // Matrix green
+          dark: '#00cc33',       // Darker green for hover states
+          light: '#33ff66'       // Lighter green for highlights
         },
-        secondary: '#ff0080',    // Neon pink
-        accent: '#00ffff',       // Cyan accent
         
-        // Game-specific colors
+        // Secondary and accent colors
+        secondary: '#ff0080',      // Neon pink for contrast
+        accent: '#00ffff',         // Cyan accent color
+        
+        // Game-specific colors for Pong elements
         game: {
-          paddle: '#ffffff',     // White paddles
-          ball: '#ffff00',       // Yellow ball
-          field: '#000000'       // Black game field
+          paddle: '#ffffff',       // White paddles
+          ball: '#ffff00',         // Yellow ball
+          field: '#000000'         // Black game field
         },
         
-        // Extended gray scale for dark theme
-        gray: {
-          850: '#1f2937',
-          950: '#0f172a'
-        }
+        // UI Colors for dark gaming theme
+        surface: '#1a1a1a',       // Card/panel background
+        border: '#333333',         // Border color
+        
+        // Text colors
+        text: {
+          primary: '#ffffff',      // Primary text
+          secondary: '#cccccc',    // Secondary text
+          muted: '#888888'         // Muted text
+        },
+        
+        // Status colors for notifications and feedback
+        success: '#22c55e',        // Success green
+        warning: '#f59e0b',        // Warning amber
+        error: '#ef4444',          // Error red
+        info: '#3b82f6'            // Info blue
       },
       
-      // Gaming typography
+      /**
+       * @brief Gaming typography system
+       * 
+       * @description Monospace fonts for retro gaming aesthetic
+       */
       fontFamily: {
         mono: ['Courier New', 'monospace'],
-        game: ['Orbitron', 'monospace'] // For future game UI
+        game: ['Orbitron', 'monospace'] // For future game UI elements
       },
       
-      // Gaming-specific animations
+      /**
+       * @brief Gaming-specific animations
+       * 
+       * @description Custom animations for retro gaming effects
+       */
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'glow': 'glow 2s ease-in-out infinite alternate',
+        'glow': 'glow 2s ease-in-out infinite alternate'
       },
       
-      // Custom keyframes for glow effect
+      /**
+       * @brief Custom keyframes for gaming effects
+       * 
+       * @description Glow animation for neon-style gaming UI
+       */
       keyframes: {
         glow: {
           'from': {
-            'box-shadow': '0 0 5px currentColor',
+            'box-shadow': '0 0 5px currentColor'
           },
           'to': {
-            'box-shadow': '0 0 20px currentColor, 0 0 30px currentColor',
+            'box-shadow': '0 0 20px currentColor, 0 0 30px currentColor'
           }
         }
       },
       
-      // Gaming-specific spacing
+      /**
+       * @brief Extended spacing for gaming layouts
+       * 
+       * @description Additional spacing values for game-specific layouts
+       */
       spacing: {
         '18': '4.5rem',
-        '88': '22rem',
+        '88': '22rem'
       }
-    },
+    }
   },
-  plugins: [],
+  plugins: []
 }
