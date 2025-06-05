@@ -4,19 +4,41 @@
  * @description Central export point for all state management stores.
  * Provides clean imports for state stores throughout the application.
  * 
- * Phase B2.1: BaseStore<T> implementation complete
+ * Phase B2.2: Complete store implementations ready for use
  */
 
 // Base Store Class - Phase B2.1 implementation
 export { BaseStore } from './BaseStore'
 export type { StateListener, UnsubscribeFunction } from './BaseStore'
 
-// Concrete Store Implementations (to be implemented in Phase B2.2)
-// export * from './app.store'
-// export * from './auth.store'
-// export * from './game.store'
-// export * from './ui.store'
+// Concrete Store Implementations - Phase B2.2 implementation
+export { AuthStore, authStore } from './auth.store'
+export { GameStore, gameStore } from './game.store'
+export { UIStore, uiStore } from './ui.store'
+export { AppStore, appStore } from './app.store'
+
+// Store State Types
+export type {
+  AuthState,
+  AuthUser,
+  GameState,
+  GameSession,
+  GamePlayer,
+  GameScore,
+  GameSettings,
+  GameMode,
+  GameStatus,
+  UIState,
+  UINotification,
+  AccessibilitySettings,
+  AppState
+} from '../types/store.types'
+
+// Testing utilities
+export { runBaseStore } from './__tests__/BaseStore.test'
+export { runStoreTests } from './__tests__/stores.test'
 
 // This allows imports like:
-// import { BaseStore, StateListener } from '@/stores'
-// import { appStore, authStore } from '@/stores' (when implemented)
+// import { BaseStore, authStore, gameStore } from '@/stores'
+// import { AuthState, GameState } from '@/stores'
+// import { runStoreTests } from '@/stores'

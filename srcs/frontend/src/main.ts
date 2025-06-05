@@ -2,7 +2,7 @@
  * @brief Application entry point for ft_transcendence frontend
  * 
  * @description Main entry point that initializes the application.
- * Phase A3 implementation with Component class demonstration.
+ * Phase A3 + B2.2 implementation with Component class and Store testing.
  */
 
 // Import global styles
@@ -18,7 +18,8 @@ import { Component } from '@/components'
 // Development imports (to be replaced in Phase B1)
 import { setupCounter } from './counter'
 
-import { demonstrateBaseStore } from '@/stores/BaseStore.test'
+// Phase B2.2: Import store tests and store instances
+import { runBaseStore, runStoreTests, authStore, gameStore, uiStore, appStore } from '@/stores'
 
 /**
  * @brief Simple test component demonstrating Component base class
@@ -76,7 +77,7 @@ class TestComponent extends Component<TestComponentProps, TestComponentState> {
  * @brief Initialize application
  * 
  * @description Bootstrap the application with all necessary systems.
- * Phase A3 implementation demonstrating Component base class.
+ * Phase A3 + B2.2 implementation demonstrating Component and Store systems.
  */
 async function initApp(): Promise<void> {
   const appElement = document.querySelector<HTMLDivElement>('#app')
@@ -86,7 +87,7 @@ async function initApp(): Promise<void> {
     return
   }
 
-  // Phase A3: Demonstrate Component base class working
+  // Phase A3 + B2.2: Demonstrate Component base class and Store system working
   appElement.innerHTML = `
     <div class="min-h-screen bg-gray-900 text-green-400 font-mono">
       <div class="container mx-auto px-4 py-8 text-center">
@@ -122,18 +123,33 @@ async function initApp(): Promise<void> {
           ></button>
         </div>
         
+        <!-- Store Test Button -->
+        <div class="bg-gray-800 border-2 border-blue-400 rounded-lg p-6 max-w-md mx-auto mb-8">
+          <button 
+            id="store-test"
+            type="button"
+            class="btn-game"
+          >
+            Run Store Tests
+          </button>
+          <p class="text-sm text-blue-400 mt-2">Click to test all store implementations</p>
+        </div>
+        
         <!-- Development Status -->
         <div class="text-green-300 space-y-2">
-          <p class="text-lg font-semibold">🎯 Phase A3: Component System Complete!</p>
-          <p class="text-base">✅ TypeScript Component&lt;TProps, TState&gt; Base Class</p>
-          <p class="text-base">✅ Lifecycle Methods (mount/unmount/setState)</p>
-          <p class="text-base">✅ Event Handling & Cleanup System</p>
+          <p class="text-lg font-semibold">🎯 Phase B2.2: Store System Complete!</p>
+          <p class="text-base">✅ BaseStore&lt;T&gt; with Subscription System</p>
+          <p class="text-base">✅ AuthStore - Authentication State Management</p>
+          <p class="text-base">✅ GameStore - Game Session State Management</p>
+          <p class="text-base">✅ UIStore - Interface State Management</p>
+          <p class="text-base">✅ AppStore - Global Application State</p>
+          <p class="text-base">✅ Basic Unit Tests for All Stores</p>
           <p class="text-base">⏭️  Next: Phase B1 - SPA Routing System</p>
         </div>
         
         <!-- Version Info -->
         <div class="mt-8 text-sm text-green-500 border-t border-green-800 pt-4">
-          <p>Frontend Development Phase A3 | Component Architecture Ready</p>
+          <p>Frontend Development Phase B2.2 | Complete State Management System</p>
         </div>
       </div>
     </div>
@@ -155,10 +171,26 @@ async function initApp(): Promise<void> {
     setupCounter(counterButton)
   }
 
-  console.log('✅ ft_transcendence frontend initialized - Phase A3')
-  console.log('✅ Component base class system ready for Phase B development')
+  // Set up store test button
+  const storeTestButton = document.querySelector<HTMLButtonElement>('#store-test')
+  if (storeTestButton) {
+    storeTestButton.addEventListener('click', () => {
+      console.log('\n🧪 Starting Store Tests...')
+      runStoreTests()
+      
+      // Show some store state examples
+      console.log('\n📊 Store State Examples:')
+      console.log('Auth Store:', authStore.getState())
+      console.log('Game Store:', gameStore.getState())
+      console.log('UI Store:', uiStore.getState())
+      console.log('App Store:', appStore.getState())
+    })
+  }
 
-  demonstrateBaseStore()
+  console.log('✅ ft_transcendence frontend initialized - Phase B2.2')
+  console.log('✅ Component base class system ready')
+  console.log('✅ Complete state management system ready')
+  console.log('📦 Available stores: AuthStore, GameStore, UIStore, AppStore')
 }
 
 /**

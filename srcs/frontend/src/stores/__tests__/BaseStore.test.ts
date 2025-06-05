@@ -148,7 +148,7 @@ class UserStore extends BaseStore<UserState> {
 }
 
 // Example usage and testing
-export function demonstrateBaseStore(): void {
+export function runBaseStore(): void {
   console.log('🧪 BaseStore<T> Demonstration Starting...')
 
   // Create store instances
