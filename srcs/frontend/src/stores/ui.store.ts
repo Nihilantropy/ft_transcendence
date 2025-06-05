@@ -1,5 +1,5 @@
 /**
- * @brief User interface store for ft_transcendence
+ * @brief User interface store for ft_transcendence (FIXED VERSION)
  * 
  * @description Manages UI state, modals, notifications, and user preferences.
  * Handles responsive design state and accessibility settings.
@@ -21,29 +21,43 @@ export class UIStore extends BaseStore<UIState> {
   private notificationCounter = 0
 
   /**
-   * @brief Initialize UI store
+   * @brief Initialize UI store (FIXED VERSION)
    * 
    * @description Creates store with responsive default state.
    * Detects initial device type and restores user preferences.
    */
   constructor() {
+    // Create initial state with static defaults first
     const initialState: UIState = {
-      isMobile: this.detectMobile(),
-      breakpoint: this.detectBreakpoint(),
+      isMobile: false, // Will be updated after super()
+      breakpoint: 'desktop', // Will be updated after super()
       sidebarOpen: false,
       activeModal: null,
       notifications: [],
-      language: this.detectLanguage(),
+      language: 'en', // Will be updated after super()
       theme: 'dark', // Gaming theme default
       accessibility: {
         highContrast: false,
-        reducedMotion: this.detectReducedMotion(),
+        reducedMotion: false, // Will be updated after super()
         screenReader: false,
         fontSize: 'medium'
       }
     }
 
+    // Call super() FIRST with static initial state
     super(initialState, 'UIStore')
+    
+    // NOW we can call methods that use 'this'
+    // Update state with dynamic detection
+    this.setState({
+      isMobile: this.detectMobile(),
+      breakpoint: this.detectBreakpoint(),
+      language: this.detectLanguage(),
+      accessibility: {
+        ...this.getState().accessibility,
+        reducedMotion: this.detectReducedMotion()
+      }
+    })
     
     // Set up responsive listeners
     this.setupResponsiveListeners()

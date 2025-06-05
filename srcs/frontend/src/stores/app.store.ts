@@ -1,5 +1,5 @@
 /**
- * @brief Global application store for ft_transcendence
+ * @brief Global application store for ft_transcendence (FIXED VERSION)
  * 
  * @description Manages top-level application state and cross-cutting concerns.
  * Handles global loading, errors, connectivity, and initialization.
@@ -20,23 +20,33 @@ export class AppStore extends BaseStore<AppState> {
   private readonly DEBUG_KEY = 'ft_transcendence_debug'
 
   /**
-   * @brief Initialize application store
+   * @brief Initialize application store (FIXED VERSION)
    * 
    * @description Creates store with default application state.
    * Sets up connectivity monitoring and debug mode detection.
    */
   constructor() {
+    // Create initial state with static defaults first
     const initialState: AppState = {
       theme: 'dark', // Gaming default
       loading: false,
       error: null,
-      isOnline: this.detectOnlineStatus(),
-      currentRoute: this.getCurrentRoute(),
+      isOnline: true, // Will be updated after super()
+      currentRoute: '/', // Will be updated after super()
       initialized: false,
-      debugMode: this.getDebugMode()
+      debugMode: false // Will be updated after super()
     }
 
+    // Call super() FIRST with static initial state
     super(initialState, 'AppStore')
+    
+    // NOW we can call methods that use 'this'
+    // Update state with dynamic detection
+    this.setState({
+      isOnline: this.detectOnlineStatus(),
+      currentRoute: this.getCurrentRoute(),
+      debugMode: this.getDebugMode()
+    })
     
     // Set up connectivity monitoring
     this.setupConnectivityListeners()
