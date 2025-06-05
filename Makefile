@@ -7,7 +7,7 @@ COMPOSE_FILE = docker-compose.yml
 PROJECT_NAME = ft_transcendence
 
 # ft_transcendence service names
-TRANSCENDENCE_SERVICES = nginx
+TRANSCENDENCE_SERVICES = nginx frontend
 
 TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 
@@ -93,7 +93,7 @@ fclean:
 	done
 	@echo "Removing ft_transcendence images..."
 	@for service in $(TRANSCENDENCE_SERVICES); do \
-		docker rmi -f $(PROJECT_NAME)-$$service 2>/dev/null || true; \
+		docker rmi -f $(PROJECT_NAME)_$$service 2>/dev/null || true; \
 		docker rmi -f $$service 2>/dev/null || true; \
 	done
 	@echo "Removing ft_transcendence volumes..."
