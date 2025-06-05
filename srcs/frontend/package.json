@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.8",
+    "@types/node": "^22.15.30",
     "tailwindcss": "^4.1.8"
   }
 }

@@ -18,6 +18,8 @@ import { Component } from '@/components'
 // Development imports (to be replaced in Phase B1)
 import { setupCounter } from './counter'
 
+import { demonstrateBaseStore } from '@/stores/BaseStore.test'
+
 /**
  * @brief Simple test component demonstrating Component base class
  * 
@@ -155,6 +157,8 @@ async function initApp(): Promise<void> {
 
   console.log('✅ ft_transcendence frontend initialized - Phase A3')
   console.log('✅ Component base class system ready for Phase B development')
+
+  demonstrateBaseStore()
 }
 
 /**
