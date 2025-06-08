@@ -55,7 +55,7 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 *Reference: [Frontend Architecture - State Management](./docs/frontend/architecture.md#state-management-system)*
 
 #### B3. Basic UI Components
-- [ ] Create `Button` component with variants
+- [x] Create `Button` component with variants
 - [ ] Implement `Modal` component
 - [ ] Add `Form` input components
 - [ ] Build `Navigation` component
