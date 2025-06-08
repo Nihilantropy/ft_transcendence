@@ -21,8 +21,8 @@ import { setupCounter } from './counter'
 // Phase B2.2: Import store tests and store instances
 import { authStore, gameStore, uiStore, appStore } from '@/stores'
 
-// Phase B1 + Testing: Import testing system (FIXED PATH)
-// import { initTestingSystem } from '../tests/test-runner'
+import { Button } from '@/components'
+import type { ButtonVariant, ButtonSize } from '@/components'
 
 /**
  * @brief Simple test component demonstrating Component base class
@@ -71,6 +71,231 @@ class TestComponent extends Component<TestComponentProps, TestComponentState> {
   private handleClick = (): void => {
     this.setState({ clickCount: this.state.clickCount + 1 })
   }
+}
+
+/**
+ * @brief Initialize Button component demonstrations
+ * 
+ * @param container - Container element to mount buttons
+ * 
+ * @description Creates multiple Button instances showcasing different variants,
+ * sizes, and states for testing and demonstration purposes.
+ */
+function initButtonDemo(container: HTMLElement): void {
+  console.log('🔘 Initializing Button component demonstrations...')
+
+  // Clear container
+  container.innerHTML = `
+    <div class="space-y-6">
+      <h3 class="text-xl font-bold text-green-400 mb-4">Button Component Demo</h3>
+      
+      <!-- Button Variants Section -->
+      <div class="bg-gray-800 border-2 border-green-500 rounded-lg p-4">
+        <h4 class="text-lg font-semibold text-green-300 mb-3">Button Variants</h4>
+        <div id="button-variants" class="flex flex-wrap gap-3"></div>
+      </div>
+      
+      <!-- Button Sizes Section -->
+      <div class="bg-gray-800 border-2 border-blue-500 rounded-lg p-4">
+        <h4 class="text-lg font-semibold text-blue-300 mb-3">Button Sizes</h4>
+        <div id="button-sizes" class="flex flex-wrap items-center gap-3"></div>
+      </div>
+      
+      <!-- Button States Section -->
+      <div class="bg-gray-800 border-2 border-purple-500 rounded-lg p-4">
+        <h4 class="text-lg font-semibold text-purple-300 mb-3">Button States</h4>
+        <div id="button-states" class="flex flex-wrap gap-3"></div>
+      </div>
+      
+      <!-- Interactive Demo Section -->
+      <div class="bg-gray-800 border-2 border-yellow-500 rounded-lg p-4">
+        <h4 class="text-lg font-semibold text-yellow-300 mb-3">Interactive Demo</h4>
+        <div id="button-interactive" class="space-y-3"></div>
+        <div id="button-feedback" class="mt-3 p-2 bg-gray-700 rounded text-green-300 text-sm min-h-[2rem]">
+          Click any button to see feedback here...
+        </div>
+      </div>
+    </div>
+  `
+
+  // Initialize different button demonstrations
+  initButtonVariants()
+  initButtonSizes()
+  initButtonStates()
+  initInteractiveDemo()
+}
+
+/**
+ * @brief Create button variant demonstrations
+ * 
+ * @description Showcases all available button variants with proper styling.
+ */
+function initButtonVariants(): void {
+  const container = document.getElementById('button-variants')
+  if (!container) return
+
+  const variants: ButtonVariant[] = ['primary', 'game', 'secondary', 'danger']
+  
+  variants.forEach(variant => {
+    const button = new Button({
+      text: `${variant.charAt(0).toUpperCase() + variant.slice(1)} Button`,
+      variant,
+      onClick: () => showFeedback(`${variant} button clicked!`)
+    })
+    
+    button.mount(container)
+  })
+}
+
+/**
+ * @brief Create button size demonstrations
+ * 
+ * @description Showcases all available button sizes using primary variant.
+ */
+function initButtonSizes(): void {
+  const container = document.getElementById('button-sizes')
+  if (!container) return
+
+  const sizes: ButtonSize[] = ['sm', 'md', 'lg']
+  
+  sizes.forEach(size => {
+    const button = new Button({
+      text: `Size ${size.toUpperCase()}`,
+      variant: 'primary',
+      size,
+      onClick: () => showFeedback(`${size} size button clicked!`)
+    })
+    
+    button.mount(container)
+  })
+}
+
+/**
+ * @brief Create button state demonstrations
+ * 
+ * @description Showcases disabled and loading button states.
+ */
+function initButtonStates(): void {
+  const container = document.getElementById('button-states')
+  if (!container) return
+
+  // Disabled button
+  const disabledButton = new Button({
+    text: 'Disabled Button',
+    variant: 'secondary',
+    disabled: true,
+    onClick: () => showFeedback('This should not be called')
+  })
+  disabledButton.mount(container)
+
+  // Loading button
+  const loadingButton = new Button({
+    text: 'Loading Button', 
+    variant: 'primary',
+    loading: true,
+    onClick: () => showFeedback('This should not be called')
+  })
+  loadingButton.mount(container)
+
+  // Normal button for comparison
+  const normalButton = new Button({
+    text: 'Normal Button',
+    variant: 'game',
+    onClick: () => showFeedback('Normal button clicked!')
+  })
+  normalButton.mount(container)
+}
+
+/**
+ * @brief Create interactive button demonstrations
+ * 
+ * @description Showcases advanced button features and real-world usage scenarios.
+ */
+function initInteractiveDemo(): void {
+  const container = document.getElementById('button-interactive')
+  if (!container) return
+
+  // Create wrapper for first row
+  const row1 = document.createElement('div')
+  row1.className = 'flex flex-wrap gap-3'
+  container.appendChild(row1)
+
+  // Action buttons
+  const actionButton = new Button({
+    text: 'Start Game',
+    variant: 'primary',
+    size: 'lg',
+    ariaLabel: 'Start a new Pong game',
+    onClick: () => showFeedback('🎮 Starting new game...', 'success')
+  })
+  actionButton.mount(row1)
+
+  const deleteButton = new Button({
+    text: 'Delete Save',
+    variant: 'danger',
+    onClick: () => showFeedback('⚠️ Save file deleted!', 'warning')
+  })
+  deleteButton.mount(row1)
+
+  // Create wrapper for second row
+  const row2 = document.createElement('div')
+  row2.className = 'flex flex-wrap gap-3 mt-3'
+  container.appendChild(row2)
+
+  // Toggle loading demo
+  let isLoading = false
+  const loadingDemoButton = new Button({
+    text: 'Toggle Loading',
+    variant: 'game',
+    onClick: () => {
+      isLoading = !isLoading
+      
+      // Create new button with updated state
+      row2.innerHTML = ''
+      const newButton = new Button({
+        text: isLoading ? 'Processing...' : 'Toggle Loading',
+        variant: 'game',
+        loading: isLoading,
+        onClick: () => {
+          setTimeout(() => {
+            isLoading = false
+            showFeedback('✅ Loading completed!')
+            initInteractiveDemo() // Refresh demo
+          }, 2000)
+        }
+      })
+      newButton.mount(row2)
+      
+      if (isLoading) {
+        showFeedback('⏳ Loading state activated (will auto-complete in 2s)', 'info')
+      }
+    }
+  })
+  loadingDemoButton.mount(row2)
+}
+
+/**
+ * @brief Show user feedback for button interactions
+ * 
+ * @param message - Feedback message to display
+ * @param type - Message type for styling
+ * 
+ * @description Updates feedback area with button interaction results.
+ */
+function showFeedback(message: string, type: 'info' | 'success' | 'warning' = 'info'): void {
+  const feedbackElement = document.getElementById('button-feedback')
+  if (!feedbackElement) return
+
+  const colors = {
+    info: 'text-blue-300',
+    success: 'text-green-300', 
+    warning: 'text-yellow-300'
+  }
+
+  feedbackElement.textContent = message
+  feedbackElement.className = `mt-3 p-2 bg-gray-700 rounded text-sm min-h-[2rem] ${colors[type]}`
+  
+  console.log(`🔘 Button feedback: ${message}`)
 }
 
 /**
@@ -195,8 +420,7 @@ async function initApp(): Promise<void> {
     })
   }
 
-  // Initialize Testing System (Phase B1 + Testing)
-  // initTestingSystem()
+  initButtonDemo(appElement)
 
   console.log('✅ ft_transcendence frontend initialized - Phase B1 + Testing')
   console.log('✅ Router class with History API ready')
