@@ -48,9 +48,9 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 *Reference: [Frontend Architecture - SPA Routing](./docs/frontend/architecture.md#spa-routing-system)*
 
 #### B2. State Management
-- [ ] Implement `BaseStore<T>` with subscription system
-- [ ] Create app-specific stores (`AuthStore`, `GameStore`, `UIStore`)
-- [ ] Add state persistence for user preferences
+- [x] Implement `BaseStore<T>` with subscription system
+- [x] Create app-specific stores (`AuthStore`, `GameStore`, `UIStore`)
+- [x] Add state persistence for user preferences
 
 *Reference: [Frontend Architecture - State Management](./docs/frontend/architecture.md#state-management-system)*
 

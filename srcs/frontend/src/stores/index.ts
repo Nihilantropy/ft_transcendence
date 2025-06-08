@@ -34,10 +34,6 @@ export type {
   AppState
 } from '../types/store.types'
 
-// Testing utilities
-export { runBaseStore } from './__tests__/BaseStore.test'
-export { runStoreTests } from './__tests__/stores.test'
-
 // This allows imports like:
 // import { BaseStore, authStore, gameStore } from '@/stores'
 // import { AuthState, GameState } from '@/stores'

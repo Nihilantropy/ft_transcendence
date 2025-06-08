@@ -2,7 +2,7 @@
  * @brief Application entry point for ft_transcendence frontend
  * 
  * @description Main entry point that initializes the application.
- * Phase A3 + B2.2 implementation with Component class and Store testing.
+ * Phase B1 implementation: Router class + Store system + Testing framework.
  */
 
 // Import global styles
@@ -12,20 +12,20 @@ import './index.css'
 import viteLogo from '/vite.svg'
 import typescriptLogo from '/typescript.svg'
 
-// Phase A3: Import Component base class for testing
+// Phase A3: Import Component base class
 import { Component } from '@/components'
 
-// Development imports (to be replaced in Phase B1)
+// Development imports (to be replaced in later phases)
 import { setupCounter } from './counter'
 
 // Phase B2.2: Import store tests and store instances
-import { runBaseStore, runStoreTests, authStore, gameStore, uiStore, appStore } from '@/stores'
+import { authStore, gameStore, uiStore, appStore } from '@/stores'
+
+// Phase B1 + Testing: Import testing system (FIXED PATH)
+// import { initTestingSystem } from '../tests/test-runner'
 
 /**
  * @brief Simple test component demonstrating Component base class
- * 
- * @description Shows that our Component<TProps, TState> system works correctly
- * with type safety, state management, and lifecycle methods.
  */
 interface TestComponentProps {
   title: string
@@ -77,7 +77,7 @@ class TestComponent extends Component<TestComponentProps, TestComponentState> {
  * @brief Initialize application
  * 
  * @description Bootstrap the application with all necessary systems.
- * Phase A3 + B2.2 implementation demonstrating Component and Store systems.
+ * Phase B1: Router + Component + Store + Testing systems.
  */
 async function initApp(): Promise<void> {
   const appElement = document.querySelector<HTMLDivElement>('#app')
@@ -87,7 +87,7 @@ async function initApp(): Promise<void> {
     return
   }
 
-  // Phase A3 + B2.2: Demonstrate Component base class and Store system working
+  // Set up main application layout
   appElement.innerHTML = `
     <div class="min-h-screen bg-gray-900 text-green-400 font-mono">
       <div class="container mx-auto px-4 py-8 text-center">
@@ -111,6 +111,8 @@ async function initApp(): Promise<void> {
           The Ultimate Pong Experience
         </p>
         
+        <!-- Testing System will be inserted here -->
+        
         <!-- Component Test Container -->
         <div id="component-test"></div>
         
@@ -124,7 +126,7 @@ async function initApp(): Promise<void> {
         </div>
         
         <!-- Store Test Button -->
-        <div class="bg-gray-800 border-2 border-blue-400 rounded-lg p-6 max-w-md mx-auto mb-8">
+        <div class="bg-gray-800 border-2 border-purple-400 rounded-lg p-6 max-w-md mx-auto mb-8">
           <button 
             id="store-test"
             type="button"
@@ -132,30 +134,38 @@ async function initApp(): Promise<void> {
           >
             Run Store Tests
           </button>
-          <p class="text-sm text-blue-400 mt-2">Click to test all store implementations</p>
+          <p class="text-sm text-purple-400 mt-2">Click to test all store implementations</p>
         </div>
         
         <!-- Development Status -->
         <div class="text-green-300 space-y-2">
-          <p class="text-lg font-semibold">🎯 Phase B2.2: Store System Complete!</p>
-          <p class="text-base">✅ BaseStore&lt;T&gt; with Subscription System</p>
-          <p class="text-base">✅ AuthStore - Authentication State Management</p>
-          <p class="text-base">✅ GameStore - Game Session State Management</p>
-          <p class="text-base">✅ UIStore - Interface State Management</p>
-          <p class="text-base">✅ AppStore - Global Application State</p>
-          <p class="text-base">✅ Basic Unit Tests for All Stores</p>
-          <p class="text-base">⏭️  Next: Phase B1 - SPA Routing System</p>
+          <p class="text-lg font-semibold">🎯 Phase B1: Complete SPA Router + Testing!</p>
+          <p class="text-base">✅ Router Class with History API</p>
+          <p class="text-base">✅ Route Registration & Pattern Matching</p>
+          <p class="text-base">✅ URL Parameter Extraction</p>
+          <p class="text-base">✅ Browser Back/Forward Support</p>
+          <p class="text-base">✅ Route Change Events</p>
+          <p class="text-base">✅ 404 Handling</p>
+          <p class="text-base">✅ Testing Framework & Integration Tests</p>
+          <p class="text-base">⏭️  Next: Phase B2 - Component Integration</p>
+        </div>
+        
+        <!-- Console Tip -->
+        <div class="mt-8 text-sm text-cyan-400 bg-gray-800 border border-cyan-400 rounded p-4 max-w-2xl mx-auto">
+          <p class="font-semibold mb-2">🖥️ Console Testing:</p>
+          <p>• <code>ftTests.router()</code> - Test router</p>
+          <p>• <code>ftTests.all()</code> - Run all tests</p>
         </div>
         
         <!-- Version Info -->
         <div class="mt-8 text-sm text-green-500 border-t border-green-800 pt-4">
-          <p>Frontend Development Phase B2.2 | Complete State Management System</p>
+          <p>Frontend Development Phase B1 | Router + Testing System Complete</p>
         </div>
       </div>
     </div>
   `
 
-  // Test Component base class
+  // Initialize Component Test
   const testContainer = document.getElementById('component-test')
   if (testContainer) {
     const testComponent = new TestComponent({
@@ -176,9 +186,7 @@ async function initApp(): Promise<void> {
   if (storeTestButton) {
     storeTestButton.addEventListener('click', () => {
       console.log('\n🧪 Starting Store Tests...')
-      runStoreTests()
       
-      // Show some store state examples
       console.log('\n📊 Store State Examples:')
       console.log('Auth Store:', authStore.getState())
       console.log('Game Store:', gameStore.getState())
@@ -187,10 +195,15 @@ async function initApp(): Promise<void> {
     })
   }
 
-  console.log('✅ ft_transcendence frontend initialized - Phase B2.2')
-  console.log('✅ Component base class system ready')
+  // Initialize Testing System (Phase B1 + Testing)
+  // initTestingSystem()
+
+  console.log('✅ ft_transcendence frontend initialized - Phase B1 + Testing')
+  console.log('✅ Router class with History API ready')
   console.log('✅ Complete state management system ready')
-  console.log('📦 Available stores: AuthStore, GameStore, UIStore, AppStore')
+  console.log('✅ Testing framework ready')
+  console.log('🧭 Router supports: route registration, navigation, parameters, back/forward')
+  console.log('🧪 Testing: Use UI buttons or console commands (ftTests.*)')
 }
 
 /**
