@@ -1,10 +1,10 @@
 /**
- * @brief Router-specific type definitions for ft_transcendence
+ * @brief Router-specific type definitions for ft_transcendence (UPDATED with Guards)
  * 
  * @description TypeScript interfaces for SPA routing system using History API.
- * Phase B1 implementation - Router class foundation types.
+ * Phase B1.4 implementation - Adding route guard support to existing router foundation.
  * 
- * FILE: src/types/router.types.ts (NEW FILE)
+ * FILE: src/types/router.types.ts (REPLACES EXISTING FILE)
  */
 
 /**
@@ -21,6 +21,86 @@ export interface RouteHandler {
 }
 
 /**
+ * @brief Route guard interface for access control
+ * 
+ * @description Defines contract for route protection logic.
+ * Guards can be synchronous or asynchronous.
+ */
+export interface RouteGuard {
+  /**
+   * @brief Check if navigation to route is allowed
+   * 
+   * @param route - Route configuration being accessed
+   * @param path - Current path being navigated to
+   * @return Boolean or Promise<boolean> indicating if access is allowed
+   */
+  canActivate(route: RouteConfig, path: string): boolean | Promise<boolean>
+  
+  /** Optional redirect path when access is denied */
+  redirect?: string
+}
+
+/**
+ * @brief Result of guard execution
+ * 
+ * @description Contains the result of guard checks and optional redirect information.
+ */
+export interface GuardResult {
+  /** Whether navigation is allowed */
+  allowed: boolean
+  
+  /** Optional redirect path if navigation is denied */
+  redirect?: string
+  
+  /** Guard that denied access (for debugging) */
+  deniedBy?: RouteGuard
+}
+
+/**
+ * @brief Route configuration interface
+ * 
+ * @description Extended route configuration with guard support.
+ */
+export interface RouteConfig {
+  /** Route URL pattern */
+  path: string
+  
+  /** Route handler function */
+  handler: RouteHandler
+  
+  /** Optional route guards for access control */
+  guards?: RouteGuard[]
+  
+  /** Shorthand for authentication requirement */
+  requiresAuth?: boolean
+  
+  /** Additional route metadata */
+  meta?: Record<string, any>
+  
+  /** Human-readable route title */
+  title?: string
+}
+
+/**
+ * @brief Route registration options
+ * 
+ * @description Options for registering routes with guard support.
+ */
+export interface RouteRegistrationOptions {
+  /** Route guards to apply */
+  guards?: RouteGuard[]
+  
+  /** Shorthand for authentication requirement */
+  requiresAuth?: boolean
+  
+  /** Additional route metadata */
+  meta?: Record<string, any>
+  
+  /** Human-readable route title */
+  title?: string
+}
+
+/**
  * @brief Router navigation options
  * 
  * @description Options for programmatic navigation using router.navigate().
@@ -34,6 +114,9 @@ export interface NavigationOptions {
   
   /** Whether to trigger route handlers (default: false) */
   silent?: boolean
+  
+  /** Skip guard execution for this navigation */
+  skipGuards?: boolean
 }
 
 /**
@@ -56,6 +139,12 @@ export interface RouteChangeEvent {
   
   /** Type of navigation that triggered the change */
   type: 'push' | 'replace' | 'pop'
+  
+  /** Whether navigation was blocked by guards */
+  blocked?: boolean
+  
+  /** Guard result if navigation was processed */
+  guardResult?: GuardResult
 }
 
 /**
@@ -81,13 +170,16 @@ export interface RouterOptions {
   
   /** Default route to redirect to on 404 (default: '/404') */
   notFoundRoute?: string
+  
+  /** Global guards to apply to all routes */
+  globalGuards?: RouteGuard[]
 }
 
 /**
- * @brief Internal route registration data
+ * @brief Internal route registration data (UPDATED)
  * 
  * @description Internal structure used by Router for route management.
- * Not exposed in public API.
+ * Enhanced with guard support.
  */
 export interface RouteRegistration {
   /** Original route pattern string */
@@ -101,12 +193,22 @@ export interface RouteRegistration {
   
   /** Parameter names extracted from pattern */
   paramNames: string[]
+  
+  /** Route guards for access control */
+  guards: RouteGuard[]
+  
+  /** Route metadata */
+  meta: Record<string, any>
+  
+  /** Route title */
+  title?: string
 }
 
 /**
- * @brief Route match result
+ * @brief Route match result (UPDATED)
  * 
  * @description Result of internal route matching operation.
+ * Enhanced with guard support.
  */
 export interface RouteMatch {
   /** Whether a route was successfully matched */
@@ -120,4 +222,32 @@ export interface RouteMatch {
   
   /** Query string parameters */
   query: Record<string, string>
+  
+  /** Route configuration for guard execution */
+  routeConfig?: RouteConfig
+}
+
+/**
+ * @brief Navigation context for guards
+ * 
+ * @description Provides context information to guards during navigation.
+ */
+export interface NavigationContext {
+  /** Source route path */
+  from: string
+  
+  /** Target route path */
+  to: string
+  
+  /** Route configuration being navigated to */
+  route: RouteConfig
+  
+  /** URL parameters */
+  params: Record<string, string>
+  
+  /** Query parameters */
+  query: Record<string, string>
+  
+  /** Navigation type */
+  type: 'push' | 'replace' | 'pop'
 }

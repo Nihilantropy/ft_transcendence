@@ -40,9 +40,9 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 ### Phase B: Core Systems (Day 2)
 
 #### B1. SPA Routing System
-- [ ] Create `Router` class using History API
-- [ ] Implement route registration and matching
-- [ ] Add browser back/forward button support
+- [x] Create `Router` class using History API
+- [x] Implement route registration and matching
+- [x] Add browser back/forward button support
 - [ ] Set up basic route guards
 
 *Reference: [Frontend Architecture - SPA Routing](./docs/frontend/architecture.md#spa-routing-system)*

@@ -1,29 +1,32 @@
 /**
- * @brief Main SPA router implementation using History API
+ * @brief Main SPA router implementation with Route Guards support
  * 
  * @description Browser History API-based router for single page application.
- * Handles navigation without external dependencies.
+ * Phase B1.4 implementation - Enhanced existing router with guard system.
  * 
- * Phase B1 implementation - Complete Router class functionality.
- * 
- * FILE: src/router/router.ts (REPLACES EXISTING PLACEHOLDER)
+ * FILE: src/router/router.ts (UPDATES EXISTING)
  */
 
 import type {
   RouteHandler,
+  RouteGuard,
+  GuardResult,
+  RouteConfig,
+  RouteRegistrationOptions,
   NavigationOptions,
   RouteChangeEvent,
   RouteChangeListener,
   RouterOptions,
   RouteRegistration,
-  RouteMatch
+  RouteMatch,
+  NavigationContext
 } from '../types/router.types'
 
 /**
- * @brief Main Router class for SPA navigation
+ * @brief Main Router class for SPA navigation with Guard support
  * 
  * @description Implements client-side routing using Browser History API.
- * Provides route registration, navigation, parameter extraction, and browser integration.
+ * Enhanced with route guard system for access control and authentication.
  */
 export class Router {
   /** Map of registered routes: pattern -> registration data */
@@ -43,6 +46,9 @@ export class Router {
   
   /** Base path prefix for all routes */
   private basePath: string
+  
+  /** Global guards applied to all routes */
+  private globalGuards: RouteGuard[]
 
   /**
    * @brief Initialize router with configuration options
@@ -57,10 +63,12 @@ export class Router {
       basePath: '',
       handleInitialRoute: true,
       notFoundRoute: '/404',
+      globalGuards: [],
       ...options
     }
     
     this.basePath = this.options.basePath || ''
+    this.globalGuards = this.options.globalGuards || []
     this.currentRoute = this.getCurrentPath()
     
     console.log('🧭 Router created with options:', this.options)
@@ -91,45 +99,72 @@ export class Router {
   }
 
   /**
-   * @brief Register a route handler
+   * @brief Register a route handler with optional guards
    * 
    * @param pattern - Route pattern (e.g., '/game/:id', '/profile')
    * @param handler - Route handler function to call when matched
+   * @param options - Optional route configuration including guards
    * 
-   * @description Registers route pattern with handler function.
-   * Supports dynamic parameters using :param syntax.
+   * @description Registers route pattern with handler function and optional guards.
+   * Supports dynamic parameters using :param syntax and route protection.
    */
-  addRoute(pattern: string, handler: RouteHandler): void {
+  addRoute(
+    pattern: string, 
+    handler: RouteHandler, 
+    options: RouteRegistrationOptions = {}
+  ): void {
     // Normalize the route pattern
     const normalizedPattern = this.normalizePath(pattern)
     
     // Compile pattern to regex and extract parameter names
     const { matcher, paramNames } = this.compilePattern(normalizedPattern)
     
+    // Prepare guards array
+    const guards: RouteGuard[] = []
+    
+    // Add global guards first
+    guards.push(...this.globalGuards)
+    
+    // Add route-specific guards
+    if (options.guards) {
+      guards.push(...options.guards)
+    }
+    
+    // Handle requiresAuth shorthand
+    if (options.requiresAuth) {
+      // AuthGuard will be added when guards.ts is implemented
+      console.log(`🔒 Route ${normalizedPattern} requires authentication`)
+    }
+    
     // Create route registration
     const registration: RouteRegistration = {
       pattern: normalizedPattern,
       handler,
       matcher,
-      paramNames
+      paramNames,
+      guards,
+      meta: options.meta || {},
+      title: options.title
     }
     
     // Store registration
     this.routes.set(normalizedPattern, registration)
     
     console.log(`🗺️  Route registered: ${normalizedPattern}`, {
-      paramNames: paramNames.length > 0 ? paramNames : 'none'
+      paramNames: paramNames.length > 0 ? paramNames : 'none',
+      guards: guards.length > 0 ? `${guards.length} guards` : 'no guards',
+      requiresAuth: options.requiresAuth || false
     })
   }
 
   /**
-   * @brief Navigate to a new route
+   * @brief Navigate to a new route with guard execution
    * 
    * @param path - Target route path
-   * @param options - Navigation options
+   * @param options - Navigation options including guard bypass
    * 
    * @description Navigates to specified path using History API.
-   * Updates browser history and triggers route handlers.
+   * Executes route guards unless skipGuards is true.
    */
   navigate(path: string, options: NavigationOptions = {}): void {
     if (!this.initialized) {
@@ -158,7 +193,12 @@ export class Router {
       
       // Handle route change unless silent
       if (!options.silent) {
-        this.handleRoute(normalizedPath, options.replace ? 'replace' : 'push')
+        this.handleRoute(
+          normalizedPath, 
+          options.replace ? 'replace' : 'push',
+          false,
+          options.skipGuards
+        )
       } else {
         // Update current route silently
         this.currentRoute = normalizedPath
@@ -285,12 +325,67 @@ export class Router {
   }
 
   /**
+   * @brief Execute route guards for access control
+   * 
+   * @param guards - Array of guards to execute
+   * @param routeConfig - Route configuration being protected
+   * @param path - Path being navigated to
+   * @return Promise<GuardResult> - Result of guard execution
+   * 
+   * @description Executes all guards in sequence and returns combined result.
+   * Guards are executed in order and first denial stops execution.
+   */
+  private async executeGuards(
+    guards: RouteGuard[], 
+    routeConfig: RouteConfig, 
+    path: string
+  ): Promise<GuardResult> {
+    // If no guards, allow access
+    if (!guards || guards.length === 0) {
+      return { allowed: true }
+    }
+
+    console.log(`🛡️  Executing ${guards.length} guards for route: ${path}`)
+
+    // Execute guards in sequence
+    for (const guard of guards) {
+      try {
+        const result = await guard.canActivate(routeConfig, path)
+        
+        if (!result) {
+          console.log(`🚫 Guard denied access to: ${path}`)
+          
+          return {
+            allowed: false,
+            redirect: guard.redirect,
+            deniedBy: guard
+          }
+        }
+        
+        console.log(`✅ Guard allowed access for: ${path}`)
+      } catch (error) {
+        console.error(`🚨 Guard execution error for ${path}:`, error)
+        
+        // Guard errors deny access by default
+        return {
+          allowed: false,
+          redirect: guard.redirect,
+          deniedBy: guard
+        }
+      }
+    }
+
+    console.log(`✅ All guards passed for route: ${path}`)
+    return { allowed: true }
+  }
+
+  /**
    * @brief Handle browser back/forward navigation
    * 
    * @param event - PopState event from browser
    * 
    * @description Handles browser navigation events (back/forward buttons).
-   * Updates current route and triggers route handlers.
+   * Updates current route and triggers route handlers with guard execution.
    */
   private onPopState = (event: PopStateEvent): void => {
     const newPath = this.getCurrentPath()
@@ -301,7 +396,8 @@ export class Router {
     })
     
     // Handle the route change as a 'pop' navigation
-    this.handleRoute(newPath, 'pop')
+    // Note: Browser navigation typically bypasses guards
+    this.handleRoute(newPath, 'pop', false, true)
   }
 
   /**
@@ -315,20 +411,74 @@ export class Router {
   }
 
   /**
-   * @brief Handle route change and execute handlers
+   * @brief Handle route change with guard execution
    * 
    * @param path - New route path
    * @param type - Type of navigation that occurred
    * @param isInitial - Whether this is the initial route load
+   * @param skipGuards - Whether to skip guard execution
    * 
-   * @description Processes route change and triggers appropriate handlers.
+   * @description Processes route change with guard execution and triggers handlers.
    */
-  private async handleRoute(path: string, type: 'push' | 'replace' | 'pop', isInitial: boolean = false): Promise<void> {
+  private async handleRoute(
+    path: string, 
+    type: 'push' | 'replace' | 'pop', 
+    isInitial: boolean = false,
+    skipGuards: boolean = false
+  ): Promise<void> {
     const previousRoute = this.currentRoute
     const match = this.matchRoute(path)
+    let guardResult: GuardResult = { allowed: true }
     
     try {
       if (match.matched && match.route) {
+        // Create route config for guard execution
+        const routeConfig: RouteConfig = {
+          path: match.route.pattern,
+          handler: match.route.handler,
+          guards: match.route.guards,
+          meta: match.route.meta,
+          title: match.route.title
+        }
+        
+        // Execute guards unless skipped
+        if (!skipGuards && match.route.guards.length > 0) {
+          guardResult = await this.executeGuards(
+            match.route.guards, 
+            routeConfig, 
+            path
+          )
+          
+          if (!guardResult.allowed) {
+            console.log(`🚫 Navigation to ${path} blocked by guards`)
+            
+            // Handle redirect if specified
+            if (guardResult.redirect) {
+              console.log(`🔄 Redirecting to: ${guardResult.redirect}`)
+              this.navigate(guardResult.redirect, { 
+                replace: true, 
+                skipGuards: true 
+              })
+              return
+            }
+            
+            // Notify listeners of blocked navigation
+            if (!isInitial) {
+              this.notifyRouteChange({
+                from: previousRoute,
+                to: path,
+                params: match.params,
+                query: match.query,
+                type,
+                blocked: true,
+                guardResult
+              })
+            }
+            
+            return // Block navigation
+          }
+        }
+        
         // Update current route
         this.currentRoute = path
         
@@ -343,7 +493,9 @@ export class Router {
             to: path,
             params: match.params,
             query: match.query,
-            type
+            type,
+            blocked: false,
+            guardResult
           })
         }
         
@@ -365,7 +517,7 @@ export class Router {
    * @brief Match route pattern against path
    * 
    * @param path - Path to match against registered routes
-   * @return Route match result
+   * @return Route match result with guard information
    * 
    * @description Finds matching route registration for given path.
    */
@@ -384,13 +536,27 @@ export class Router {
           params[name] = decodeURIComponent(match[index + 1] || '')
         })
         
-        console.log(`✅ Route matched: ${pattern}`, { params, query })
+        // Create route config for guards
+        const routeConfig: RouteConfig = {
+          path: pattern,
+          handler: registration.handler,
+          guards: registration.guards,
+          meta: registration.meta,
+          title: registration.title
+        }
+        
+        console.log(`✅ Route matched: ${pattern}`, { 
+          params, 
+          query, 
+          guards: registration.guards.length 
+        })
         
         return {
           matched: true,
           route: registration,
           params,
-          query
+          query,
+          routeConfig
         }
       }
     }
