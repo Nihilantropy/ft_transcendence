@@ -58,7 +58,7 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 - [x] Create `Button` component with variants
 - [x] Implement `Modal` component
 - [x] Add `Form` input components
-- [ ] Build `Navigation` component
+- [x] Build `Navigation` component
 
 *Reference: [TypeScript Project Structure - Components](./docs/frontend/project-structure.md#component-architecture)*
 
@@ -76,7 +76,8 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 #### C2. Language Support
 - [ ] Complete English translations (base language)
 - [ ] Add French translations
-- [ ] Add Spanish and Italian translations
+- [ ] Add Spanish 
+- [ ] Add Italian translations
 - [ ] Implement locale detection and persistence
 
 #### C3. Component Integration

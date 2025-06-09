@@ -461,6 +461,8 @@ function setupNavigationActions(container: HTMLElement): void {
       }
     })
   })
+}
+/*
  * 
  * @param container - Container element to mount form demo
  * 
