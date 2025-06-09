@@ -3,12 +3,18 @@
  * 
  * @description Barrel export for reusable UI components.
  * Includes buttons, modals, forms, and other interface elements.
+ * 
+ * Phase B3 implementation - Basic UI Components
  */
 
-// UI Components (to be implemented in Phase B3)
+// UI Components - Phase B3 implementations
 export { Button } from './Button'
 export type { ButtonVariant, ButtonSize } from './Button'
-// export { Modal } from './Modal'
+
+export { Modal } from './Modal'
+export type { ModalSize } from './Modal'
+
+// Future UI Components (to be implemented in remaining Phase B3)
 // export { Input } from './Input'
 // export { Card } from './Card'
 // export { Navigation } from './Navigation'

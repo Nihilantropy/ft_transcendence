@@ -56,7 +56,7 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 
 #### B3. Basic UI Components
 - [x] Create `Button` component with variants
-- [ ] Implement `Modal` component
+- [x] Implement `Modal` component
 - [ ] Add `Form` input components
 - [ ] Build `Navigation` component
 
