@@ -2,7 +2,7 @@
  * @brief Generic UI components library
  * 
  * @description Barrel export for reusable UI components.
- * Includes buttons, modals, forms, and other interface elements.
+ * Includes buttons, modals, forms, and navigation elements.
  * 
  * Phase B3 implementation - Basic UI Components
  */
@@ -19,9 +19,11 @@ export type { InputType, ValidationState } from './Input'
 
 export { Label } from './Label'
 
+export { Navigation } from './Navigation'
+export type { NavigationLayout, NavigationItem } from './Navigation'
+
 // Future UI Components (to be implemented in remaining Phase B3)
 // export { Card } from './Card'
-// export { Navigation } from './Navigation'
 
 // i18n Components (to be implemented in Phase C3)
 // export { LanguageSwitcher } from './LanguageSwitcher'
