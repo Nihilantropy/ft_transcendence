@@ -234,10 +234,10 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 ## 🔄 Daily Progress Tracking
 
 ### Day 1: Foundation
-- [ ] Phase A complete
+- [x] Phase A complete
 
 ### Day 2: Core Systems + i18n Start
-- [ ] Phase B complete
+- [x] Phase B complete
 - [ ] Phase C1-C2 complete
 
 ### Day 3: i18n + Accessibility
