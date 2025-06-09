@@ -14,8 +14,12 @@ export type { ButtonVariant, ButtonSize } from './Button'
 export { Modal } from './Modal'
 export type { ModalSize } from './Modal'
 
+export { Input } from './Input'
+export type { InputType, ValidationState } from './Input'
+
+export { Label } from './Label'
+
 // Future UI Components (to be implemented in remaining Phase B3)
-// export { Input } from './Input'
 // export { Card } from './Card'
 // export { Navigation } from './Navigation'
 

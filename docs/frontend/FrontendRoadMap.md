@@ -57,7 +57,7 @@ Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 
 #### B3. Basic UI Components
 - [x] Create `Button` component with variants
 - [x] Implement `Modal` component
-- [ ] Add `Form` input components
+- [x] Add `Form` input components
 - [ ] Build `Navigation` component
 
 *Reference: [TypeScript Project Structure - Components](./docs/frontend/project-structure.md#component-architecture)*
