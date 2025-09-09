@@ -8,7 +8,406 @@
 /* Import Tailwind CSS - Phase A1 Essential */
 @import 'tailwindcss';
 
-/* Import custom styles in order - Phase A1 Basic Implementation */
-@import './styles/base.css';
-@import './styles/components.css';
-@import './styles/utilities.css';
+/**
+ * @brief Complete gaming color palette for ft_transcendence
+ * 
+ * @description Comprehensive CSS custom properties implementing the full
+ * gaming aesthetic with matrix green theme, neon accents, and Pong-specific colors.
+ * Phase A2 Point 2 complete implementation.
+ */
+:root {
+  /* Primary Brand Colors - Matrix Theme */
+  --color-primary: #00ff41;        /* Matrix green - main brand color */
+  --color-primary-dark: #00cc33;   /* Darker green - hover states, emphasis */
+  --color-primary-light: #33ff66;  /* Lighter green - highlights, active states */
+  --color-secondary: #ff0080;      /* Neon pink - contrast, accents */
+  --color-accent: #00ffff;         /* Cyan accent - special highlights */
+  
+  /* Game Colors - Pong Specific */
+  --color-paddle: #ffffff;         /* White paddles - high contrast on dark field */
+  --color-ball: #ffff00;           /* Yellow ball - visible, energetic */
+  --color-field: #000000;          /* Black game field - classic Pong aesthetic */
+  --color-field-border: var(--color-primary); /* Green border for game area */
+  
+  /* UI Colors - Dark Gaming Theme */
+  --color-background: #0a0a0a;     /* Very dark background - deep space feel */
+  --color-surface: #1a1a1a;        /* Card/panel background - slightly lighter */
+  --color-surface-hover: #2a2a2a;  /* Hover state for interactive surfaces */
+  --color-border: #333333;         /* Default border color */
+  --color-border-light: #555555;   /* Lighter border for emphasis */
+  --color-border-dark: #1a1a1a;    /* Darker border for subtle divisions */
+  
+  /* Text Colors - Hierarchy */
+  --color-text-primary: #ffffff;   /* Primary text - maximum readability */
+  --color-text-secondary: #cccccc; /* Secondary text - less emphasis */
+  --color-text-muted: #888888;     /* Muted text - hints, labels */
+  --color-text-inverse: #000000;   /* Inverse text - on light backgrounds */
+  
+  /* Status Colors - Feedback System */
+  --color-success: #22c55e;        /* Success green - positive actions */
+  --color-success-dark: #16a34a;   /* Darker success for hover states */
+  --color-warning: #f59e0b;        /* Warning amber - caution states */
+  --color-warning-dark: #d97706;   /* Darker warning for emphasis */
+  --color-error: #ef4444;          /* Error red - negative actions */
+  --color-error-dark: #dc2626;     /* Darker error for emphasis */
+  --color-info: #3b82f6;           /* Info blue - informational states */
+  --color-info-dark: #2563eb;      /* Darker info for emphasis */
+  
+  /* Gaming Effects Colors */
+  --color-glow-primary: rgba(0, 255, 65, 0.3);   /* Primary glow effect */
+  --color-glow-secondary: rgba(255, 0, 128, 0.3); /* Secondary glow effect */
+  --color-glow-accent: rgba(0, 255, 255, 0.3);    /* Accent glow effect */
+  
+  /* Transparency Variations */
+  --color-overlay-light: rgba(255, 255, 255, 0.1); /* Light overlay */
+  --color-overlay-dark: rgba(0, 0, 0, 0.5);        /* Dark overlay */
+  --color-backdrop: rgba(0, 0, 0, 0.8);            /* Modal backdrop */
+}
+
+/**
+ * @brief Component-specific styles for ft_transcendence
+ * 
+ * @description Tailwind component classes implementing the gaming theme.
+ * Phase A2 Point 3 - Using standard Tailwind colors for compatibility.
+ */
+
+@layer components {
+  /* =============================================================================
+     BUTTON COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Primary button using green theme
+   * 
+   * @description Main action button with green background,
+   * black text for contrast, and proper hover states.
+   */
+  .btn-primary {
+    @apply 
+      px-4 py-2 rounded-md font-medium font-bold
+      transition-all duration-200
+      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black
+      disabled:opacity-50 disabled:cursor-not-allowed
+      select-none cursor-pointer
+      inline-flex items-center justify-center
+      bg-green-500 text-black
+      hover:bg-green-600
+      focus:ring-green-500
+      shadow-lg;
+  }
+
+  /**
+   * @brief Gaming-style button with border effects
+   * 
+   * @description Retro gaming button with transparent background,
+   * green border, and neon-style hover effects.
+   */
+  .btn-game {
+    @apply 
+      px-4 py-2 rounded-md font-medium
+      transition-all duration-200
+      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black
+      disabled:opacity-50 disabled:cursor-not-allowed
+      select-none cursor-pointer
+      inline-flex items-center justify-center
+      bg-transparent border-2 border-green-500 text-green-500
+      hover:bg-green-500 hover:text-black hover:shadow-lg
+      focus:ring-green-500;
+  }
+
+  /**
+   * @brief Secondary button variant
+   * 
+   * @description Subtle button for secondary actions using gray colors.
+   */
+  .btn-secondary {
+    @apply 
+      px-4 py-2 rounded-md font-medium
+      transition-all duration-200
+      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black
+      disabled:opacity-50 disabled:cursor-not-allowed
+      select-none cursor-pointer
+      inline-flex items-center justify-center
+      bg-gray-800 text-white border border-gray-600
+      hover:bg-gray-700 hover:border-gray-500
+      focus:ring-gray-500;
+  }
+
+  /* =============================================================================
+     CARD COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Base card component
+   * 
+   * @description Foundation card styling with gray background,
+   * subtle borders, and consistent spacing.
+   */
+  .card {
+    @apply 
+      bg-gray-800 rounded-lg border border-gray-700
+      shadow-lg p-6
+      transition-all duration-200;
+  }
+
+  /**
+   * @brief Gaming-themed card with accent styling
+   * 
+   * @description Enhanced card with green color accents and glow effects
+   * for important gaming-related content.
+   */
+  .card-game {
+    @apply 
+      bg-gray-800 rounded-lg border border-green-500
+      shadow-xl p-6
+      transition-all duration-200
+      hover:shadow-2xl;
+  }
+
+  /**
+   * @brief Compact card variant
+   * 
+   * @description Smaller card for tight layouts and secondary content.
+   */
+  .card-compact {
+    @apply 
+      bg-gray-800 rounded-lg border border-gray-700
+      shadow-md p-4
+      transition-all duration-200;
+  }
+
+  /* =============================================================================
+     FORM COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Base input field component
+   * 
+   * @description Foundation input styling with gaming theme colors,
+   * focus states, and accessibility features.
+   */
+  .input-base {
+    @apply 
+      w-full px-3 py-2 rounded-md
+      bg-gray-800 border border-gray-600
+      text-white placeholder-gray-400
+      focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none
+      transition-colors duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /**
+   * @brief Base label component
+   * 
+   * @description Consistent label styling for form fields with proper
+   * typography hierarchy and spacing.
+   */
+  .label-base {
+    @apply 
+      block text-sm font-medium text-gray-300
+      mb-2;
+  }
+
+  /**
+   * @brief Error state for input fields
+   * 
+   * @description Error styling for form validation feedback.
+   */
+  .input-error {
+    @apply 
+      w-full px-3 py-2 rounded-md
+      bg-gray-800 border border-red-500
+      text-white placeholder-gray-400
+      focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none
+      transition-colors duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /**
+   * @brief Success state for input fields
+   * 
+   * @description Success styling for positive form validation feedback.
+   */
+  .input-success {
+    @apply 
+      w-full px-3 py-2 rounded-md
+      bg-gray-800 border border-green-500
+      text-white placeholder-gray-400
+      focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none
+      transition-colors duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* =============================================================================
+     NAVIGATION COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Navigation link component
+   * 
+   * @description Base styling for navigation links with hover effects
+   * and active states.
+   */
+  .nav-link {
+    @apply 
+      flex items-center px-3 py-2 rounded-md
+      text-gray-400 hover:text-green-500
+      hover:bg-gray-800 transition-colors duration-200
+      focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-black;
+  }
+
+  /**
+   * @brief Active navigation link state
+   * 
+   * @description Styling for currently active navigation items.
+   */
+  .nav-link.active {
+    @apply 
+      text-green-500 bg-gray-800 border-l-2 border-green-500;
+  }
+
+  /* =============================================================================
+     GAMING UI COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Gaming-style glow effect utility
+   * 
+   * @description Adds neon glow effect to gaming UI elements.
+   */
+  .glow-primary {
+    @apply 
+      shadow-lg;
+  }
+
+  /**
+   * @brief Text with glow effect
+   * 
+   * @description Text styling with subtle glow for gaming aesthetic.
+   */
+  .text-glow {
+    text-shadow: 0 0 10px currentColor;
+  }
+
+  /**
+   * @brief Gaming score display
+   * 
+   * @description Large, prominent text for game scores with monospace font.
+   */
+  .score-display {
+    @apply 
+      font-mono text-4xl font-bold text-green-500
+      text-center;
+  }
+
+/* =============================================================================
+     MODAL COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Modal portal container
+   * 
+   * @description Container for modal portals with proper z-index stacking.
+   */
+  .modal-portal {
+    @apply 
+      relative z-50;
+  }
+
+  /**
+   * @brief Modal overlay backdrop
+   * 
+   * @description Semi-transparent backdrop with smooth transitions.
+   */
+  .modal-overlay {
+    @apply 
+      fixed inset-0 z-50 flex items-center justify-center p-4
+      bg-black bg-black/75
+      transition-opacity duration-200;
+  }
+
+  /**
+   * @brief Modal content container
+   * 
+   * @description Main modal content area with gaming theme styling.
+   */
+  .modal-content {
+    @apply 
+      bg-gray-800 border-2 border-green-500 rounded-lg shadow-2xl
+      relative w-full max-h-full overflow-hidden
+      transform transition-all duration-200;
+  }
+
+  /**
+   * @brief Modal size variants
+   * 
+   * @description Different modal sizes for various content types.
+   */
+  .modal-sm {
+    @apply max-w-sm;
+  }
+
+  .modal-md {
+    @apply max-w-lg;
+  }
+
+  .modal-lg {
+    @apply max-w-4xl;
+  }
+
+  /**
+   * @brief Modal animation states
+   * 
+   * @description Enter and exit animations for smooth UX.
+   */
+  .modal-enter {
+    @apply opacity-0 scale-95;
+  }
+
+  .modal-enter-active {
+    @apply opacity-100 scale-100;
+  }
+
+  .modal-exit {
+    @apply opacity-100 scale-100;
+  }
+
+  .modal-exit-active {
+    @apply opacity-0 scale-95;
+  }
+
+  /* =============================================================================
+     GAMING UI COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Gaming-style glow effect utility
+   * 
+   * @description Adds neon glow effect to gaming UI elements.
+   */
+  .glow-primary {
+    @apply 
+      shadow-lg;
+  }
+
+  /**
+   * @brief Text with glow effect
+   * 
+   * @description Text styling with subtle glow for gaming aesthetic.
+   */
+  .text-glow {
+    text-shadow: 0 0 10px currentColor;
+  }
+
+  /**
+   * @brief Gaming score display
+   * 
+   * @description Large, prominent text for game scores with monospace font.
+   */
+  .score-display {
+    @apply 
+      font-mono text-4xl font-bold text-green-500
+      text-center;
+  }
+
+}

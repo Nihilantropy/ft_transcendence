@@ -21,9 +21,7 @@ export default defineConfig({
       '@/services': resolve(__dirname, './src/services'),
       '@/stores': resolve(__dirname, './src/stores'),
       '@/types': resolve(__dirname, './src/types'),
-      '@/utils': resolve(__dirname, './src/utils'),
       '@/router': resolve(__dirname, './src/router'),
-      '@/i18n': resolve(__dirname, './src/i18n'),
       '@/assets': resolve(__dirname, './src/assets'),
       '@/styles': resolve(__dirname, './src/styles')
     }

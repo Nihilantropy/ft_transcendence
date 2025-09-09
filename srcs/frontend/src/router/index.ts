@@ -1,54 +1,28 @@
 /**
- * @brief Main router barrel export with Route Guards support
+ * @brief Simplified router barrel export
  * 
- * @description Central export point for routing system including guards.
- * Phase B1.4 implementation - Complete router with guard system.
+ * @description Central export point for simplified routing system.
+ * Removed complex guard exports for roadmap compliance.
  * 
- * FILE: src/router/index.ts (UPDATES EXISTING)
+ * FILE: src/router/index.ts (SIMPLIFIED)
  */
 
 // Export Router class and singleton instance
 export { Router, router } from './router'
 
-// Export all guard classes and instances
-export {
-  AuthGuard,
-  GuestGuard,
-  GameSessionGuard,
-  AdminGuard,
-  authGuard,
-  guestGuard,
-  gameSessionGuard,
-  adminGuard,
-  createAuthGuard,
-  createGuestGuard,
-  createGameSessionGuard,
-  createAdminGuard,
-  requireAuth,
-  guestOnly,
-  requireGameSession,
-  requireAdmin
-} from './guards'
-
-// Export router types for external use
+// Export simplified router types
 export type {
   RouteHandler,
-  RouteGuard,
-  GuardResult,
   RouteConfig,
-  RouteRegistrationOptions,
   NavigationOptions,
   RouteChangeEvent,
   RouteChangeListener,
-  RouterOptions,
-  RouteRegistration,
-  RouteMatch,
-  NavigationContext
+  RouterOptions
 } from '../types/router.types'
 
-// Route definitions (still placeholders for future phases)
-export * from './routes'
+// Route configuration function
+export { configureRoutes } from './routes'
 
-// This allows imports like:
-// import { Router, router, authGuard, requireAuth } from '@/router'
-// import type { RouteHandler, RouteGuard } from '@/router'
+// Usage examples:
+// import { Router, router, configureRoutes } from '@/router'
+// import type { RouteHandler, RouteConfig } from '@/router'

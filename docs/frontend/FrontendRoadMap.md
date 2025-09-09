@@ -1,264 +1,136 @@
-# Frontend Development Roadmap
+# Frontend Development Roadmap - Simplified
 
 ## 🎯 Overview
-Simple step-by-step guide for developing the ft_transcendence frontend (Phase 2 from main RoadMap.md).
+Streamlined frontend development for ft_transcendence focusing on **mandatory requirements only**.
 
-**Reference Documents**: See `/docs/frontend/` for detailed specifications.
-
-**Goal**: TypeScript SPA with Tailwind CSS covering 5 minor modules.
-
----
-
-## 📋 Development Phases
-
-### Phase A: Foundation Setup (Day 1)
-> **Goal**: Basic TypeScript architecture and Tailwind configuration
-
-#### A1. Project Structure Setup
-- [x] Create directory structure (`src/components/`, `src/pages/`, `src/services/`, etc.)
-- [x] Configure TypeScript path mapping (`@/components`, `@/utils`, etc.)
-- [x] Set up base CSS with Tailwind imports
-
-*Reference: [TypeScript Project Structure](./docs/frontend/project-structure.md)*
-
-#### A2. Tailwind Configuration
-- [x] Create `tailwind.config.js` with custom theme
-- [x] Add gaming color palette (matrix green, neon accents)
-- [x] Set up component base classes (`.btn-base`, `.card`, `.input-base`)
-
-*Reference: [Tailwind CSS Strategy](./docs/frontend/tailwindcss.md)*
-
-#### A3. Base Component System
-- [x] Implement `Component<TProps, TState>` base class
-- [x] Create component lifecycle methods (`mount`, `unmount`, `render`)
-- [x] Add event handling utilities
-
-*Reference: [Frontend Architecture](./docs/frontend/architecture.md)*
+**Technology Stack**: TypeScript + Tailwind CSS + Vite
+**Goal**: Clean, functional SPA for the Pong game with essential features only.
 
 ---
 
-### Phase B: Core Systems (Day 2)
+## 📋 Simplified Development Phases
 
-#### B1. SPA Routing System
-- [x] Create `Router` class using History API
-- [x] Implement route registration and matching
-- [x] Add browser back/forward button support
-- [x] Set up basic route guards
+### Phase 1: Foundation & Setup (Day 1)
+**Goal**: Basic TypeScript + Tailwind setup
 
-*Reference: [Frontend Architecture - SPA Routing](./docs/frontend/architecture.md#spa-routing-system)*
+#### 1.1. Project Structure
+- [x] Create basic directory structure (`src/components/`, `src/pages/`, `src/services/`)
+- [x] Configure TypeScript with path mapping
+- [x] Set up Vite build configuration
 
-#### B2. State Management
-- [x] Implement `BaseStore<T>` with subscription system
-- [x] Create app-specific stores (`AuthStore`, `GameStore`, `UIStore`)
-- [x] Add state persistence for user preferences
+#### 1.2. Tailwind Configuration
+- [x] Basic Tailwind setup with gaming theme
+- [x] Custom color palette (matrix green, neon accents)
+- [x] Essential utility classes
 
-*Reference: [Frontend Architecture - State Management](./docs/frontend/architecture.md#state-management-system)*
-
-#### B3. Basic UI Components
-- [x] Create `Button` component with variants
-- [x] Implement `Modal` component
-- [x] Add `Form` input components
-- [x] Build `Navigation` component
-
-*Reference: [TypeScript Project Structure - Components](./docs/frontend/project-structure.md#component-architecture)*
+#### 1.3. Base Component System
+- [x] Create `Component<TProps, TState>` base class
+- [x] Basic lifecycle methods
+- [x] Event handling utilities
 
 ---
 
-### Phase C: Internationalization (Day 2-3)
+### Phase 2: Core Systems (Day 2)
+**Goal**: Essential app functionality
 
-#### C1. i18n Core System
-- [ ] Implement `I18n` class with translation loading
-- [ ] Create translation file structure (`/locales/en.json`, `/locales/fr.json`)
-- [ ] Add parameter interpolation (`{{player}}` syntax)
+#### 2.1. SPA Routing
+- [x] Implement `Router` class using History API
+- [x] Route registration and navigation
+- [x] route guards **SIMPLIFIED**: Simple auth check only
 
-*Reference: [i18n Implementation Plan](./docs/frontend/i18n.md)*
+#### 2.2. State Management
+- [x] `BaseStore<T>` with subscription system
+- [x] `AuthStore`, `GameStore`, `UIStore`
+- [x] Local storage persistence
 
-#### C2. Language Support
-- [ ] Complete English translations (base language)
-- [ ] Add French translations
-- [ ] Add Spanish 
-- [ ] Add Italian translations
-- [ ] Implement locale detection and persistence
-
-#### C3. Component Integration
-- [ ] Create `I18nComponent` base class
-- [ ] Implement `LanguageSwitcher` component
-- [ ] Update existing components to use translations
+#### 2.3. Basic UI Components
+- [x] `Button`, `Modal`, `Form` components
+- [x] `Navigation` component
+- [x] Essential layout components
 
 ---
 
-### Phase D: Accessibility Features (Day 3)
+### Phase 3: Application Pages (Day 3) ✅ **COMPLETE**
+**Goal**: Main application screens
 
-#### D1. Semantic HTML Foundation
-- [ ] Add proper ARIA landmarks (`role="navigation"`, `role="main"`)
-- [ ] Implement skip navigation links
-- [ ] Set up proper heading hierarchy
+#### 3.1. Core Pages ✅
+- [x] `HomePage` - Landing page with gaming theme and navigation
+- [x] `GamePage` - Game lobby and interface (combined lobby/play)
+- [x] `ProfilePage` - User profile with stats and achievements
+- [x] Basic 404 and Login placeholders
 
-*Reference: [Accessibility Requirements](./docs/frontend/accessibility.md)*
-
-#### D2. Keyboard Navigation
-- [ ] Implement keyboard event handling utilities
-- [ ] Add focus management system
-- [ ] Create keyboard-accessible game controls
-
-#### D3. Screen Reader Support
-- [ ] Add ARIA labels and descriptions
-- [ ] Implement live regions for dynamic content
-- [ ] Create screen reader announcements for game events
-
-#### D4. Visual Accessibility
-- [ ] Add high contrast mode support
-- [ ] Implement reduced motion preferences
-- [ ] Ensure proper color contrast ratios (4.5:1 minimum)
+#### 3.2. Page Integration ✅
+- [x] Connect pages to simplified router system
+- [x] Navigation between pages with component mounting
+- [x] Clean page transitions and routing
+- [x] Gaming theme styling throughout
 
 ---
 
-### Phase E: Responsive Design (Day 3-4)
+### Phase 4: Game Interface (Day 4)
+**Goal**: Pong game UI preparation
 
-#### E1. Mobile-First Layout
-- [ ] Implement responsive grid system using Tailwind
-- [ ] Create mobile navigation patterns
-- [ ] Add touch-friendly interactions (44px minimum targets)
+#### 4.1. Game Components
+- [ ] `GameContainer` - Main game layout
+- [ ] `Scoreboard` - Score display
+- [ ] `GameControls` - Game interface
+- [ ] `GameStatus` - Game state display
 
-*Reference: [Tailwind CSS Strategy - Responsive Design](./docs/frontend/tailwindcss.md#responsive-design-strategy)*
+*Note: Game logic will be server-side*
 
-#### E2. Device Adaptation
-- [ ] Test and optimize for tablets
-- [ ] Ensure touch gesture support
-- [ ] Add device-specific optimizations
-
-#### E3. Browser Compatibility
-- [ ] Test in Firefox (required)
-- [ ] Add Chrome/Safari support
-- [ ] Implement progressive enhancement fallbacks
+#### 4.2. Game Styling
+- [ ] Retro gaming theme
+- [ ] Game-specific animations
+- [ ] Visual feedback systems
 
 ---
 
-### Phase F: Application Pages (Day 4)
+### Phase 5: Polish & Integration (Day 5)
+**Goal**: Final integration and testing
 
-#### F1. Core Pages Implementation
-- [ ] Create `HomePage` component
-- [ ] Implement `GameLobbyPage`
-- [ ] Build `ProfilePage` layout
-- [ ] Add `SettingsPage` with language switcher
+#### 5.1. Integration Testing
+- [ ] Test all page transitions
+- [ ] Verify component interactions
+- [ ] Check responsive layout basics
 
-*Reference: [TypeScript Project Structure - Pages](./docs/frontend/project-structure.md#page-structure)*
-
-#### F2. Page Integration
-- [ ] Connect pages to router system
-- [ ] Add page transition handling
-- [ ] Implement route-based title updates
-
-#### F3. Navigation Flow
-- [ ] Create main navigation component
-- [ ] Add breadcrumb navigation
-- [ ] Implement user authentication flow
+#### 5.2. Final Polish
+- [ ] Code cleanup and optimization
+- [ ] Basic error handling
+- [ ] Production build testing
 
 ---
 
-### Phase G: Game Interface Preparation (Day 4-5)
+## 🔄 Progress Tracking
 
-#### G1. Game Layout Components
-- [ ] Create `GameContainer` layout
-- [ ] Implement `Scoreboard` component
-- [ ] Build `GameControls` interface
-- [ ] Add `GameStatus` display
+### Day 1: Foundation Complete ✅
+- [x] Phase 1 complete
 
-*Note: Actual Pong game logic will be server-side (Phase 6)*
+### Day 2: Core Systems ✅
+- [x] Phase 2 complete
 
-#### G2. Accessibility for Gaming
-- [ ] Add keyboard controls for game interface
-- [ ] Implement game state announcements
-- [ ] Create accessible score display
+### Day 3: Pages ✅
+- [x] Phase 3 complete
 
-#### G3. Game UI Styling
-- [ ] Apply retro/gaming theme to game components
-- [ ] Add game-specific animations
-- [ ] Implement visual feedback systems
+### Day 4: Game Interface
+- [ ] Phase 4 pending
+
+### Day 5: Polish
+- [ ] Phase 5 pending
 
 ---
 
-### Phase H: Integration & Testing (Day 5)
+## 📚 Reference Files
 
-#### H1. Component Integration
-- [ ] Test all components work together
-- [ ] Verify state management across app
-- [ ] Check routing between all pages
-
-#### H2. Accessibility Testing
-- [ ] Run automated accessibility tests
-- [ ] Test with screen readers
-- [ ] Verify keyboard-only navigation
-
-#### H3. Responsive Testing
-- [ ] Test on mobile devices
-- [ ] Verify tablet layout
-- [ ] Check desktop responsiveness
-
-#### H4. i18n Testing
-- [ ] Test all language switches
-- [ ] Verify translation completeness
-- [ ] Check text layout in all languages
+- **Architecture**: [architecture.md](architecture.md)
+- **Project Structure**: [project-structure.md](project-structure.md)
+- **Tailwind Config**: [tailwindcss.md](tailwindcss.md)
+- **Main Roadmap**: [../../RoadMap.md](../../RoadMap.md)
 
 ---
 
-## ✅ Module Completion Checklist
+## 🎯 Mandatory Requirements Covered
 
-### Frontend Framework - Tailwind CSS (Minor)
-- [ ] Tailwind properly configured with custom theme
-- [ ] Component library implemented
-- [ ] Gaming aesthetic applied
-
-### Multiple Language Support (Minor)
-- [ ] 4 languages implemented (EN, FR, ES, IT)
-- [ ] Language switcher working
-- [ ] All UI text translated
-
-### Accessibility Features (Minor)
-- [ ] WCAG 2.1 AA compliance
-- [ ] Screen reader support
-- [ ] Keyboard navigation complete
-
-### All Devices Support (Minor)
-- [ ] Mobile responsive design
-- [ ] Tablet optimization
-- [ ] Touch interaction support
-
-### Browser Compatibility (Minor)
-- [ ] Firefox compatibility (required)
-- [ ] Chrome/Safari support
-- [ ] Progressive enhancement
-
----
-
-## 🔄 Daily Progress Tracking
-
-### Day 1: Foundation
-- [x] Phase A complete
-
-### Day 2: Core Systems + i18n Start
-- [x] Phase B complete
-- [ ] Phase C1-C2 complete
-
-### Day 3: i18n + Accessibility
-- [ ] Phase C3 complete
-- [ ] Phase D complete
-
-### Day 4: Responsive + Pages
-- [ ] Phase E complete
-- [ ] Phase F complete
-
-### Day 5: Game Interface + Polish
-- [ ] Phase G complete
-- [ ] Phase H complete
-
----
-
-## 📚 Quick Reference
-
-- **Detailed Architecture**: `/docs/frontend/architecture.md`
-- **Component Patterns**: `/docs/frontend/project-structure.md`
-- **Styling Guide**: `/docs/frontend/tailwindcss.md`
-- **i18n Implementation**: `/docs/frontend/i18n.md`
-- **Accessibility Spec**: `/docs/frontend/accessibility.md`
-- **Main Project Roadmap**: `/RoadMap.md`
+✅ **Framework/Toolkit**: TypeScript + Vite
+✅ **Styling**: Tailwind CSS
+✅ **SPA Architecture**: Custom router implementation
+✅ **Component System**: Reusable TypeScript components

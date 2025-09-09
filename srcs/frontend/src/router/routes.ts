@@ -1,95 +1,134 @@
 /**
- * @brief Route definitions and configuration
+ * @brief Route configurations for ft_transcendence
  * 
- * @description Defines all application routes, their components,
- * and access requirements.
- * 
- * @implementation Will be implemented in Phase B1
+ * @description Route setup with page component integration.
+ * Phase 3.2 implementation - Pages connected to router.
  */
 
-// Route Configuration Interface (to be implemented in Phase B1)
-// export interface RouteConfig {
-//   path: string
-//   component: string
-//   requiresAuth?: boolean
-//   title?: string
-//   meta?: Record<string, any>
-// }
+import { Router } from './router'
+import { HomePage } from '../pages/home/HomePage'
+import { GamePage } from '../pages/game/GamePage'
+import { ProfilePage } from '../pages/profile/ProfilePage'
 
-// Application Routes (to be implemented in Phase B1)
-// export const routes: RouteConfig[] = [
-//   // Public Routes
-//   {
-//     path: '/',
-//     component: 'HomePage',
-//     title: 'ft_transcendence - Home'
-//   },
-//   {
-//     path: '/login',
-//     component: 'LoginPage',
-//     title: 'Login - ft_transcendence'
-//   },
-//   {
-//     path: '/register',
-//     component: 'RegisterPage',
-//     title: 'Register - ft_transcendence'
-//   },
+// Global page container reference
+let currentPageComponent: any = null
 
-//   // Protected Routes (require authentication)
-//   {
-//     path: '/game',
-//     component: 'GameLobbyPage',
-//     requiresAuth: true,
-//     title: 'Game Lobby - ft_transcendence'
-//   },
-//   {
-//     path: '/game/play',
-//     component: 'GamePlayPage',
-//     requiresAuth: true,
-//     title: 'Playing Pong - ft_transcendence'
-//   },
-//   {
-//     path: '/game/tournament',
-//     component: 'TournamentPage',
-//     requiresAuth: true,
-//     title: 'Tournament - ft_transcendence'
-//   },
-//   {
-//     path: '/profile',
-//     component: 'ProfilePage',
-//     requiresAuth: true,
-//     title: 'Profile - ft_transcendence'
-//   },
-//   {
-//     path: '/profile/friends',
-//     component: 'FriendsPage',
-//     requiresAuth: true,
-//     title: 'Friends - ft_transcendence'
-//   },
-//   {
-//     path: '/settings',
-//     component: 'SettingsPage',
-//     requiresAuth: true,
-//     title: 'Settings - ft_transcendence'
-//   },
+/**
+ * @brief Get or create app container element
+ */
+function getAppContainer(): HTMLElement {
+  let container = document.getElementById('app')
+  if (!container) {
+    container = document.createElement('div')
+    container.id = 'app'
+    document.body.appendChild(container)
+  }
+  return container
+}
 
-//   // 404 Route (must be last)
-//   {
-//     path: '/404',
-//     component: 'NotFoundPage',
-//     title: 'Page Not Found - ft_transcendence'
-//   }
-// ]
+/**
+ * @brief Load page component and mount it
+ * 
+ * @param ComponentClass - Page component class to instantiate
+ * @param props - Props to pass to component
+ */
+function loadPage(ComponentClass: any, props: any = {}): void {
+  const container = getAppContainer()
+  
+  // Cleanup previous component
+  if (currentPageComponent && typeof currentPageComponent.unmount === 'function') {
+    currentPageComponent.unmount()
+  }
+  
+  // Create and mount new component
+  currentPageComponent = new ComponentClass(props)
+  container.innerHTML = currentPageComponent.render()
+  
+  // Mount component for event handling
+  if (typeof currentPageComponent.mount === 'function') {
+    currentPageComponent.mount(container)
+  }
+  
+  console.log(`📄 Page loaded: ${ComponentClass.name}`)
+}
 
-// Route Parameters Extraction (to be implemented in Phase B1)
-// export function extractParams(pattern: string, path: string): Record<string, string> {
-//   // Implementation coming in Phase B1
-// }
+/**
+ * @brief Configure routes with page components
+ * 
+ * @param router - Router instance to configure
+ */
+export function configureRoutes(router: Router): void {
+  // Public routes
+  router.register('/', async () => {
+    console.log('🏠 Loading HomePage')
+    loadPage(HomePage)
+    document.title = 'ft_transcendence - Home'
+  })
 
-// Route Matching (to be implemented in Phase B1)
-// export function matchRoute(path: string): RouteConfig | null {
-//   // Implementation coming in Phase B1
-// }
+  router.register('/login', async () => {
+    console.log('🔓 Loading Login page (placeholder)')
+    // TODO Phase 4: Create LoginPage component
+    const container = getAppContainer()
+    container.innerHTML = `
+      <div class="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
+        <div class="text-center">
+          <h1 class="text-4xl font-bold mb-6">🔓 Login</h1>
+          <p class="text-green-500 mb-8">Login functionality coming in Phase 4</p>
+          <button onclick="window.location.href='/'" class="px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors">
+            🏠 Back to Home
+          </button>
+        </div>
+      </div>
+    `
+    document.title = 'Login - ft_transcendence'
+  })
 
-// Placeholder for development
-export const ROUTES_PLACEHOLDER = 'Routes configuration will be implemented in Phase B1'
+  // Protected routes (simple auth requirement)
+  router.register('/game', async () => {
+    console.log('🎮 Loading GamePage')
+    loadPage(GamePage, { mode: 'lobby' })
+    document.title = 'Game Lobby - ft_transcendence'
+  }, { 
+    requiresAuth: false, // Temporarily disabled for testing
+    redirect: '/login'
+  })
+
+  router.register('/profile', async () => {
+    console.log('👤 Loading ProfilePage')
+    loadPage(ProfilePage)
+    document.title = 'Profile - ft_transcendence'
+  }, { 
+    requiresAuth: false, // Temporarily disabled for testing
+    redirect: '/login'
+  })
+
+  router.register('/game/:id', async (params) => {
+    console.log('🎮 Loading GamePage with ID:', params.id)
+    loadPage(GamePage, { mode: 'playing', gameId: params.id })
+    document.title = 'Playing Pong - ft_transcendence'
+  }, { 
+    requiresAuth: false, // Temporarily disabled for testing
+    redirect: '/login'
+  })
+
+  // 404 fallback
+  router.register('/404', async () => {
+    console.log('❌ Loading 404 page')
+    const container = getAppContainer()
+    container.innerHTML = `
+      <div class="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
+        <div class="text-center">
+          <div class="text-6xl mb-6">🚫</div>
+          <h1 class="text-4xl font-bold mb-6">Page Not Found</h1>
+          <p class="text-green-500 mb-8">The page you're looking for doesn't exist.</p>
+          <button onclick="window.location.href='/'" class="px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors">
+            🏠 Back to Home
+          </button>
+        </div>
+      </div>
+    `
+    document.title = 'Page Not Found - ft_transcendence'
+  })
+
+  console.log('✅ Routes configured with page components')
+}

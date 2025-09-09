@@ -7,8 +7,6 @@
 
 // Re-export all asset categories
 export * from './images'
-export * from './fonts'
-export * from './icons'
 
 // This allows imports like:
 // import { logo, HomeIcon, orbitronBold } from '@/assets'
