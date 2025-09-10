@@ -415,10 +415,10 @@ export class GamePage extends Component<GamePageProps, GamePageState> {
   /**
    * @brief Navigate back to home page
    */
-  private handleBackToHome(): void {
+  private async handleBackToHome(): Promise<void> {
     console.log('🏠 Navigating back to home...')
-    // TODO: Use router to navigate to /
-    window.location.href = '/'
+    const { router } = await import('../../router/router')
+    router.navigate('/')
   }
 
   /**

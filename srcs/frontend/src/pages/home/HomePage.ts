@@ -254,19 +254,19 @@ export class HomePage extends Component<HomePageProps, HomePageState> {
   /**
    * @brief Handle play now button click
    */
-  private handlePlayNow(): void {
+  private async handlePlayNow(): Promise<void> {
     console.log('🎮 Navigating to game...')
-    // TODO: Use router to navigate to /game
-    window.location.href = '/game'
+    const { router } = await import('../../router/router')
+    router.navigate('/game')
   }
 
   /**
    * @brief Handle view profile button click
    */
-  private handleViewProfile(): void {
+  private async handleViewProfile(): Promise<void> {
     console.log('👤 Navigating to profile...')
-    // TODO: Use router to navigate to /profile
-    window.location.href = '/profile'
+    const { router } = await import('../../router/router')
+    router.navigate('/profile')
   }
 
   /**
@@ -281,10 +281,11 @@ export class HomePage extends Component<HomePageProps, HomePageState> {
   /**
    * @brief Handle login button click
    */
-  private handleLogin(): void {
+  private async handleLogin(): Promise<void> {
     console.log('🔓 Navigating to login...')
-    // TODO: Use router to navigate to /login
-    window.location.href = '/login'
+    // TODO: Implement proper login flow with auth system
+    const { router } = await import('../../router/router')
+    router.navigate('/login')
   }
 
   /**

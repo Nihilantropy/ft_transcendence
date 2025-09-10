@@ -124,12 +124,17 @@ export class Router {
   }
 
   /**
-   * @brief Check if user is authenticated (implement your logic)
+   * @brief Check if user is authenticated using test auth for now
    */
   private isUserAuthenticated(): boolean {
-    // TODO: Implement with your auth store
-    // Example: return AuthStore.isAuthenticated
-    return true // Placeholder
+    // Simple test auth for Phase 3 (Phase 4 will have proper auth system)
+    try {
+      const hasTestAuth = localStorage.getItem('ft_test_auth') === 'true'
+      return hasTestAuth
+    } catch (error) {
+      console.error('Failed to check auth status:', error)
+      return false
+    }
   }
 
   /**

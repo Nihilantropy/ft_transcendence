@@ -66,21 +66,90 @@ export function configureRoutes(router: Router): void {
   })
 
   router.register('/login', async () => {
-    console.log('🔓 Loading Login page (placeholder)')
-    // TODO Phase 4: Create LoginPage component
+    console.log('🔓 Loading Login page')
     const container = getAppContainer()
+    
+    // Simple test login interface
     container.innerHTML = `
       <div class="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
-        <div class="text-center">
-          <h1 class="text-4xl font-bold mb-6">🔓 Login</h1>
-          <p class="text-green-500 mb-8">Login functionality coming in Phase 4</p>
-          <button onclick="window.location.href='/'" class="px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors">
+        <div class="text-center p-8 border border-green-600 rounded-lg bg-green-900/10">
+          <h1 class="text-4xl font-bold mb-6 neon-glow">🔓 Test Login</h1>
+          <p class="text-green-500 mb-8">Simple authentication for testing Phase 3</p>
+          
+          <div class="space-y-4 mb-8">
+            <button 
+              id="test-login-btn"
+              class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-all transform hover:scale-105"
+            >
+              ✅ Enable Test Auth
+            </button>
+            
+            <button 
+              id="test-logout-btn"
+              class="w-full px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-all transform hover:scale-105"
+            >
+              ❌ Disable Test Auth
+            </button>
+          </div>
+          
+          <p class="text-green-600 text-sm mb-4">Current status: <span id="auth-status">Checking...</span></p>
+          
+          <button 
+            onclick="import('./router').then(({router}) => router.navigate('/'))" 
+            class="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors"
+          >
             🏠 Back to Home
           </button>
         </div>
       </div>
     `
-    document.title = 'Login - ft_transcendence'
+    
+    // Update auth status display
+    function updateAuthStatus() {
+      const statusEl = document.getElementById('auth-status')
+      const isAuth = localStorage.getItem('ft_test_auth') === 'true'
+      if (statusEl) {
+        statusEl.textContent = isAuth ? '🟢 Authenticated' : '🔴 Not Authenticated'
+        statusEl.className = isAuth ? 'text-green-400 font-bold' : 'text-red-400 font-bold'
+      }
+    }
+    
+    // Initial status update
+    updateAuthStatus()
+    
+    // Add event listeners
+    const loginBtn = document.getElementById('test-login-btn')
+    const logoutBtn = document.getElementById('test-logout-btn')
+    
+    if (loginBtn) {
+      loginBtn.addEventListener('click', () => {
+        localStorage.setItem('ft_test_auth', 'true')
+        updateAuthStatus()
+        console.log('✅ Test authentication enabled')
+        
+        // Show success feedback
+        loginBtn.textContent = '✅ Auth Enabled!'
+        setTimeout(() => {
+          loginBtn.textContent = '✅ Enable Test Auth'
+        }, 2000)
+      })
+    }
+    
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('ft_test_auth')
+        updateAuthStatus()
+        console.log('❌ Test authentication disabled')
+        
+        // Show success feedback
+        logoutBtn.textContent = '❌ Auth Disabled!'
+        setTimeout(() => {
+          logoutBtn.textContent = '❌ Disable Test Auth'
+        }, 2000)
+      })
+    }
+    
+    document.title = 'Test Login - ft_transcendence'
   })
 
   // Protected routes (simple auth requirement)
@@ -89,7 +158,7 @@ export function configureRoutes(router: Router): void {
     loadPage(GamePage, { mode: 'lobby' })
     document.title = 'Game Lobby - ft_transcendence'
   }, { 
-    requiresAuth: false, // Temporarily disabled for testing
+    requiresAuth: true,
     redirect: '/login'
   })
 
@@ -98,7 +167,7 @@ export function configureRoutes(router: Router): void {
     loadPage(ProfilePage)
     document.title = 'Profile - ft_transcendence'
   }, { 
-    requiresAuth: false, // Temporarily disabled for testing
+    requiresAuth: true,
     redirect: '/login'
   })
 
@@ -107,7 +176,7 @@ export function configureRoutes(router: Router): void {
     loadPage(GamePage, { mode: 'playing', gameId: params.id })
     document.title = 'Playing Pong - ft_transcendence'
   }, { 
-    requiresAuth: false, // Temporarily disabled for testing
+    requiresAuth: true,
     redirect: '/login'
   })
 
@@ -121,7 +190,7 @@ export function configureRoutes(router: Router): void {
           <div class="text-6xl mb-6">🚫</div>
           <h1 class="text-4xl font-bold mb-6">Page Not Found</h1>
           <p class="text-green-500 mb-8">The page you're looking for doesn't exist.</p>
-          <button onclick="window.location.href='/'" class="px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors">
+          <button onclick="import('./router').then(({router}) => router.navigate('/'))" class="px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors">
             🏠 Back to Home
           </button>
         </div>
