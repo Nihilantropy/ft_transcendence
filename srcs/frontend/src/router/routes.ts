@@ -171,9 +171,9 @@ export function configureRoutes(router: Router): void {
     redirect: '/login'
   })
 
-  router.register('/game/:id', async (params) => {
-    console.log('🎮 Loading GamePage with ID:', params.id)
-    loadPage(GamePage, { mode: 'playing', gameId: params.id })
+  router.register('/game/play', async () => {
+    console.log('🎮 Loading GamePage in play mode')
+    loadPage(GamePage, { mode: 'playing' })
     document.title = 'Playing Pong - ft_transcendence'
   }, { 
     requiresAuth: true,
