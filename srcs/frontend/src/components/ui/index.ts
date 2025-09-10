@@ -22,6 +22,9 @@ export { Label } from './Label'
 export { Navigation } from './Navigation'
 export type { NavigationLayout, NavigationItem } from './Navigation'
 
+export { Popup, PopupUtils } from './Popup'
+export type { PopupProps, PopupState } from './Popup'
+
 // Future UI Components (to be implemented in remaining Phase B3)
 // export { Card } from './Card'
 

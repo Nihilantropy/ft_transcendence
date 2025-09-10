@@ -9,6 +9,7 @@ import { Router } from './router'
 import { HomePage } from '../pages/home/HomePage'
 import { GamePage } from '../pages/game/GamePage'
 import { ProfilePage } from '../pages/profile/ProfilePage'
+import { LoginPage } from '../pages/auth/LoginPage'
 
 // Global page container reference
 let currentPageComponent: any = null
@@ -27,7 +28,29 @@ function getAppContainer(): HTMLElement {
 }
 
 /**
- * @brief Load page component and mount it
+ * @brief Add navigation event listeners to container
+ * 
+ * @param container - Container element to add listeners to
+ */
+function addNavigationListeners(container: HTMLElement): void {
+  const navButtons = container.querySelectorAll('[data-navigate]')
+  navButtons.forEach(button => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault()
+      const path = button.getAttribute('data-navigate')
+      if (path) {
+        import('./router').then(({ router }) => {
+          router.navigate(path)
+        }).catch(error => {
+          console.error('Navigation failed:', error)
+        })
+      }
+    })
+  })
+}
+
+/**
+ * @brief Load page component and mount it properly
  * 
  * @param ComponentClass - Page component class to instantiate
  * @param props - Props to pass to component
@@ -40,13 +63,20 @@ function loadPage(ComponentClass: any, props: any = {}): void {
     currentPageComponent.unmount()
   }
   
-  // Create and mount new component
-  currentPageComponent = new ComponentClass(props)
-  container.innerHTML = currentPageComponent.render()
+  // Clear container first
+  container.innerHTML = ''
   
-  // Mount component for event handling
+  // Create and properly mount new component
+  currentPageComponent = new ComponentClass(props)
+  
+  // Use the component's mount method instead of manual innerHTML
   if (typeof currentPageComponent.mount === 'function') {
     currentPageComponent.mount(container)
+  } else {
+    // Fallback for components without mount method
+    container.innerHTML = currentPageComponent.render()
+    // Add navigation listeners for components without mount method
+    addNavigationListeners(container)
   }
   
   console.log(`📄 Page loaded: ${ComponentClass.name}`)
@@ -67,89 +97,8 @@ export function configureRoutes(router: Router): void {
 
   router.register('/login', async () => {
     console.log('🔓 Loading Login page')
-    const container = getAppContainer()
-    
-    // Simple test login interface
-    container.innerHTML = `
-      <div class="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
-        <div class="text-center p-8 border border-green-600 rounded-lg bg-green-900/10">
-          <h1 class="text-4xl font-bold mb-6 neon-glow">🔓 Test Login</h1>
-          <p class="text-green-500 mb-8">Simple authentication for testing Phase 3</p>
-          
-          <div class="space-y-4 mb-8">
-            <button 
-              id="test-login-btn"
-              class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-all transform hover:scale-105"
-            >
-              ✅ Enable Test Auth
-            </button>
-            
-            <button 
-              id="test-logout-btn"
-              class="w-full px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-all transform hover:scale-105"
-            >
-              ❌ Disable Test Auth
-            </button>
-          </div>
-          
-          <p class="text-green-600 text-sm mb-4">Current status: <span id="auth-status">Checking...</span></p>
-          
-          <button 
-            onclick="import('./router').then(({router}) => router.navigate('/'))" 
-            class="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors"
-          >
-            🏠 Back to Home
-          </button>
-        </div>
-      </div>
-    `
-    
-    // Update auth status display
-    function updateAuthStatus() {
-      const statusEl = document.getElementById('auth-status')
-      const isAuth = localStorage.getItem('ft_test_auth') === 'true'
-      if (statusEl) {
-        statusEl.textContent = isAuth ? '🟢 Authenticated' : '🔴 Not Authenticated'
-        statusEl.className = isAuth ? 'text-green-400 font-bold' : 'text-red-400 font-bold'
-      }
-    }
-    
-    // Initial status update
-    updateAuthStatus()
-    
-    // Add event listeners
-    const loginBtn = document.getElementById('test-login-btn')
-    const logoutBtn = document.getElementById('test-logout-btn')
-    
-    if (loginBtn) {
-      loginBtn.addEventListener('click', () => {
-        localStorage.setItem('ft_test_auth', 'true')
-        updateAuthStatus()
-        console.log('✅ Test authentication enabled')
-        
-        // Show success feedback
-        loginBtn.textContent = '✅ Auth Enabled!'
-        setTimeout(() => {
-          loginBtn.textContent = '✅ Enable Test Auth'
-        }, 2000)
-      })
-    }
-    
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('ft_test_auth')
-        updateAuthStatus()
-        console.log('❌ Test authentication disabled')
-        
-        // Show success feedback
-        logoutBtn.textContent = '❌ Auth Disabled!'
-        setTimeout(() => {
-          logoutBtn.textContent = '❌ Disable Test Auth'
-        }, 2000)
-      })
-    }
-    
-    document.title = 'Test Login - ft_transcendence'
+    loadPage(LoginPage, { mode: 'login' })
+    document.title = 'Login - ft_transcendence'
   })
 
   // Protected routes (simple auth requirement)
@@ -180,6 +129,44 @@ export function configureRoutes(router: Router): void {
     redirect: '/login'
   })
 
+  // Animation demo route (temporary for Phase 4.2 testing)
+  router.register('/demo', async () => {
+    console.log('🎨 Loading Animation Demo')
+    const { GameAnimationDemo } = await import('../components/game/GameAnimationDemo')
+    
+    const container = getAppContainer()
+    const demo = new GameAnimationDemo({ mode: 'all' })
+    
+    container.innerHTML = `
+      <div class="min-h-screen bg-black text-green-400 font-mono p-4">
+        <div class="max-w-6xl mx-auto">
+          <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold neon-glow mb-2">🎮 Phase 4.2 Animation Demo</h1>
+            <p class="text-green-500 mb-4">Test all gaming animations and visual effects</p>
+                      <button 
+            data-navigate="/"
+            class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-bold"
+          >
+            🏠 Back to Home
+          </button>
+          </div>
+          
+          ${demo.render()}
+        </div>
+      </div>
+    `
+    
+    // Mount the demo component for interactivity
+    if (typeof demo.mount === 'function') {
+      demo.mount(container)
+    } else {
+      // Add navigation listeners
+      addNavigationListeners(container)
+    }
+    
+    document.title = 'Animation Demo - ft_transcendence'
+  })
+
   // 404 fallback
   router.register('/404', async () => {
     console.log('❌ Loading 404 page')
@@ -190,12 +177,16 @@ export function configureRoutes(router: Router): void {
           <div class="text-6xl mb-6">🚫</div>
           <h1 class="text-4xl font-bold mb-6">Page Not Found</h1>
           <p class="text-green-500 mb-8">The page you're looking for doesn't exist.</p>
-          <button onclick="import('./router').then(({router}) => router.navigate('/'))" class="px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors">
+          <button data-navigate="/" class="px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors">
             🏠 Back to Home
           </button>
         </div>
       </div>
     `
+    
+    // Add navigation listeners
+    addNavigationListeners(container)
+    
     document.title = 'Page Not Found - ft_transcendence'
   })
 

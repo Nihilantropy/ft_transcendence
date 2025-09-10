@@ -1,13 +1,13 @@
 /**
- * @brief Main pages barrel export
+ * @brief Page components barrel export
  * 
- * @description Central export point for all page components.
- * Phase 3.1 implementation - Core pages complete.
+ * @description Exports all page components for the application.
+ * This allows for easy importing of pages throughout the app.
  */
 
-// Re-export core page categories
+export * from './auth'
 export * from './home'
-export * from './game'  
+export * from './game'
 export * from './profile'
 
 // Usage examples:

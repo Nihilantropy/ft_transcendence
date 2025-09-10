@@ -5,18 +5,20 @@
  * Integrates with User Management Service types.
  */
 
-// User Profile Types (to be implemented when User Management Service is ready)
-// export interface User {
-//   id: string
-//   username: string
-//   email: string
-//   displayName: string
-//   avatar?: string
-//   isOnline: boolean
-//   lastSeen: Date
-//   createdAt: Date
-//   preferences: UserPreferences
-// }
+// User Profile Types
+export interface UserProfile {
+  id: string
+  username: string
+  email: string
+  displayName?: string
+  avatar?: string
+  isOnline: boolean
+  lastSeen?: Date
+  createdAt?: Date
+  stats: UserStats
+  achievements: Achievement[]
+  recentGames: GameHistory[]
+}
 
 // export interface UserPreferences {
 //   language: string
@@ -61,27 +63,35 @@
 //   createdAt: Date
 // }
 
-// User Statistics Types (to be implemented later)
-// export interface UserStats {
-//   totalGames: number
-//   wins: number
-//   losses: number
-//   winRate: number
-//   currentStreak: number
-//   bestStreak: number
-//   rank: number
-//   points: number
-// }
+// User Statistics Types
+export interface UserStats {
+  gamesPlayed: number
+  gamesWon: number
+  gamesLost: number
+  winRate: number
+  ranking: number
+  totalScore: number
+  currentStreak?: number
+  bestStreak?: number
+}
 
-// export interface MatchHistory {
-//   id: string
-//   opponent: User
-//   result: 'win' | 'loss'
-//   score: { user: number, opponent: number }
-//   duration: number
-//   playedAt: Date
-//   gameMode: string
-// }
+export interface GameHistory {
+  id: string
+  opponent: string
+  result: 'win' | 'loss'
+  score: string
+  date: string
+  duration?: number
+  gameMode?: string
+}
+
+export interface Achievement {
+  id: string
+  name: string
+  description: string
+  earned: boolean
+  dateEarned?: string
+}
 
 // Placeholder for development
 export const USER_TYPES_PLACEHOLDER = 'User types will be implemented when User Management Service is ready'

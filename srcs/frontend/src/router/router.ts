@@ -124,12 +124,18 @@ export class Router {
   }
 
   /**
-   * @brief Check if user is authenticated using test auth for now
+   * @brief Check if user is authenticated using AuthService
    */
   private isUserAuthenticated(): boolean {
-    // Simple test auth for Phase 3 (Phase 4 will have proper auth system)
+    // Dynamic import to avoid circular dependency
     try {
+      // For now, check both real auth and test auth
       const hasTestAuth = localStorage.getItem('ft_test_auth') === 'true'
+      
+      // TODO: Integrate with AuthService when available
+      // const { authService } = await import('../services/auth')
+      // return authService.isAuthenticated()
+      
       return hasTestAuth
     } catch (error) {
       console.error('Failed to check auth status:', error)

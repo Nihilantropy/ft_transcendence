@@ -82,6 +82,16 @@ export class HomePage extends Component<HomePageProps, HomePageState> {
             Challenge players worldwide in this legendary arcade game.
           </p>
           ${this.renderActionButtons(isAuthenticated, isLoading)}
+          
+          <!-- Development Demo Link -->
+          <div class="mt-8 text-center">
+            <button 
+              id="demo-btn"
+              class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors text-sm"
+            >
+              🎨 Animation Demo (Phase 4.2)
+            </button>
+          </div>
         </header>
 
         <!-- Features Section -->
@@ -233,6 +243,7 @@ export class HomePage extends Component<HomePageProps, HomePageState> {
     const profileButton = document.getElementById('view-profile-btn')
     const getStartedButton = document.getElementById('get-started-btn')
     const loginButton = document.getElementById('login-btn')
+    const demoButton = document.getElementById('demo-btn')
 
     if (playButton) {
       playButton.addEventListener('click', () => this.handlePlayNow())
@@ -248,6 +259,10 @@ export class HomePage extends Component<HomePageProps, HomePageState> {
 
     if (loginButton) {
       loginButton.addEventListener('click', () => this.handleLogin())
+    }
+
+    if (demoButton) {
+      demoButton.addEventListener('click', () => this.handleDemo())
     }
   }
 
@@ -286,6 +301,15 @@ export class HomePage extends Component<HomePageProps, HomePageState> {
     // TODO: Implement proper login flow with auth system
     const { router } = await import('../../router/router')
     router.navigate('/login')
+  }
+
+  /**
+   * @brief Handle animation demo button click
+   */
+  private async handleDemo(): Promise<void> {
+    console.log('🎨 Navigating to animation demo...')
+    const { router } = await import('../../router/router')
+    router.navigate('/demo')
   }
 
   /**

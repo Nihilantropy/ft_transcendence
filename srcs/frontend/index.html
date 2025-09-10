@@ -2,12 +2,121 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    
+    <!-- Core meta tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ft_transcendence</title>
+    <meta name="description" content="ft_transcendence - The Ultimate Pong Experience. Play classic Pong with modern features, compete with friends, and climb the leaderboard." />
+    <meta name="keywords" content="pong, game, multiplayer, tournament, classic games, 42 school" />
+    <meta name="author" content="ft_transcendence Team" />
+    
+    <!-- Open Graph meta tags for social sharing -->
+    <meta property="og:title" content="ft_transcendence - The Ultimate Pong Experience" />
+    <meta property="og:description" content="Play classic Pong with modern features, compete with friends, and climb the leaderboard." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ft-transcendence.com" />
+    <meta property="og:image" content="/og-image.png" />
+    
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ft_transcendence - The Ultimate Pong Experience" />
+    <meta name="twitter:description" content="Play classic Pong with modern features, compete with friends, and climb the leaderboard." />
+    <meta name="twitter:image" content="/twitter-image.png" />
+    
+    <!-- Theme and branding -->
+    <meta name="theme-color" content="#00ff41" />
+    <meta name="msapplication-TileColor" content="#000000" />
+    
+    <!-- Security headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+    
+    <!-- Favicon and app icons -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Preconnect to external domains for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    
+    <!-- CSS preload for critical styles -->
+    <link rel="preload" href="/src/index.css" as="style" />
+    
+    <title>ft_transcendence - The Ultimate Pong Experience</title>
+    
+    <!-- Critical inline CSS for above-the-fold content -->
+    <style>
+      /* Critical loading styles */
+      body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        color: #00ff41;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+      }
+      
+      #app {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      /* Fallback loading screen */
+      .loading-fallback {
+        text-align: center;
+        padding: 2rem;
+      }
+      
+      .loading-fallback h1 {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        text-shadow: 0 0 10px currentColor;
+      }
+      
+      .loading-fallback .spinner {
+        font-size: 3rem;
+        animation: spin 2s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <!-- Main application container -->
+    <div id="app">
+      <!-- Fallback content for when JavaScript is disabled or fails to load -->
+      <noscript>
+        <div class="loading-fallback">
+          <h1>🏓 ft_transcendence</h1>
+          <p>JavaScript is required to play ft_transcendence.</p>
+          <p>Please enable JavaScript in your browser and reload the page.</p>
+        </div>
+      </noscript>
+      
+      <!-- Loading fallback (shown until main.ts takes over) -->
+      <div class="loading-fallback" id="initial-loading">
+        <div class="spinner">🏓</div>
+        <h1>ft_transcendence</h1>
+        <p>Loading the ultimate Pong experience...</p>
+      </div>
+    </div>
+    
+    <!-- Main application script -->
     <script type="module" src="/src/main.ts"></script>
+    
+    <!-- Remove initial loading screen after a timeout (failsafe) -->
+    <script>
+      setTimeout(() => {
+        const loading = document.getElementById('initial-loading');
+        if (loading) loading.style.display = 'none';
+      }, 10000);
+    </script>
   </body>
 </html>

@@ -8,6 +8,7 @@
 // Re-export all service categories
 export * from './api'
 export * from './auth'
+export * from './error'
 export * from './game'
 export * from './websocket'
 

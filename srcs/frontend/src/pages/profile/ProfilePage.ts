@@ -420,7 +420,31 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
     this.setState({ isLoading: true, error: undefined })
 
     try {
-      // TODO: Replace with actual API call
+      // Try to get current user from API
+      const { userApiService } = await import('../../services/api/UserApiService')
+      
+      console.log('📡 Fetching user profile from API...')
+      const profile = await userApiService.getCurrentUser()
+      
+      this.setState({ 
+        profile, 
+        isLoading: false 
+      })
+      
+      console.log('✅ Profile loaded successfully:', profile.username)
+      
+    } catch (error: any) {
+      console.error('❌ Failed to load profile:', error)
+      
+      // Check error type for appropriate handling
+      if (error?.status === 500 || error?.code === 'NETWORK_ERROR') {
+        // Backend service unavailable - show error page
+        this.showServiceError(error)
+        return
+      }
+      
+      // Fallback to mock data for development
+      console.log('⚠️ Using mock profile data as fallback')
       const mockProfile: UserProfile = {
         id: 'user_123456',
         username: 'PongMaster',
@@ -486,19 +510,28 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
         ]
       }
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Simulate API delay for mock data
+      await new Promise(resolve => setTimeout(resolve, 500))
 
       this.setState({ 
         profile: mockProfile, 
         isLoading: false 
       })
+      
+      console.log('⚠️ Using mock data - API service unavailable')
+    }
+  }
 
-    } catch (error) {
-      console.error('Error loading profile:', error)
-      this.setState({ 
-        error: 'Failed to load profile data. Please try again.',
-        isLoading: false 
+  /**
+   * @brief Show service error page
+   */
+  private showServiceError(error: any): void {
+    const container = this.element?.parentElement || document.getElementById('app')
+    if (container) {
+      import('../../components/ui/ErrorPage').then(({ showErrorPage }) => {
+        const errorType = error?.status >= 500 ? '500' : 'api'
+        const errorMessage = error?.message || 'Backend service is currently unavailable'
+        showErrorPage(container, errorType, errorMessage, error?.details)
       })
     }
   }
@@ -541,22 +574,29 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
     }
 
     try {
-      // TODO: API call to save profile
+      // Save profile via API
       console.log('💾 Saving profile:', { username: newUsername, email: newEmail })
       
-      // Update local state
-      if (this.state.profile) {
-        this.setState({
-          profile: {
-            ...this.state.profile,
-            username: newUsername,
-            email: newEmail
-          },
-          isEditing: false
-        })
-        
-        this.setSuccess('Profile updated successfully!')
+      if (!this.state.profile) {
+        this.setError('Profile not loaded. Please refresh the page.')
+        return
       }
+
+      const { userApiService } = await import('../../services/api/UserApiService')
+      
+      const updatedProfile = await userApiService.updateUserProfile(this.state.profile.id, {
+        username: newUsername,
+        email: newEmail
+      })
+      
+      // Update local state with API response
+      this.setState({
+        profile: updatedProfile,
+        isEditing: false
+      })
+      
+      this.setSuccess('Profile updated successfully!')
+      console.log('✅ Profile saved successfully')
     } catch (error) {
       console.error('Error saving profile:', error)
       this.setError('Failed to save profile changes.')
@@ -567,18 +607,185 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
    * @brief Handle avatar change
    */
   private handleChangeAvatar(): void {
-    console.log('📷 Changing avatar...')
-    // TODO: Implement avatar upload functionality
-    this.setError('Avatar upload coming soon!')
+    console.log('📷 Opening avatar upload...')
+    
+    // Create file input
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = 'image/*'
+    fileInput.style.display = 'none'
+    
+    fileInput.addEventListener('change', (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        this.uploadAvatar(file)
+      }
+    })
+    
+    document.body.appendChild(fileInput)
+    fileInput.click()
+    document.body.removeChild(fileInput)
+  }
+
+  /**
+   * @brief Upload avatar file
+   */
+  private async uploadAvatar(file: File): Promise<void> {
+    if (!this.state.profile) {
+      this.setError('Profile not loaded. Please refresh the page.')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      this.setError('Avatar file must be smaller than 5MB.')
+      return
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      this.setError('Please select a valid image file.')
+      return
+    }
+
+    try {
+      console.log('📤 Uploading avatar...')
+      const { userApiService } = await import('../../services/api/UserApiService')
+      
+      const newAvatarUrl = await userApiService.uploadAvatar(this.state.profile.id, file)
+      
+      // Update profile with new avatar
+      this.setState({
+        profile: {
+          ...this.state.profile,
+          avatar: newAvatarUrl
+        }
+      })
+      
+      console.log('✅ Avatar uploaded successfully')
+      this.setSuccess('Avatar updated successfully!')
+      
+    } catch (error: any) {
+      console.error('Failed to upload avatar:', error)
+      
+      if (error?.status === 500 || error?.code === 'NETWORK_ERROR') {
+        this.setError('Avatar upload service is currently unavailable. Please try again later.')
+      } else {
+        this.setError('Failed to upload avatar. Please try again.')
+      }
+    }
   }
 
   /**
    * @brief Handle view all games
    */
-  private handleViewAllGames(): void {
-    console.log('📋 Viewing all games...')
-    // TODO: Navigate to games history page
-    this.setError('Game history page coming soon!')
+  private async handleViewAllGames(): Promise<void> {
+    console.log('📋 Loading full game history...')
+    
+    try {
+      const { userApiService } = await import('../../services/api/UserApiService')
+      
+      if (!this.state.profile) {
+        this.setError('Please reload the page to view game history.')
+        return
+      }
+      
+      // Get expanded game history from API
+      const gameHistory = await userApiService.getUserGameHistory(this.state.profile.id, 1, 50)
+      
+      // Create and show games modal
+      this.showGamesModal(gameHistory)
+      
+    } catch (error: any) {
+      console.error('Failed to load game history:', error)
+      
+      if (error?.status === 500 || error?.code === 'NETWORK_ERROR') {
+        this.setError('Game history service is currently unavailable. Please try again later.')
+      } else {
+        // Show expanded view with current data
+        this.showGamesModal(this.state.profile?.recentGames || [])
+      }
+    }
+  }
+
+  /**
+   * @brief Show games history modal
+   */
+  private showGamesModal(games: any[]): void {
+    const modalHtml = `
+      <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" id="games-modal">
+        <div class="bg-gray-900 border border-green-600 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden mx-4">
+          <div class="p-6 border-b border-green-600 flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-green-400">📋 Game History</h2>
+            <button id="close-modal" class="text-green-400 hover:text-green-300 text-2xl">&times;</button>
+          </div>
+          <div class="p-6 overflow-y-auto max-h-[60vh]">
+            ${games.length === 0 ? `
+              <div class="text-center text-green-500 py-8">
+                <div class="text-4xl mb-4">🎮</div>
+                <p>No games played yet. Start your first match!</p>
+              </div>
+            ` : `
+              <div class="space-y-3">
+                ${games.map((game, index) => `
+                  <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 hover:border-green-600 transition-colors">
+                    <div class="flex justify-between items-center">
+                      <div class="flex items-center space-x-4">
+                        <div class="text-2xl">${game.result === 'win' ? '🏆' : '💥'}</div>
+                        <div>
+                          <div class="font-bold text-green-400">vs ${game.opponent}</div>
+                          <div class="text-sm text-gray-400">Game #${index + 1}</div>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <div class="font-mono text-lg ${game.result === 'win' ? 'text-green-400' : 'text-red-400'}">
+                          ${game.score}
+                        </div>
+                        <div class="text-sm text-gray-400">${game.date}</div>
+                      </div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+          <div class="p-6 border-t border-green-600 text-center">
+            <button id="close-modal-btn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-black font-bold rounded transition-colors">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+
+    // Add modal to document
+    document.body.insertAdjacentHTML('beforeend', modalHtml)
+
+    // Setup modal event handlers
+    const modal = document.getElementById('games-modal')
+    const closeBtn = document.getElementById('close-modal')
+    const closeBtnBottom = document.getElementById('close-modal-btn')
+
+    const closeModal = () => {
+      modal?.remove()
+    }
+
+    closeBtn?.addEventListener('click', closeModal)
+    closeBtnBottom?.addEventListener('click', closeModal)
+    
+    // Close on backdrop click
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal()
+    })
+
+    // Close on Escape key
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeModal()
+        document.removeEventListener('keydown', handleEscape)
+      }
+    }
+    document.addEventListener('keydown', handleEscape)
   }
 
   /**
@@ -590,6 +797,8 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
       this.setState({ error: undefined })
     }, 5000)
   }
+
+
 
   /**
    * @brief Set success message
