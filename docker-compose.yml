@@ -1,0 +1,55 @@
+services:
+  ### NGINX ###
+  nginx:
+    container_name: ft_transcendence_nginx
+    image: ft_transcendence_nginx
+    build:
+      context: ./srcs/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - proxy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+### FRONTEND ###
+  frontend:
+    container_name: ft_transcendence_frontend
+    image: ft_transcendence_frontend
+    build:
+      context: ./srcs/frontend
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/frontend/src:/app/src:rw
+      - ./srcs/frontend/public:/app/public:rw
+      # Use named volume for node_modules to avoid conflicts
+      - frontend-node-modules:/app/node_modules
+    networks:
+      - proxy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+### NETWORKS ###
+networks:
+  proxy:
+    driver: bridge
+
+### VOLUMES ###
+volumes:
+  frontend-data:
+    driver: local
+  frontend-node-modules:
+    driver: local
