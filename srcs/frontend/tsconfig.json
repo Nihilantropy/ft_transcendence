@@ -22,9 +22,7 @@
       "@/services/*": ["services/*"],
       "@/stores/*": ["stores/*"],
       "@/types/*": ["types/*"],
-      "@/utils/*": ["utils/*"],
       "@/router/*": ["router/*"],
-      "@/i18n/*": ["i18n/*"],
       "@/assets/*": ["assets/*"],
       "@/styles/*": ["styles/*"]
     },

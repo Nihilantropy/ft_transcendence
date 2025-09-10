@@ -410,4 +410,127 @@
       text-center;
   }
 
+  /* =============================================================================
+     GAME CONTAINER STYLES - Phase 4.1
+     ============================================================================= */
+
+  /**
+   * @brief Game container base styles
+   * 
+   * @description Base styling for the main game container component.
+   */
+  .game-container {
+    @apply relative w-full min-h-screen bg-black text-green-400 font-mono;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .game-main {
+    @apply flex-1 flex flex-col lg:flex-row gap-4 p-4;
+  }
+
+  .game-area {
+    @apply flex-1 flex flex-col;
+  }
+
+  .game-canvas-container {
+    @apply relative flex-1 min-h-96 bg-gray-900 border border-green-600 rounded-lg overflow-hidden;
+  }
+
+  .game-sidebar {
+    @apply w-full lg:w-80 space-y-4;
+  }
+
+  /**
+   * @brief Game UI button styles
+   * 
+   * @description Standardized button styles for game interface.
+   */
+  .game-btn-primary {
+    @apply px-4 py-2 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg 
+           transition-all duration-200 transform hover:scale-105 active:scale-95;
+  }
+
+  .game-btn-secondary {
+    @apply px-4 py-2 bg-gray-700 hover:bg-gray-600 text-green-400 border border-green-600
+           font-bold rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95;
+  }
+
+  .game-btn-danger {
+    @apply px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg
+           transition-all duration-200 transform hover:scale-105 active:scale-95;
+  }
+
+  /**
+   * @brief Neon glow effects for gaming theme
+   * 
+   * @description Enhanced glow effects for game elements.
+   */
+  .neon-glow {
+    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+
+  .neon-border {
+    box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  }
+
+  /**
+   * @brief Game loading animations
+   * 
+   * @description Custom animations for game loading states.
+   */
+  @keyframes pulse-glow {
+    0%, 100% { 
+      opacity: 1;
+      text-shadow: 0 0 10px currentColor;
+    }
+    50% { 
+      opacity: 0.8;
+      text-shadow: 0 0 20px currentColor;
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  /* =============================================================================
+     SCOREBOARD STYLES - Phase 4.1
+     ============================================================================= */
+
+  /**
+   * @brief Scoreboard component styles
+   * 
+   * @description Styling for the Pong game scoreboard component.
+   */
+  .scoreboard {
+    @apply bg-gray-900 border border-green-600 rounded-lg p-4 text-center;
+  }
+
+  .player-score {
+    @apply flex-1;
+  }
+
+  .score-display {
+    @apply text-4xl font-bold font-mono text-green-400;
+  }
+
+  .score-animate {
+    @apply animate-pulse text-yellow-400;
+    transform: scale(1.1);
+    transition: all 0.3s ease;
+  }
+
+  .winner-glow {
+    @apply text-yellow-300;
+    text-shadow: 0 0 15px currentColor, 0 0 25px currentColor;
+  }
+
+  /**
+   * @brief Game progress bar
+   */
+  .match-progress .progress-bar {
+    @apply bg-gradient-to-r from-green-600 to-green-400 rounded-full transition-all duration-300;
+  }
+
 }
