@@ -42,9 +42,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+### DATATABASE ###
+  db:
+    container_name: ft_transcendence_db
+    image: keinos/sqlite3:sha256-a87f3ac04f57345c97c6838a39ba2e3766bd2ea5806c5616240d57ae5f467986.sig
+    env_file:
+      - ./srcs/.env
+    volumes:
+      - frontend-data:/var/lib/sqlite/data
+    networks:
+      - db-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "sqlite3 /var/lib/sqlite/data/db.sqlite .dump || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 ### NETWORKS ###
 networks:
   proxy:
+    driver: bridge
+  db-network:
     driver: bridge
 
 ### VOLUMES ###

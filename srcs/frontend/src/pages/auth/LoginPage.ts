@@ -8,7 +8,7 @@
 import { Component } from '../../components/base/Component'
 import { authService, type LoginCredentials, type RegisterCredentials } from '../../services/auth'
 import { ErrorUtils } from '../../services/error'
-import { PopupUtils } from '../../components/ui/Popup'
+import { showPopup } from '../../components/ui/Popup'
 import { router } from '../../router/router'
 
 export interface LoginPageProps {
@@ -25,10 +25,6 @@ export interface LoginPageState {
   isLoading: boolean
   /** Success message (for inline display) */
   success: string | null
-  /** Whether backend is available */
-  backendAvailable: boolean
-  /** Retry counter */
-  retryCount: number
 }
 
 /**
@@ -43,9 +39,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
     super(props, {
       mode: props.mode || 'login',
       isLoading: false,
-      success: null,
-      backendAvailable: true,
-      retryCount: 0
+      success: null
     })
   }
 
@@ -66,82 +60,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
     await this.performLogin(credentials)
   }
 
-  /**
-   * @brief Show authentication error popup with appropriate actions
-   */
-  private showAuthErrorPopup(
-    message: string, 
-    errorCode: number | null | undefined, 
-    isBackendUnavailable: boolean, 
-    formType: 'login' | 'register'
-  ): void {
-    const actions: Array<{
-      label: string
-      type: 'primary' | 'secondary' | 'danger'
-      action: () => void
-    }> = []
-    
-    // Add retry action for server errors if not too many attempts
-    if (isBackendUnavailable && this.state.retryCount < 3) {
-      actions.push({
-        label: '🔄 Retry',
-        type: 'primary',
-        action: () => {
-          if (formType === 'login') {
-            this.retryLogin()
-          } else {
-            this.retryRegister()
-          }
-        }
-      })
-    }
-    
-    // Show appropriate popup based on error severity
-    if (isBackendUnavailable) {
-      PopupUtils.showCriticalError(message, errorCode || undefined, actions)
-    } else if (errorCode && errorCode >= 500) {
-      PopupUtils.showError(message, errorCode, actions)
-    } else {
-      PopupUtils.showWarning(message, actions)
-    }
-  }
 
-  /**
-   * @brief Retry login with current form data
-   */
-  private async retryLogin(): Promise<void> {
-    const form = document.querySelector('[data-login-form]') as HTMLFormElement
-    if (form) {
-      const formData = new FormData(form)
-      const credentials: LoginCredentials = {
-        username: formData.get('username') as string,
-        password: formData.get('password') as string,
-        rememberMe: formData.get('rememberMe') === 'on'
-      }
-      
-      // Directly call the login logic without going through event handler
-      await this.performLogin(credentials)
-    }
-  }
-
-  /**
-   * @brief Retry registration with current form data
-   */
-  private async retryRegister(): Promise<void> {
-    const form = document.querySelector('[data-register-form]') as HTMLFormElement
-    if (form) {
-      const formData = new FormData(form)
-      const credentials: RegisterCredentials = {
-        username: formData.get('username') as string,
-        email: formData.get('email') as string,
-        password: formData.get('password') as string,
-        confirmPassword: formData.get('confirmPassword') as string
-      }
-      
-      // Directly call the register logic without going through event handler
-      await this.performRegister(credentials)
-    }
-  }
 
   /**
    * @brief Perform login with credentials (extracted from handleLogin)
@@ -158,13 +77,11 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
       if (response.success) {
         this.setState({ 
           success: 'Login successful! Redirecting...',
-          isLoading: false,
-          backendAvailable: true,
-          retryCount: 0
+          isLoading: false
         })
         
         // Show success popup
-        PopupUtils.showSuccess('Login successful! Redirecting to home page...')
+        showPopup('Login successful! Redirecting to home page...')
         
         // Redirect to intended page or home
         setTimeout(() => {
@@ -172,41 +89,23 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
         }, 1500)
       } else {
         // Handle authentication errors from backend
-        const isServerError = response.errorCode && response.errorCode >= 500
-        const isBackendUnavailable = [0, 500, 502, 503, 504].includes(response.errorCode || 0)
-        
         this.setState({ 
-          isLoading: false,
-          backendAvailable: !isBackendUnavailable,
-          retryCount: this.state.retryCount + (isServerError ? 1 : 0)
+          isLoading: false
         })
         
-        // Show error popup with appropriate type and actions
-        this.showAuthErrorPopup(
-          response.message || 'Login failed',
-          response.errorCode,
-          isBackendUnavailable,
-          'login'
-        )
+        // Show simple popup with error message
+        showPopup(response.message || 'Login failed')
       }
     } catch (error) {
       // Handle unexpected errors
       const errorResponse = ErrorUtils.handleAuthError(error)
-      const isBackendUnavailable = ErrorUtils.isBackendUnavailable(errorResponse)
       
       this.setState({ 
-        isLoading: false,
-        backendAvailable: !isBackendUnavailable,
-        retryCount: this.state.retryCount + 1
+        isLoading: false
       })
       
-      // Show error popup
-      this.showAuthErrorPopup(
-        errorResponse.userMessage,
-        errorResponse.code,
-        isBackendUnavailable,
-        'login'
-      )
+      // Show simple popup with error message
+      showPopup(errorResponse.userMessage)
     }
   }
 
@@ -225,13 +124,11 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
       if (response.success) {
         this.setState({ 
           success: 'Registration successful! Redirecting...',
-          isLoading: false,
-          backendAvailable: true,
-          retryCount: 0
+          isLoading: false
         })
         
         // Show success popup
-        PopupUtils.showSuccess('Registration successful! Welcome to ft_transcendence!')
+        showPopup('Registration successful! Welcome to ft_transcendence!')
         
         // Redirect to home
         setTimeout(() => {
@@ -239,41 +136,23 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
         }, 1500)
       } else {
         // Handle registration errors from backend
-        const isServerError = response.errorCode && response.errorCode >= 500
-        const isBackendUnavailable = [0, 500, 502, 503, 504].includes(response.errorCode || 0)
-        
         this.setState({ 
-          isLoading: false,
-          backendAvailable: !isBackendUnavailable,
-          retryCount: this.state.retryCount + (isServerError ? 1 : 0)
+          isLoading: false
         })
         
-        // Show error popup
-        this.showAuthErrorPopup(
-          response.message || 'Registration failed',
-          response.errorCode,
-          isBackendUnavailable,
-          'register'
-        )
+        // Show simple popup with error message
+        showPopup(response.message || 'Registration failed')
       }
     } catch (error) {
       // Handle unexpected errors
       const errorResponse = ErrorUtils.handleAuthError(error)
-      const isBackendUnavailable = ErrorUtils.isBackendUnavailable(errorResponse)
       
       this.setState({ 
-        isLoading: false,
-        backendAvailable: !isBackendUnavailable,
-        retryCount: this.state.retryCount + 1
+        isLoading: false
       })
       
-      // Show error popup
-      this.showAuthErrorPopup(
-        errorResponse.userMessage,
-        errorResponse.code,
-        isBackendUnavailable,
-        'register'
-      )
+      // Show simple popup with error message
+      showPopup(errorResponse.userMessage)
     }
   }
 
@@ -294,7 +173,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
 
     // Validate password confirmation
     if (credentials.password !== credentials.confirmPassword) {
-      PopupUtils.showError('Passwords do not match', 400)
+      showPopup('Passwords do not match')
       return
     }
 
@@ -309,8 +188,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
   private switchMode(newMode: 'login' | 'register'): void {
     this.setState({ 
       mode: newMode, 
-      success: null,
-      retryCount: 0
+      success: null
     })
   }
 
