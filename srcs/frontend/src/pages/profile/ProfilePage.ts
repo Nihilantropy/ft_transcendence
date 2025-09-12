@@ -10,6 +10,7 @@
  */
 
 import { Component } from '../../components/base/Component'
+import type { UserProfile } from '../../types'
 
 /**
  * @brief ProfilePage component properties interface
@@ -23,38 +24,7 @@ export interface ProfilePageProps {
 }
 
 /**
- * @brief User profile data interface
- */
-export interface UserProfile {
-  id: string
-  username: string
-  email: string
-  avatar?: string
-  stats: {
-    gamesPlayed: number
-    gamesWon: number
-    gamesLost: number
-    winRate: number
-    ranking: number
-    totalScore: number
-  }
-  achievements: {
-    id: string
-    name: string
-    description: string
-    earned: boolean
-    dateEarned?: string
-  }[]
-  recentGames: {
-    id: string
-    opponent: string
-    result: 'win' | 'loss'
-    score: string
-    date: string
-  }[]
-}
-
-/**
+ * @brief ProfilePage component state interface
  * @brief ProfilePage component state interface
  */
 export interface ProfilePageState {
@@ -449,6 +419,8 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
         id: 'user_123456',
         username: 'PongMaster',
         email: 'player@example.com',
+        isOnline: true,
+        createdAt: new Date('2024-01-15'),
         stats: {
           gamesPlayed: 42,
           gamesWon: 28,
@@ -531,7 +503,7 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
       import('../../components/ui/ErrorPage').then(({ showErrorPage }) => {
         const errorType = error?.status >= 500 ? '500' : 'api'
         const errorMessage = error?.message || 'Backend service is currently unavailable'
-        showErrorPage(container, errorType, errorMessage, error?.details)
+        showErrorPage(container, errorType, errorMessage, error)
       })
     }
   }

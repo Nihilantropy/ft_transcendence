@@ -8,6 +8,7 @@
  */
 
 import { Component } from '../base/Component'
+import type { Score, GameStatus } from '../../types'
 
 /**
  * @brief Props for GameContainer component
@@ -23,14 +24,18 @@ export interface GameContainerProps {
  * @brief State for GameContainer component
  */
 export interface GameContainerState {
-  /** Current game state */
-  gameState: 'lobby' | 'playing' | 'paused' | 'finished'
-  /** Player 1 score */
-  player1Score: number
-  /** Player 2 score */
-  player2Score: number
+  /** Current game status */
+  gameState: GameStatus | 'lobby'  // Adding lobby for compatibility
+  /** Game score */
+  score: Score
   /** Player vs AI mode */
   vsAI: boolean
+  
+  // Backwards compatibility properties
+  /** Player 1 score (alias for score.player1) */
+  player1Score: number
+  /** Player 2 score (alias for score.player2) */
+  player2Score: number
 }
 
 /**
@@ -52,6 +57,11 @@ export class GameContainer extends Component<GameContainerProps, GameContainerSt
   constructor(props: GameContainerProps = {}) {
     super(props, {
       gameState: props.mode === 'playing' ? 'playing' : 'lobby',
+      score: {
+        player1: 0,
+        player2: 0,
+        maxScore: 5
+      },
       player1Score: 0,
       player2Score: 0,
       vsAI: false
@@ -370,7 +380,12 @@ export class GameContainer extends Component<GameContainerProps, GameContainerSt
       gameState: 'playing',
       vsAI,
       player1Score: 0,
-      player2Score: 0
+      player2Score: 0,
+      score: {
+        player1: 0,
+        player2: 0,
+        maxScore: 5
+      }
     })
     console.log(`🎮 Game started: ${vsAI ? 'vs AI' : '2 Player'}`)
   }
@@ -398,6 +413,11 @@ export class GameContainer extends Component<GameContainerProps, GameContainerSt
       gameState: 'lobby',
       player1Score: 0,
       player2Score: 0,
+      score: {
+        player1: 0,
+        player2: 0,
+        maxScore: 5
+      },
       vsAI: false
     })
     console.log('🔄 Game reset to lobby')
@@ -407,7 +427,15 @@ export class GameContainer extends Component<GameContainerProps, GameContainerSt
    * @brief Update scores (for integration with actual Pong game logic)
    */
   public updateScore(player1Score: number, player2Score: number): void {
-    this.setState({ player1Score, player2Score })
+    this.setState({ 
+      player1Score, 
+      player2Score,
+      score: {
+        player1: player1Score,
+        player2: player2Score,
+        maxScore: this.state.score.maxScore
+      }
+    })
     
     // Check for winner (first to 11, must win by 2)
     if ((player1Score >= 11 && player1Score - player2Score >= 2) ||

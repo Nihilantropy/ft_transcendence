@@ -5,57 +5,65 @@
  * Defines fundamental interfaces for User, Game, Tournament, etc.
  */
 
-// Core User Types (to be implemented in Phase B2)
-// export interface User {
-//   id: string
-//   username: string
-//   email: string
-//   avatar?: string
-//   isOnline: boolean
-//   createdAt: Date
-//   stats: UserStats
-// }
-
-// export interface UserStats {
-//   wins: number
-//   losses: number
-//   winRate: number
-//   totalGames: number
-//   rank: number
-// }
-
-// Core Game Types (to be implemented in Phase G1)
-// export interface Game {
-//   id: string
-//   type: 'classic' | 'tournament' | 'ai'
-//   status: 'waiting' | 'playing' | 'finished'
-//   players: Player[]
-//   settings: GameSettings
-//   createdAt: Date
-// }
-
-// export interface Player {
-//   id: string
-//   user: User
-//   paddlePosition: number
-//   score: number
-//   isReady: boolean
-// }
-
-// Core Tournament Types (to be implemented later)
-// export interface Tournament {
-//   id: string
-//   name: string
-//   status: 'registration' | 'active' | 'finished'
-//   participants: User[]
-//   bracket: TournamentBracket
-//   startDate: Date
-// }
-
-// Utility Types
+// Utility Types - Already active
 export type ID = string
 export type Timestamp = number
 export type EventCallback<T = any> = (data: T) => void
 
-// Placeholder for development
-export const GLOBAL_TYPES_PLACEHOLDER = 'Global types will be implemented in Phase B2'
+// Base User Types (Active for current implementation)
+export interface User {
+  id: string
+  username: string
+  email: string
+  displayName?: string
+  avatar?: string
+  isOnline: boolean
+  createdAt: Date
+  lastSeen?: Date
+}
+
+export interface UserStats {
+  gamesPlayed: number
+  gamesWon: number
+  gamesLost: number
+  winRate: number
+  ranking: number
+  totalScore: number
+  currentStreak?: number
+  bestStreak?: number
+}
+
+// Core Game Types (Basic implementation for current phase)
+export interface Game {
+  id: string
+  type: 'classic' | 'tournament' | 'ai'
+  status: 'waiting' | 'playing' | 'finished'
+  players: Player[]
+  createdAt: Date
+  finishedAt?: Date
+}
+
+export interface Player {
+  id: string
+  username: string
+  paddlePosition: number
+  score: number
+  isReady: boolean
+  isAI?: boolean
+}
+
+// Tournament Types (Future implementation)
+export interface Tournament {
+  id: string
+  name: string
+  status: 'registration' | 'active' | 'finished'
+  participants: User[]
+  maxParticipants: number
+  startDate: Date
+  endDate?: Date
+}
+
+// Additional utility types
+export type Theme = 'dark' | 'light'
+export type GameMode = 'singleplayer' | 'multiplayer' | 'tournament' | 'ai'
+export type GameStatus = 'idle' | 'waiting' | 'starting' | 'playing' | 'paused' | 'finished'

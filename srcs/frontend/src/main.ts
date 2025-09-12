@@ -89,7 +89,7 @@ async function bootstrap(): Promise<void> {
     // Step 7: Performance metrics
     const loadTime = Math.round(performance.now() - startTime)
     console.log(`✅ ft_transcendence initialized successfully in ${loadTime}ms`)
-    console.log('📋 Available routes: /, /game, /profile, /demo')
+    console.log('📋 Available routes: /, /game, /profile')
     
     // Step 8: Post-initialization tasks
     await postInitializationTasks()
@@ -662,11 +662,6 @@ async function setupGlobalKeyboardNavigation(): Promise<void> {
           console.log('⌨️ Quick nav: Profile')
           handled = true
           break
-        case 'd':
-          router.navigate('/demo')
-          console.log('⌨️ Quick nav: Animation Demo')
-          handled = true
-          break
       }
       
       if (handled) {
@@ -707,7 +702,7 @@ async function setupGlobalKeyboardNavigation(): Promise<void> {
   setupFocusManagement()
   
   console.log('⌨️ Enhanced keyboard navigation enabled')
-  console.log('  Alt+H: Home | Alt+G: Game | Alt+P: Profile | Alt+D: Demo')
+  console.log('  Alt+H: Home | Alt+G: Game | Alt+P: Profile')
   console.log('  Esc: Back/Close | Ctrl+R: Reload (with confirmation)')
 }
 

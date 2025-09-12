@@ -7,46 +7,16 @@
 
 import { ApiService } from '../api/BaseApiService'
 import { ErrorUtils } from '../error/ErrorHandler'
+import type { 
+  LoginRequest, 
+  RegisterRequest, 
+  AuthResponse,
+  User
+} from '../../types'
 
-export interface LoginCredentials {
-  username: string
-  password: string
-  rememberMe?: boolean
-}
-
-export interface RegisterCredentials {
-  username: string
-  email: string
-  password: string
-  confirmPassword: string
-}
-
-export interface AuthResponse {
-  success: boolean
-  user?: {
-    id: string
-    username: string
-    email: string
-    avatar?: string
-    isVerified: boolean
-    createdAt: string
-    lastLoginAt?: string
-  }
-  token?: string
-  refreshToken?: string
-  message?: string
-  errorCode?: number
-}
-
-export interface User {
-  id: string
-  username: string
-  email: string
-  avatar?: string
-  isVerified: boolean
-  createdAt: string
-  lastLoginAt?: string
-}
+// Type aliases for backwards compatibility
+export type LoginCredentials = LoginRequest
+export type RegisterCredentials = RegisterRequest
 
 /**
  * @brief Authentication service class

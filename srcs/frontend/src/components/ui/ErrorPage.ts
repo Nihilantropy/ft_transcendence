@@ -149,7 +149,7 @@ export class ErrorPage extends Component<ErrorPageProps, ErrorPageState> {
   }
 
   /**
-   * @brief Check if in development mode
+   * @brief Check if in development mode TODO change to get the env variable for development
    */
   private isDevelopment(): boolean {
     return window.location.hostname === 'localhost' || 

@@ -129,44 +129,6 @@ export function configureRoutes(router: Router): void {
     redirect: '/login'
   })
 
-  // Animation demo route (temporary for Phase 4.2 testing)
-  router.register('/demo', async () => {
-    console.log('🎨 Loading Animation Demo')
-    const { GameAnimationDemo } = await import('../components/game/GameAnimationDemo')
-    
-    const container = getAppContainer()
-    const demo = new GameAnimationDemo({ mode: 'all' })
-    
-    container.innerHTML = `
-      <div class="min-h-screen bg-black text-green-400 font-mono p-4">
-        <div class="max-w-6xl mx-auto">
-          <div class="text-center mb-6">
-            <h1 class="text-3xl font-bold neon-glow mb-2">🎮 Phase 4.2 Animation Demo</h1>
-            <p class="text-green-500 mb-4">Test all gaming animations and visual effects</p>
-                      <button 
-            data-navigate="/"
-            class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-bold"
-          >
-            🏠 Back to Home
-          </button>
-          </div>
-          
-          ${demo.render()}
-        </div>
-      </div>
-    `
-    
-    // Mount the demo component for interactivity
-    if (typeof demo.mount === 'function') {
-      demo.mount(container)
-    } else {
-      // Add navigation listeners
-      addNavigationListeners(container)
-    }
-    
-    document.title = 'Animation Demo - ft_transcendence'
-  })
-
   // 404 fallback
   router.register('/404', async () => {
     console.log('❌ Loading 404 page')
