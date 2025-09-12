@@ -48,10 +48,9 @@ services:
     image: keinos/sqlite3:3.50.4
     env_file:
       - ./srcs/.env
-    volumes:
-      - frontend-data:/var/lib/sqlite/data
     networks:
       - db-network
+    # TODO add command to keep the container running (right now is exiting with 0)
     restart: on-failure
     healthcheck:
       test: ["CMD-SHELL", "sqlite3 /var/lib/sqlite/data/db.sqlite .dump || exit 1"]
