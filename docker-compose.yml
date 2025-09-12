@@ -45,7 +45,7 @@ services:
 ### DATATABASE ###
   db:
     container_name: ft_transcendence_db
-    image: keinos/sqlite3:sha256-a87f3ac04f57345c97c6838a39ba2e3766bd2ea5806c5616240d57ae5f467986.sig
+    image: keinos/sqlite3:3.50.4
     env_file:
       - ./srcs/.env
     volumes:
