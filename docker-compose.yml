@@ -2,7 +2,7 @@ services:
   ### NGINX ###
   nginx:
     container_name: ft_transcendence_nginx
-    image: ft_transcendence_nginx
+    image: ft_transcendence_nginx:local
     build:
       context: ./srcs/nginx
       dockerfile: Dockerfile
@@ -21,7 +21,7 @@ services:
 ### FRONTEND ###
   frontend:
     container_name: ft_transcendence_frontend
-    image: ft_transcendence_frontend
+    image: ft_transcendence_frontend:local
     build:
       context: ./srcs/frontend
       dockerfile: Dockerfile

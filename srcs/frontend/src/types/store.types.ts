@@ -200,17 +200,8 @@ export interface UIState {
   /** Currently active modal (null if none) */
   activeModal: string | null
   
-  /** Active notifications */
-  notifications: UINotification[]
-  
-  /** User language preference */
-  language: string
-  
   /** User theme preference */
   theme: 'dark' | 'light'
-  
-  /** Accessibility settings */
-  accessibility: AccessibilitySettings
 }
 
 /**
@@ -236,25 +227,6 @@ export interface UINotification {
   
   /** Notification creation time */
   createdAt: Date
-}
-
-/**
- * @brief Accessibility settings
- * 
- * @description User accessibility preferences.
- */
-export interface AccessibilitySettings {
-  /** High contrast mode enabled */
-  highContrast: boolean
-  
-  /** Reduced motion preference */
-  reducedMotion: boolean
-  
-  /** Screen reader optimization */
-  screenReader: boolean
-  
-  /** Font size preference */
-  fontSize: 'small' | 'medium' | 'large'
 }
 
 /**

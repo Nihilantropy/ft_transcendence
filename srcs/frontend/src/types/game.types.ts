@@ -62,7 +62,7 @@ export interface PowerUp {
 
 // Game Event Types (Active for current implementation)
 export type GameStatus = 'waiting' | 'starting' | 'playing' | 'paused' | 'finished'
-export type GameMode = 'singleplayer' | 'multiplayer' | 'ai' | 'tournament'
+export type GameMode = 'singleplayer' | 'ai' | 'tournament'
 export type InputAction = 'paddle_up' | 'paddle_down' | 'pause' | 'resume'
 
 // Game Event Handlers (Active for current implementation)

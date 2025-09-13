@@ -8,7 +8,7 @@
  */
 
 import { BaseStore } from './BaseStore'
-import type { UIState, UINotification, AccessibilitySettings } from '../types/store.types'
+import type { UIState } from '../types/store.types'
 
 /**
  * @brief User interface state management store
@@ -18,10 +18,9 @@ import type { UIState, UINotification, AccessibilitySettings } from '../types/st
  */
 export class UIStore extends BaseStore<UIState> {
   private readonly PREFERENCES_KEY = 'ft_transcendence_ui_preferences'
-  private notificationCounter = 0
 
   /**
-   * @brief Initialize UI store (FIXED VERSION)
+   * @brief Initialize UI store
    * 
    * @description Creates store with responsive default state.
    * Detects initial device type and restores user preferences.
@@ -33,15 +32,7 @@ export class UIStore extends BaseStore<UIState> {
       breakpoint: 'desktop', // Will be updated after super()
       sidebarOpen: false,
       activeModal: null,
-      notifications: [],
-      language: 'en', // Will be updated after super()
       theme: 'dark', // Gaming theme default
-      accessibility: {
-        highContrast: false,
-        reducedMotion: false, // Will be updated after super()
-        screenReader: false,
-        fontSize: 'medium'
-      }
     }
 
     // Call super() FIRST with static initial state
@@ -52,11 +43,6 @@ export class UIStore extends BaseStore<UIState> {
     this.setState({
       isMobile: this.detectMobile(),
       breakpoint: this.detectBreakpoint(),
-      language: this.detectLanguage(),
-      accessibility: {
-        ...this.getState().accessibility,
-        reducedMotion: this.detectReducedMotion()
-      }
     })
     
     // Set up responsive listeners
@@ -127,84 +113,6 @@ export class UIStore extends BaseStore<UIState> {
   }
 
   /**
-   * @brief Add notification
-   * 
-   * @param type - Notification type
-   * @param title - Notification title
-   * @param message - Notification message
-   * @param autoDismiss - Whether to auto-dismiss (default: true)
-   * @return Notification ID for manual dismissal
-   * 
-   * @description Adds new notification to the notification list.
-   */
-  addNotification(
-    type: 'info' | 'success' | 'warning' | 'error',
-    title: string,
-    message: string,
-    autoDismiss: boolean = true
-  ): string {
-    const notification: UINotification = {
-      id: `notification-${++this.notificationCounter}`,
-      type,
-      title,
-      message,
-      autoDismiss,
-      createdAt: new Date()
-    }
-
-    const currentState = this.getState()
-    const updatedNotifications = [...currentState.notifications, notification]
-    
-    this.setState({ notifications: updatedNotifications })
-
-    // Auto-dismiss after 5 seconds if enabled
-    if (autoDismiss) {
-      setTimeout(() => {
-        this.removeNotification(notification.id)
-      }, 5000)
-    }
-
-    return notification.id
-  }
-
-  /**
-   * @brief Remove notification
-   * 
-   * @param notificationId - ID of notification to remove
-   * 
-   * @description Removes specific notification from the list.
-   */
-  removeNotification(notificationId: string): void {
-    const currentState = this.getState()
-    const updatedNotifications = currentState.notifications.filter(
-      notification => notification.id !== notificationId
-    )
-    
-    this.setState({ notifications: updatedNotifications })
-  }
-
-  /**
-   * @brief Clear all notifications
-   * 
-   * @description Removes all notifications from the list.
-   */
-  clearNotifications(): void {
-    this.setState({ notifications: [] })
-  }
-
-  /**
-   * @brief Set language preference
-   * 
-   * @param language - Language code (e.g., 'en', 'fr', 'es', 'it')
-   * 
-   * @description Updates language preference and persists to storage.
-   */
-  setLanguage(language: string): void {
-    this.setState({ language })
-    this.persistPreferences()
-  }
-
-  /**
    * @brief Set theme preference
    * 
    * @param theme - Theme preference ('dark' or 'light')
@@ -214,35 +122,6 @@ export class UIStore extends BaseStore<UIState> {
   setTheme(theme: 'dark' | 'light'): void {
     this.setState({ theme })
     this.persistPreferences()
-  }
-
-  /**
-   * @brief Update accessibility settings
-   * 
-   * @param settings - Partial accessibility settings to update
-   * 
-   * @description Updates accessibility settings and persists to storage.
-   */
-  updateAccessibility(settings: Partial<AccessibilitySettings>): void {
-    const currentState = this.getState()
-    const updatedSettings: AccessibilitySettings = {
-      ...currentState.accessibility,
-      ...settings
-    }
-    
-    this.setState({ accessibility: updatedSettings })
-    this.persistPreferences()
-  }
-
-  /**
-   * @brief Get current notification count (convenience method)
-   * 
-   * @return Number of active notifications
-   * 
-   * @description Helper to get notification count.
-   */
-  getNotificationCount(): number {
-    return this.getState().notifications.length
   }
 
   /**
@@ -300,39 +179,6 @@ export class UIStore extends BaseStore<UIState> {
   }
 
   /**
-   * @brief Detect user language preference
-   * 
-   * @return Detected language code
-   * 
-   * @description Uses browser language with fallback to 'en'.
-   */
-  private detectLanguage(): string {
-    if (typeof navigator === 'undefined') {
-      return 'en'
-    }
-    
-    const browserLang = navigator.language.split('-')[0]
-    const supportedLanguages = ['en', 'fr', 'es', 'it']
-    
-    return supportedLanguages.includes(browserLang) ? browserLang : 'en'
-  }
-
-  /**
-   * @brief Detect reduced motion preference
-   * 
-   * @return True if user prefers reduced motion
-   * 
-   * @description Checks CSS media query for motion preference.
-   */
-  private detectReducedMotion(): boolean {
-    if (typeof window === 'undefined') {
-      return false
-    }
-    
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  }
-
-  /**
    * @brief Set up responsive design listeners
    * 
    * @description Adds window resize listener for responsive updates.
@@ -361,9 +207,7 @@ export class UIStore extends BaseStore<UIState> {
     try {
       const state = this.getState()
       const preferences = {
-        language: state.language,
         theme: state.theme,
-        accessibility: state.accessibility
       }
       
       localStorage.setItem(this.PREFERENCES_KEY, JSON.stringify(preferences))
@@ -388,12 +232,7 @@ export class UIStore extends BaseStore<UIState> {
       const preferences = JSON.parse(stored)
       
       this.setState({
-        language: preferences.language || this.getState().language,
         theme: preferences.theme || this.getState().theme,
-        accessibility: {
-          ...this.getState().accessibility,
-          ...preferences.accessibility
-        }
       })
 
     } catch (error) {

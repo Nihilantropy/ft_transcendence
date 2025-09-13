@@ -23,7 +23,6 @@ export type {
   GameSettings as StoreGameSettings,
   UIState,
   UINotification,
-  AccessibilitySettings,
   AppState,
   ID,
   Timestamp,

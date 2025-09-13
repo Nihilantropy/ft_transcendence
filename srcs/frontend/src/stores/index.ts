@@ -29,8 +29,6 @@ export type {
   GameMode,
   GameStatus,
   UIState,
-  UINotification,
-  AccessibilitySettings,
   AppState
 } from '../types/store.types'
 

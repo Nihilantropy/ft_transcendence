@@ -65,5 +65,5 @@ export interface Tournament {
 
 // Additional utility types
 export type Theme = 'dark' | 'light'
-export type GameMode = 'singleplayer' | 'multiplayer' | 'tournament' | 'ai'
+export type GameMode = 'singleplayer' | 'tournament' | 'ai'
 export type GameStatus = 'idle' | 'waiting' | 'starting' | 'playing' | 'paused' | 'finished'
