@@ -40,6 +40,7 @@ async function errorHandlerPlugin(fastify, options = {}) {
     validation: (message, details) => errorHandler.validation(message, details),
     authentication: (message, details) => errorHandler.authentication(message, details),
     authorization: (message, details) => errorHandler.authorization(message, details),
+    badRequest: (message, details) => errorHandler.badRequest(message, details),
     notFound: (message, details) => errorHandler.notFound(message, details),
     conflict: (message, details) => errorHandler.conflict(message, details),
     database: (message, details) => errorHandler.database(message, details),

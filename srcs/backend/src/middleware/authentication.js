@@ -147,7 +147,7 @@ export function requireRole(requiredRole) {
     }
     
     // Get user roles from database
-    const db = await databaseConnection.getDatabase()
+    const db = databaseConnection.getDatabase()
     const stmt = db.prepare(`
       SELECT r.name 
       FROM user_roles ur 
@@ -196,7 +196,7 @@ export async function optionalAuth(request, reply) {
     }
     
     const decoded = jwt.verify(token, jwtSecret)
-    const user = await getUserById(decoded.userId)
+    const user = getUserById(decoded.userId)
     
     if (user && user.is_active) {
       request.user = sanitizeUser(user)

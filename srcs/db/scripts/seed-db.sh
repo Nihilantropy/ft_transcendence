@@ -1,9 +1,6 @@
 #!/bin/bash
 set -e
 
-# # Load environment variables
-# source /app/.env
-
 DB_PATH="${DB_DIR}/${DB_FILE}"
 
 echo "🌱 Starting database seeding..."

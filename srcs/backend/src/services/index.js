@@ -8,4 +8,4 @@
 export { default as userService, UserService } from './user.service.js'
 
 // Email service
-export { default as emailService, EmailService } from './email.service.js'
+export { emailService } from './email.service.js'

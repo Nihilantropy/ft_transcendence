@@ -65,7 +65,7 @@ Services use catchErrorTyped and throw generic Error objects when API requests f
 // In AuthService
 async login(credentials: LoginCredentials): Promise<{ success: boolean; user?: User }> {
     const [error, response] = await catchErrorTyped(
-        this.apiService.post('/auth/login', credentials)
+        this.apiService.post('/login', credentials)
     );
 
     if (error) {

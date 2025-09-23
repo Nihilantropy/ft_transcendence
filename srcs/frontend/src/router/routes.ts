@@ -120,7 +120,6 @@ export function configureRoutes(router: Router): void {
 
   router.register('/verify-email', async () => {
     console.log('📧 Loading Email Verification page')
-    // Get token from URL query parameters
     const urlParams = new URLSearchParams(window.location.search)
     const token = urlParams.get('token')
     loadPage(EmailVerificationPage, { token })

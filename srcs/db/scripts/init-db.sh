@@ -1,14 +1,6 @@
 #!/bin/bash
 set -e
 
-# # Load environment variables
-# if [ -f "/app/.env" ]; then
-#     source /app/.env
-# else
-#     echo "❌ Error: .env file not found at /app/.env"
-#     exit 1
-# fi
-
 # Database file path
 DB_PATH="${DB_DIR}/${DB_FILE}"
 
@@ -49,5 +41,4 @@ echo "✅ Database initialization completed"
 
 # Keep container running for database access
 echo "🔄 Database service ready - exit 0"
-# exit 0
-tail -f /dev/null
+exit 0

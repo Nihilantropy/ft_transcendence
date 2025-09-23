@@ -102,8 +102,11 @@ export interface AuthResponse {
     createdAt: Date
     lastSeen?: Date
   }
-  token?: string
   refreshToken?: string
+  tokens?: {
+    accessToken: string
+    refreshToken: string
+  }
   expiresAt?: number
   message?: string
   errorCode?: number

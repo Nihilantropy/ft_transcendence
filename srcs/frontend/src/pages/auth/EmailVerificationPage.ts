@@ -69,18 +69,19 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
           errorMessage: null
         })
         
-        // Check if user is now authenticated (means verification gave them a token)
+        // Show success message
+        showPopup('Email verified successfully! You can now choose your username.')
+        
+        // Check if user is now authenticated (backend provides tokens after verification)
         if (authService.isAuthenticated()) {
-          showPopup('Email verified successfully! Welcome!')
-          // Redirect to dashboard/home after successful verification and authentication
+          // Redirect to username selection page after successful verification
           setTimeout(() => {
-            window.location.href = '/dashboard'
+            router.navigate('/username-selection')
           }, 2000)
         } else {
-          showPopup('Email verified successfully! You can now log in.')
-          // Redirect to login page if not automatically authenticated
+          // Fallback - redirect to login if not auto-authenticated
           setTimeout(() => {
-            window.location.href = '/login'
+            router.navigate('/login')
           }, 2000)
         }
       } else {
@@ -91,13 +92,13 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
         })
         showPopup(`Verification failed: ${response.message}`)
       }
-    } catch (error) {
+    } catch (error: any) {
       this.setState({
         status: 'error',
         isLoading: false,
         errorMessage: 'Something went wrong. Please try again.'
       })
-      showPopup('Something went wrong during verification.')
+      showPopup(error.message)
     }
   }
 
@@ -108,22 +109,16 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
     this.setState({ isLoading: true })
     
     try {
-      // For now, show a helpful message since backend is not yet implemented
-      // In the future, this would call authService.resendEmailVerification()
-      showPopup('Backend not yet implemented. Email verification will be available when backend is ready.')
+      const email = prompt('Please enter your email address:')
+      if (email) {
+        const response = await authService.resendEmailVerification(email)
+        if (response.success) {
+          showPopup('Verification email sent! Please check your inbox.')
+        } else {
+          showPopup(`Failed to send email: ${response.message}`)
+        }
+      }
       this.setState({ isLoading: false })
-      
-      // Future implementation:
-      // const email = prompt('Please enter your email address:')
-      // if (email) {
-      //   const response = await authService.resendEmailVerification(email)
-      //   if (response.success) {
-      //     showPopup('Verification email sent! Please check your inbox.')
-      //   } else {
-      //     showPopup(`Failed to send email: ${response.message}`)
-      //   }
-      // }
-      
     } catch (error) {
       this.setState({ isLoading: false })
       showPopup('Failed to resend verification email.')
@@ -154,6 +149,8 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
    * @brief Render success state
    */
   private renderSuccessState(): string {
+    const isAuthenticated = authService.isAuthenticated()
+    
     return `
       <div class="text-center">
         <div class="text-6xl mb-6">✅</div>
@@ -162,15 +159,27 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
         </h1>
         <p class="text-green-500 mb-6">
           Your email address has been successfully verified. 
-          You can now log in to your account.
+          ${isAuthenticated ? 'You can now choose your username!' : 'You can now log in to your account.'}
         </p>
         <div class="space-y-3">
-          <button
-            data-navigate="/login"
-            class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors"
-          >
-            🔐 Go to Login
-          </button>
+          ${isAuthenticated ? `
+            <button
+              data-navigate="/username-selection"
+              class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors"
+            >
+              🏷️ Choose Username
+            </button>
+            <p class="text-sm text-green-300">
+              Redirecting automatically in 2 seconds...
+            </p>
+          ` : `
+            <button
+              data-navigate="/login"
+              class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors"
+            >
+              🔐 Go to Login
+            </button>
+          `}
           <button
             data-navigate="/"
             class="w-full px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors"
@@ -200,9 +209,10 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
         <div class="space-y-3">
           <button
             data-resend="true"
-            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors"
+            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors ${this.state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}"
+            ${this.state.isLoading ? 'disabled' : ''}
           >
-            📧 Resend Verification Email
+            ${this.state.isLoading ? '⏳ Sending...' : '📧 Resend Verification Email'}
           </button>
           <button
             data-navigate="/login"
@@ -238,9 +248,10 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
         <div class="space-y-3">
           <button
             data-resend="true"
-            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors"
+            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors ${this.state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}"
+            ${this.state.isLoading ? 'disabled' : ''}
           >
-            📧 Request New Verification Email
+            ${this.state.isLoading ? '⏳ Sending...' : '📧 Request New Verification Email'}
           </button>
           <button
             data-navigate="/login"
@@ -289,6 +300,13 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
   }
 
   /**
+   * @brief Handle navigation to username selection
+   */
+  private handleUsernameSelection(): void {
+    router.navigate('/username-selection')
+  }
+
+  /**
    * @brief Mount component and set up event listeners
    */
   public mount(container: HTMLElement): void {
@@ -314,7 +332,11 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
       button.addEventListener('click', () => {
         const path = button.getAttribute('data-navigate')
         if (path) {
-          router.navigate(path)
+          if (path === '/username-selection') {
+            this.handleUsernameSelection()
+          } else {
+            router.navigate(path)
+          }
         }
       })
     })

@@ -120,7 +120,7 @@ export class AuthService extends ApiService {
     console.log('🔐 Attempting login for:', credentials.identifier)
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse>('/auth/login', {
+      this.post<AuthResponse>('/login', {
         identifier: credentials.identifier,  // Can be email or username
         password: credentials.password,
         rememberMe: credentials.rememberMe || false
@@ -135,11 +135,22 @@ export class AuthService extends ApiService {
       throw new Error(apiResponse?.data.message || 'Login failed')
     }
 
-    if (!apiResponse.data.user || !apiResponse.data.token) {
+    // Support both old (token) and new (tokens) response formats
+    const accessToken = apiResponse.data.tokens?.accessToken
+    const refreshToken = apiResponse.data.tokens?.refreshToken
+
+    if (!apiResponse.data.user || !accessToken) {
       throw new Error('Invalid response from server')
     }
 
-    this.storeAuth(apiResponse.data.user, apiResponse.data.token)
+    // Store authentication data
+    this.storeAuth(apiResponse.data.user, accessToken)
+    
+    // Store refresh token if provided
+    if (refreshToken) {
+      localStorage.setItem('ft_refresh_token', refreshToken)
+    }
+
     console.log('✅ Login successful for:', apiResponse.data.user.username)
     
     return { 
@@ -250,9 +261,20 @@ export class AuthService extends ApiService {
         refreshToken
       })
 
-      if (apiResponse.success && apiResponse.data.success && apiResponse.data.user && apiResponse.data.token) {
-        this.storeAuth(apiResponse.data.user, apiResponse.data.token)
-        return true
+      if (apiResponse.success && apiResponse.data.success && apiResponse.data.user) {
+        const accessToken = apiResponse.data.tokens?.accessToken
+        const newRefreshToken = apiResponse.data.tokens?.refreshToken
+        
+        if (accessToken) {
+          this.storeAuth(apiResponse.data.user, accessToken)
+          
+          // Update refresh token if provided
+          if (newRefreshToken) {
+            localStorage.setItem('ft_refresh_token', newRefreshToken)
+          }
+          
+          return true
+        }
       }
       
       return false
@@ -349,9 +371,18 @@ export class AuthService extends ApiService {
       throw new Error(apiResponse?.data.message || 'Email verification failed')
     }
 
-    // If verification successful AND we get user + token, authenticate the user
-    if (apiResponse.data.user && apiResponse.data.token) {
-      this.storeAuth(apiResponse.data.user, apiResponse.data.token)
+    // If verification successful AND we get user + tokens, authenticate the user
+    const accessToken = apiResponse.data.tokens?.accessToken
+    const refreshToken = apiResponse.data.tokens?.refreshToken
+    
+    if (apiResponse.data.user && accessToken) {
+      this.storeAuth(apiResponse.data.user, accessToken)
+      
+      // Store refresh token if provided
+      if (refreshToken) {
+        localStorage.setItem('ft_refresh_token', refreshToken)
+      }
+      
       console.log('✅ Email verification successful - User authenticated:', apiResponse.data.user.username)
       return { 
         success: true, 
@@ -584,15 +615,23 @@ export class AuthService extends ApiService {
 
     console.log('✅ 2FA verification successful')
     // Update authentication state
-    if (apiResponse.data.token) {
-      this.authToken = apiResponse.data.token
+    const accessToken = apiResponse.data.tokens?.accessToken
+    
+    if (accessToken) {
+      this.authToken = accessToken
       localStorage.setItem('ft_auth_token', this.authToken)
+      
+      // Store refresh token if provided
+      const refreshToken = apiResponse.data.tokens?.refreshToken
+      if (refreshToken) {
+        localStorage.setItem('ft_refresh_token', refreshToken)
+      }
     }
 
     return {
       success: true,
       message: apiResponse.data.message,
-      token: apiResponse.data.token
+      token: accessToken
     }
   }
 
@@ -674,7 +713,7 @@ export class AuthService extends ApiService {
   public startGoogleOAuth(returnTo?: string): void {
     console.log('🔐 Starting Google OAuth flow')
     // Redirect to backend OAuth endpoint
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
     const oauthUrl = `${baseUrl}/auth/oauth/google`
     const params = new URLSearchParams()
     if (returnTo) {
@@ -714,16 +753,24 @@ export class AuthService extends ApiService {
       throw new Error(apiResponse?.data.message || 'OAuth authentication failed')
     }
 
-    if (apiResponse.data.user && apiResponse.data.token) {
+    const accessToken = apiResponse.data.tokens?.accessToken
+    const refreshToken = apiResponse.data.tokens?.refreshToken
+
+    if (apiResponse.data.user && accessToken) {
       // Store authentication data
-      this.storeAuth(apiResponse.data.user, apiResponse.data.token)
+      this.storeAuth(apiResponse.data.user, accessToken)
+      
+      // Store refresh token if provided
+      if (refreshToken) {
+        localStorage.setItem('ft_refresh_token', refreshToken)
+      }
       
       console.log('🔐 OAuth authentication successful:', apiResponse.data.user.username)
       
       return {
         success: true,
         user: apiResponse.data.user,
-        token: apiResponse.data.token,
+        token: accessToken,
         message: `OAuth authentication successful. ${returnTo ? `Redirecting to ${returnTo}` : 'Welcome!'}`,
         returnTo: returnTo || undefined
       }

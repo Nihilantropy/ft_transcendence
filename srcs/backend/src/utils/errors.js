@@ -39,20 +39,20 @@ export class AppError extends Error {
 }
 
 /**
+ * @brief Bad request error (400 Bad Request)
+ */
+export class BadRequestError extends AppError {
+  constructor(message = 'Bad request', details = null) {
+    super(message, 400, 'BAD_REQUEST_ERROR', details)
+  }
+}
+
+/**
  * @brief Validation error (400 Bad Request)
  */
 export class ValidationError extends AppError {
   constructor(message, details = null) {
     super(message, 400, 'VALIDATION_ERROR', details)
-  }
-}
-
-/**
- * @brief Authentication error (401 Unauthorized)
- */
-export class AuthenticationError extends AppError {
-  constructor(message = 'Authentication required', details = null) {
-    super(message, 401, 'AUTHENTICATION_ERROR', details)
   }
 }
 
@@ -200,6 +200,10 @@ export class ErrorHandler {
   /**
    * @brief Create specific error types with factory methods
    */
+  badRequest(message, details = null) {
+    return new BadRequestError(message, details)
+  }
+
   validation(message, details = null) {
     return new ValidationError(message, details)
   }

@@ -12,13 +12,11 @@ RUN mkdir -p /app/db-data && \
     chmod -R 755 /app/db-data
 
 # Copy environment file, database initialization scripts and SQL files
-COPY .env /app/.env
 COPY scripts/ /app/scripts/
 COPY sql/ /app/sql/
 RUN chmod +x /app/scripts/*.sh && \
     chown -R 1000:1000 /app/scripts/ && \
-    chown -R 1000:1000 /app/sql/ && \
-    chown 1000:1000 /app/.env
+    chown -R 1000:1000 /app/sql/
 
 # Create an entrypoint script that handles permissions
 RUN echo '#!/bin/bash' > /app/entrypoint.sh && \

@@ -278,7 +278,6 @@ export class HomePage extends Component<HomePageProps, HomePageState> {
    */
   private async handleLogin(): Promise<void> {
     console.log('🔓 Navigating to login...')
-    // TODO: Implement proper login flow with auth system
     const { router } = await import('../../router/router')
     router.navigate('/login')
   }
