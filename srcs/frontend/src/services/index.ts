@@ -1,0 +1,17 @@
+/**
+ * @brief Main services barrel export
+ * 
+ * @description Central export point for all service categories.
+ * Provides clean imports for business logic throughout the application.
+ */
+
+// Re-export all service categories
+export * from './api'
+export * from './auth'
+export * from './error'
+export * from './game'
+export * from './websocket'
+
+// This allows imports like:
+// import { AuthService, GameService, webSocketService } from '@/services'
+// import { ApiService } from '@/services'

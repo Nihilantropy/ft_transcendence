@@ -1,0 +1,449 @@
+/**
+ * @brief User service for ft_transcendence backend - Better-SQLite3 optimized
+ * 
+ * @description Provides clean, essential database interactions for user management:
+ * - User creation and validation  
+ * - Email and username checking
+ * - Role assignment
+ * - User stats initialization
+ * - Synchronous database operations optimized for better-sqlite3
+ */
+
+import { logger } from '../logger.js'
+import databaseConnection from '../database.js'
+import { 
+  hashPassword, 
+  generateVerificationToken, 
+  generateUniqueUsername,
+} from '../utils/auth_utils.js'
+import { DatabaseError, ConflictError } from '../utils/errors.js'
+
+// Create service-specific logger
+const userServiceLogger = logger.child({ module: 'services/user' })
+
+/**
+ * @brief User service class with essential database operations
+ */
+export class UserService {
+  
+  /**
+   * @brief Check if email already exists in database
+   * 
+   * @param {string} email - Email to check
+   * @return {boolean} True if email exists
+   */
+  isEmailTaken(email) {
+    try {
+      return emailExists(email)
+    } catch (error) {
+      userServiceLogger.error('Failed to check email existence', { email, error: error.message })
+      throw new DatabaseError('Database error while checking email')
+    }
+  }
+
+  /**
+   * @brief Check if username already exists in database
+   * 
+   * @param {string} username - Username to check
+   * @return {boolean} True if username exists
+   */
+  isUsernameTaken(username) {
+    try {
+      return usernameExists(username)
+    } catch (error) {
+      userServiceLogger.error('Failed to check username existence', { username, error: error.message })
+      throw new DatabaseError('Database error while checking username')
+    }
+  }
+
+  /**
+   * @brief Generate unique username from email
+   * 
+   * @param {string} email - Email to base username on
+   * @return {string} Unique username
+   */
+  createUniqueUsername(email) {
+    try {
+      return generateUniqueUsername(email) // Now synchronous!
+    } catch (error) {
+      userServiceLogger.error('Failed to generate unique username', { email, error: error.message })
+      throw new DatabaseError('Failed to generate username')
+    }
+  }
+
+  /**
+   * @brief Create new user with complete profile initialization according to user table schema
+   * 
+   * @param {Object} userData - User data object containing registration information
+   * @param {string} userData.email - User email address (will be normalized to lowercase)
+   * @param {string} userData.password - Plain text password (will be securely hashed)
+   * @param {string} userData.username - Unique username for the user
+   * @return {Promise<Object>} Created user object with id, username, email, verification status and token
+   */
+  async createUser({ email, password, username }) {
+    try {
+      // Hash password securely (only async operation)
+      const hashedPassword = await hashPassword(password)
+      
+      // Generate verification token for email confirmation
+      const verificationToken = generateVerificationToken()
+      
+      userServiceLogger.debug('Creating user with transaction', { username, email })
+      
+      // Execute synchronous transaction for data consistency
+      const newUser = databaseConnection.transaction(() => {
+        
+        // 1. Insert user with complete schema-compliant initialization
+        const insertResult = databaseConnection.run(`
+          INSERT INTO users (
+            -- Core Identity
+            username, email,
+            
+            -- Authentication
+            password_hash, email_verified, email_verification_token,
+            
+            -- Profile (display_name defaults to username)
+            display_name, avatar_url,
+            
+            -- Status (user starts active but offline)
+            is_active, is_online, last_seen,
+            
+            -- OAuth (initialized as NULL - set when OAuth is used)
+            oauth_providers,
+            
+            -- Two-Factor Auth (disabled by default)
+            two_factor_enabled, two_factor_secret, backup_codes,
+            
+            -- Timestamps
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [
+          // Core Identity
+          username,
+          email.toLowerCase(),
+          
+          // Authentication
+          hashedPassword,
+          0, // email_verified: false -> 0
+          verificationToken,
+          
+          // Profile
+          username, // display_name defaults to username
+          null,     // avatar_url: NULL (will be set when user uploads avatar)
+          
+          // Status
+          1, // is_active: true -> 1 (user starts active)
+          0, // is_online: false -> 0 (user starts offline)
+          null, // last_seen: NULL initially (updated on first login)
+          
+          // OAuth
+          null, // oauth_providers: NULL (JSON array populated when OAuth used)
+          
+          // Two-Factor Auth
+          0,    // two_factor_enabled: false -> 0
+          null, // two_factor_secret: NULL
+          null  // backup_codes: NULL
+        ])
+        
+        const userId = insertResult.lastInsertRowid
+        userServiceLogger.debug('User inserted with ID:', userId)
+        
+        // 2. Assign default 'user' role (synchronous)
+        const userRoleId = this.getRoleId('user')
+        if (userRoleId) {
+          databaseConnection.run(`
+            INSERT INTO user_roles (user_id, role_id, granted_at) 
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `, [userId, userRoleId])
+          
+          userServiceLogger.debug('Default role assigned')
+        }
+        
+        // 3. Create user_stats entry (synchronous)
+        databaseConnection.run(`
+          INSERT INTO user_stats (
+            user_id, games_played, games_won, games_lost,
+            total_score, ranking, updated_at
+          ) VALUES (?, 0, 0, 0, 0, 1000, CURRENT_TIMESTAMP)
+        `, [userId])
+        
+        userServiceLogger.debug('User stats created')
+        
+        // Return user data with schema-compliant structure
+        return {
+          id: userId,
+          username,
+          email: email.toLowerCase(),
+          email_verified: false,
+          verificationToken,
+          display_name: username, // Include for frontend use
+          is_active: true,
+          is_online: false
+        }
+        
+      }) // End of transaction
+      
+      userServiceLogger.info('✅ User created successfully', { 
+        userId: newUser.id, 
+        username: newUser.username, 
+        email: newUser.email 
+      })
+      
+      return newUser
+      
+    } catch (error) {
+      userServiceLogger.error('❌ User creation failed', { 
+        email, 
+        username, 
+        error: error.message 
+      })
+      
+      // Handle specific constraint errors with clear messages
+      if (error.message.includes('UNIQUE constraint failed')) {
+        if (error.message.includes('users.username')) {
+          throw new ConflictError('Username already exists')
+        }
+        if (error.message.includes('users.email')) {
+          throw new ConflictError('Email already registered')
+        }
+      }
+      
+      throw new DatabaseError('Failed to create user')
+    }
+  }
+
+  /**
+   * @brief Get user by email
+   * 
+   * @param {string} email - User email
+   * @return {Object|null} User object or null
+   */
+  getUserByEmail(email) {
+    try {
+      const user = databaseConnection.get(`
+        SELECT id, username, email, password_hash, email_verified, 
+               is_active, is_online, created_at, updated_at
+        FROM users 
+        WHERE LOWER(email) = LOWER(?) AND is_active = 1
+        LIMIT 1
+      `, [email])
+      
+      return user || null
+      
+    } catch (error) {
+      userServiceLogger.error('Failed to get user by email', { email, error: error.message })
+      throw new DatabaseError('Database error while retrieving user')
+    }
+  }
+
+  /**
+   * @brief Get user by username
+   * 
+   * @param {string} username - Username
+   * @return {Object|null} User object or null
+   */
+  getUserByUsername(username) {
+    try {
+      const user = databaseConnection.get(`
+        SELECT id, username, email, password_hash, email_verified, 
+               is_active, is_online, created_at, updated_at
+        FROM users 
+        WHERE LOWER(username) = LOWER(?) AND is_active = 1
+        LIMIT 1
+      `, [username])
+      
+      return user || null
+      
+    } catch (error) {
+      userServiceLogger.error('Failed to get user by username', { username, error: error.message })
+      throw new DatabaseError('Database error while retrieving user')
+    }
+  }
+
+  /**
+   * @brief Verify user's email address
+   * 
+   * @param {string} verificationToken - Email verification token
+   * @return {object|null} - User object if verification successful, null otherwise
+   */
+  async verifyUserEmail(verificationToken) {
+    try {
+      userServiceLogger.debug('Verifying user email with token')
+      
+      // Use transaction for atomic operation
+      const result = databaseConnection.transaction(() => {
+        // Find user by verification token
+        const user = databaseConnection.get(`
+          SELECT id, username, email, email_verified
+          FROM users 
+          WHERE email_verification_token = ? AND is_active = 1
+          LIMIT 1
+        `, [verificationToken])
+        
+        if (!user) {
+          userServiceLogger.debug('No user found with verification token')
+          return null
+        }
+        
+        if (user.email_verified) {
+          userServiceLogger.debug('Email already verified for user', { userId: user.id })
+          return { ...user, email_verified: true }
+        }
+        
+        // Update user to mark email as verified
+        const updateResult = databaseConnection.run(`
+          UPDATE users 
+          SET email_verified = 1, 
+              email_verification_token = NULL,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [user.id])
+        
+        userServiceLogger.debug('Email verification update, rows changed:', updateResult.changes)
+        
+        return { ...user, email_verified: true }
+      })
+      
+      return result
+    } catch (error) {
+      userServiceLogger.error('Error verifying user email:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * @brief Set user email as verified (alternative method)
+   * 
+   * @param {number} userId - User ID
+   * @return {boolean} - Success status
+   */
+  setEmailVerified(userId) {
+    try {
+      userServiceLogger.debug('Setting email as verified for user:', userId)
+      
+      const result = databaseConnection.run(`
+        UPDATE users 
+        SET email_verified = 1, 
+            email_verification_token = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND is_active = 1
+      `, [userId])
+      
+      const success = result.changes > 0
+      userServiceLogger.debug('Email verification update result:', { userId, success, changes: result.changes })
+      
+      return success
+    } catch (error) {
+      userServiceLogger.error('Error setting email as verified:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * @brief Get role ID by name
+   * 
+   * @param {string} roleName - Role name (e.g., 'user')
+   * @return {number|null} - Role ID or null if not found
+   */
+  getRoleId(roleName) {
+    try {
+      userServiceLogger.debug('Getting role ID for:', roleName)
+      
+      const result = databaseConnection.get(
+        'SELECT id FROM roles WHERE name = ? LIMIT 1',
+        [roleName]
+      )
+      
+      const roleId = result?.id || null
+      userServiceLogger.debug('Role ID result:', roleId)
+      
+      return roleId
+    } catch (error) {
+      userServiceLogger.error('Error getting role ID:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * @brief Update user's online status
+   * 
+   * @param {number} userId - User ID
+   * @param {boolean} isOnline - Online status
+   * @return {void}
+   */
+  updateUserOnlineStatus(userId, isOnline) {
+    try {
+      userServiceLogger.debug('Updating user online status:', { userId, isOnline })
+      
+      const result = databaseConnection.run(`
+        UPDATE users 
+        SET is_online = ?, last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [isOnline, userId])
+      
+      userServiceLogger.debug('Updated user online status, rows changed:', result.changes)
+    } catch (error) {
+      userServiceLogger.error('Error updating user online status:', error.message)
+      throw error
+    }
+  }
+
+}
+
+export const userService = new UserService()
+export default userService
+
+
+// =============================================================================
+// DATABASE UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * @brief Check if email exists in database (case-insensitive)
+ * 
+ * @param {string} email - Email to check
+ * @return {boolean} - True if email exists
+ */
+function emailExists(email) {
+  try {
+    userServiceLogger.debug('Checking email existence:', email)
+    
+    const result = databaseConnection.get(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1',
+      [email]
+    )
+    
+    const exists = !!result
+    userServiceLogger.debug('Email exists result:', exists)
+    
+    return exists
+  } catch (error) {
+    userServiceLogger.error('Error checking email existence:', error.message)
+    throw error
+  }
+}
+
+/**
+ * @brief Check if username exists in database (case-insensitive)
+ * 
+ * @param {string} username - Username to check
+ * @return {boolean} - True if username exists
+ */
+function usernameExists(username) {
+  try {
+    userServiceLogger.debug('Checking username existence:', username)
+    
+    const result = databaseConnection.get(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1',
+      [username]
+    )
+    
+    const exists = !!result
+    userServiceLogger.debug('Username exists result:', exists)
+    
+    return exists
+  } catch (error) {
+    userServiceLogger.error('Error checking username existence:', error.message)
+    throw error
+  }
+}

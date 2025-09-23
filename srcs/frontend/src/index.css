@@ -1,0 +1,929 @@
+/**
+ * @brief Main CSS entry point for ft_transcendence frontend
+ * 
+ * @description Imports Tailwind CSS and custom styles in proper order.
+ * Phase A1 implementation with working Tailwind and basic gaming theme.
+ */
+
+/* Import Tailwind CSS - Phase A1 Essential */
+@import 'tailwindcss';
+
+/**
+ * @brief Complete gaming color palette for ft_transcendence
+ * 
+ * @description Comprehensive CSS custom properties implementing the full
+ * gaming aesthetic with matrix green theme, neon accents, and Pong-specific colors.
+ * Phase A2 Point 2 complete implementation.
+ */
+:root {
+  /* Primary Brand Colors - Matrix Theme */
+  --color-primary: #00ff41;        /* Matrix green - main brand color */
+  --color-primary-dark: #00cc33;   /* Darker green - hover states, emphasis */
+  --color-primary-light: #33ff66;  /* Lighter green - highlights, active states */
+  --color-secondary: #ff0080;      /* Neon pink - contrast, accents */
+  --color-accent: #00ffff;         /* Cyan accent - special highlights */
+  
+  /* Game Colors - Pong Specific */
+  --color-paddle: #ffffff;         /* White paddles - high contrast on dark field */
+  --color-ball: #ffff00;           /* Yellow ball - visible, energetic */
+  --color-field: #000000;          /* Black game field - classic Pong aesthetic */
+  --color-field-border: var(--color-primary); /* Green border for game area */
+  
+  /* UI Colors - Dark Gaming Theme */
+  --color-background: #0a0a0a;     /* Very dark background - deep space feel */
+  --color-surface: #1a1a1a;        /* Card/panel background - slightly lighter */
+  --color-surface-hover: #2a2a2a;  /* Hover state for interactive surfaces */
+  --color-border: #333333;         /* Default border color */
+  --color-border-light: #555555;   /* Lighter border for emphasis */
+  --color-border-dark: #1a1a1a;    /* Darker border for subtle divisions */
+  
+  /* Text Colors - Hierarchy */
+  --color-text-primary: #ffffff;   /* Primary text - maximum readability */
+  --color-text-secondary: #cccccc; /* Secondary text - less emphasis */
+  --color-text-muted: #888888;     /* Muted text - hints, labels */
+  --color-text-inverse: #000000;   /* Inverse text - on light backgrounds */
+  
+  /* Status Colors - Feedback System */
+  --color-success: #22c55e;        /* Success green - positive actions */
+  --color-success-dark: #16a34a;   /* Darker success for hover states */
+  --color-warning: #f59e0b;        /* Warning amber - caution states */
+  --color-warning-dark: #d97706;   /* Darker warning for emphasis */
+  --color-error: #ef4444;          /* Error red - negative actions */
+  --color-error-dark: #dc2626;     /* Darker error for emphasis */
+  --color-info: #3b82f6;           /* Info blue - informational states */
+  --color-info-dark: #2563eb;      /* Darker info for emphasis */
+  
+  /* Gaming Effects Colors */
+  --color-glow-primary: rgba(0, 255, 65, 0.3);   /* Primary glow effect */
+  --color-glow-secondary: rgba(255, 0, 128, 0.3); /* Secondary glow effect */
+  --color-glow-accent: rgba(0, 255, 255, 0.3);    /* Accent glow effect */
+  
+  /* Transparency Variations */
+  --color-overlay-light: rgba(255, 255, 255, 0.1); /* Light overlay */
+  --color-overlay-dark: rgba(0, 0, 0, 0.5);        /* Dark overlay */
+  --color-backdrop: rgba(0, 0, 0, 0.8);            /* Modal backdrop */
+}
+
+/**
+ * @brief Component-specific styles for ft_transcendence
+ * 
+ * @description Tailwind component classes implementing the gaming theme.
+ * Phase A2 Point 3 - Using standard Tailwind colors for compatibility.
+ */
+
+@layer components {
+  /* =============================================================================
+     SCROLL AND OVERFLOW UTILITIES
+     ============================================================================= */
+
+  /**
+   * @brief Proper scroll setup for pages that exceed viewport
+   * 
+   * @description Ensures content can scroll when it exceeds the viewport height
+   * while maintaining the gaming aesthetic.
+   */
+  .scrollable-page {
+    min-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Custom scrollbar styling for gaming theme */
+    scrollbar-width: thin;
+    scrollbar-color: #00ff41 #1a1a1a;
+  }
+
+  /* Webkit scrollbar styling */
+  .scrollable-page::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .scrollable-page::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+  }
+
+  .scrollable-page::-webkit-scrollbar-thumb {
+    background: #00ff41;
+    border-radius: 4px;
+    border: 1px solid #1a1a1a;
+  }
+
+  .scrollable-page::-webkit-scrollbar-thumb:hover {
+    background: #00cc33;
+  }
+
+  /**
+   * @brief Content container that ensures proper scrolling
+   * 
+   * @description Container that allows content to flow naturally and scroll
+   * when content exceeds viewport height.
+   */
+  .content-container {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /**
+   * @brief Flexible content area that can expand
+   * 
+   * @description Main content area that can grow beyond viewport height.
+   */
+  .flex-content {
+    flex: 1;
+    width: 100%;
+  }
+
+  /**
+   * @brief Page wrapper that allows proper scrolling while maintaining flex centering
+   * 
+   * @description When content is small, centers it. When content is large, allows scrolling.
+   */
+  .page-wrapper {
+    min-height: 100vh;
+    padding: 20px 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .page-wrapper.center-when-small {
+    align-items: center;
+  }
+
+  /* =============================================================================
+     BUTTON COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Primary button using green theme
+   * 
+   * @description Main action button with green background,
+   * black text for contrast, and proper hover states.
+   */
+  .btn-primary {
+    @apply 
+      px-4 py-2 rounded-md font-medium font-bold
+      transition-all duration-200
+      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black
+      disabled:opacity-50 disabled:cursor-not-allowed
+      select-none cursor-pointer
+      inline-flex items-center justify-center
+      bg-green-500 text-black
+      hover:bg-green-600
+      focus:ring-green-500
+      shadow-lg;
+  }
+
+  /**
+   * @brief Gaming-style button with border effects
+   * 
+   * @description Retro gaming button with transparent background,
+   * green border, and neon-style hover effects.
+   */
+  .btn-game {
+    @apply 
+      px-4 py-2 rounded-md font-medium
+      transition-all duration-200
+      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black
+      disabled:opacity-50 disabled:cursor-not-allowed
+      select-none cursor-pointer
+      inline-flex items-center justify-center
+      bg-transparent border-2 border-green-500 text-green-500
+      hover:bg-green-500 hover:text-black hover:shadow-lg
+      focus:ring-green-500;
+  }
+
+  /**
+   * @brief Secondary button variant
+   * 
+   * @description Subtle button for secondary actions using gray colors.
+   */
+  .btn-secondary {
+    @apply 
+      px-4 py-2 rounded-md font-medium
+      transition-all duration-200
+      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black
+      disabled:opacity-50 disabled:cursor-not-allowed
+      select-none cursor-pointer
+      inline-flex items-center justify-center
+      bg-gray-800 text-white border border-gray-600
+      hover:bg-gray-700 hover:border-gray-500
+      focus:ring-gray-500;
+  }
+
+  /* =============================================================================
+     CARD COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Base card component
+   * 
+   * @description Foundation card styling with gray background,
+   * subtle borders, and consistent spacing.
+   */
+  .card {
+    @apply 
+      bg-gray-800 rounded-lg border border-gray-700
+      shadow-lg p-6
+      transition-all duration-200;
+  }
+
+  /**
+   * @brief Gaming-themed card with accent styling
+   * 
+   * @description Enhanced card with green color accents and glow effects
+   * for important gaming-related content.
+   */
+  .card-game {
+    @apply 
+      bg-gray-800 rounded-lg border border-green-500
+      shadow-xl p-6
+      transition-all duration-200
+      hover:shadow-2xl;
+  }
+
+  /**
+   * @brief Compact card variant
+   * 
+   * @description Smaller card for tight layouts and secondary content.
+   */
+  .card-compact {
+    @apply 
+      bg-gray-800 rounded-lg border border-gray-700
+      shadow-md p-4
+      transition-all duration-200;
+  }
+
+  /* =============================================================================
+     FORM COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Base input field component
+   * 
+   * @description Foundation input styling with gaming theme colors,
+   * focus states, and accessibility features.
+   */
+  .input-base {
+    @apply 
+      w-full px-3 py-2 rounded-md
+      bg-gray-800 border border-gray-600
+      text-white placeholder-gray-400
+      focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none
+      transition-colors duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /**
+   * @brief Base label component
+   * 
+   * @description Consistent label styling for form fields with proper
+   * typography hierarchy and spacing.
+   */
+  .label-base {
+    @apply 
+      block text-sm font-medium text-gray-300
+      mb-2;
+  }
+
+  /**
+   * @brief Error state for input fields
+   * 
+   * @description Error styling for form validation feedback.
+   */
+  .input-error {
+    @apply 
+      w-full px-3 py-2 rounded-md
+      bg-gray-800 border border-red-500
+      text-white placeholder-gray-400
+      focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none
+      transition-colors duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /**
+   * @brief Success state for input fields
+   * 
+   * @description Success styling for positive form validation feedback.
+   */
+  .input-success {
+    @apply 
+      w-full px-3 py-2 rounded-md
+      bg-gray-800 border border-green-500
+      text-white placeholder-gray-400
+      focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none
+      transition-colors duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* =============================================================================
+     NAVIGATION COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Navigation link component
+   * 
+   * @description Base styling for navigation links with hover effects
+   * and active states.
+   */
+  .nav-link {
+    @apply 
+      flex items-center px-3 py-2 rounded-md
+      text-gray-400 hover:text-green-500
+      hover:bg-gray-800 transition-colors duration-200
+      focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-black;
+  }
+
+  /**
+   * @brief Active navigation link state
+   * 
+   * @description Styling for currently active navigation items.
+   */
+  .nav-link.active {
+    @apply 
+      text-green-500 bg-gray-800 border-l-2 border-green-500;
+  }
+
+  /* =============================================================================
+     GAMING UI COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Gaming-style glow effect utility
+   * 
+   * @description Adds neon glow effect to gaming UI elements.
+   */
+  .glow-primary {
+    @apply 
+      shadow-lg;
+  }
+
+  /**
+   * @brief Text with glow effect
+   * 
+   * @description Text styling with subtle glow for gaming aesthetic.
+   */
+  .text-glow {
+    text-shadow: 0 0 10px currentColor;
+  }
+
+  /**
+   * @brief Gaming score display
+   * 
+   * @description Large, prominent text for game scores with monospace font.
+   */
+  .score-display {
+    @apply 
+      font-mono text-4xl font-bold text-green-500
+      text-center;
+  }
+
+/* =============================================================================
+     MODAL COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Modal portal container
+   * 
+   * @description Container for modal portals with proper z-index stacking.
+   */
+  .modal-portal {
+    @apply 
+      relative z-50;
+  }
+
+  /**
+   * @brief Modal overlay backdrop
+   * 
+   * @description Semi-transparent backdrop with smooth transitions.
+   */
+  .modal-overlay {
+    @apply 
+      fixed inset-0 z-50 flex items-center justify-center p-4
+      bg-black bg-black/75
+      transition-opacity duration-200;
+  }
+
+  /**
+   * @brief Modal content container
+   * 
+   * @description Main modal content area with gaming theme styling.
+   */
+  .modal-content {
+    @apply 
+      bg-gray-800 border-2 border-green-500 rounded-lg shadow-2xl
+      relative w-full max-h-full overflow-hidden
+      transform transition-all duration-200;
+  }
+
+  /**
+   * @brief Modal size variants
+   * 
+   * @description Different modal sizes for various content types.
+   */
+  .modal-sm {
+    @apply max-w-sm;
+  }
+
+  .modal-md {
+    @apply max-w-lg;
+  }
+
+  .modal-lg {
+    @apply max-w-4xl;
+  }
+
+  /**
+   * @brief Modal animation states
+   * 
+   * @description Enter and exit animations for smooth UX.
+   */
+  .modal-enter {
+    @apply opacity-0 scale-95;
+  }
+
+  .modal-enter-active {
+    @apply opacity-100 scale-100;
+  }
+
+  .modal-exit {
+    @apply opacity-100 scale-100;
+  }
+
+  .modal-exit-active {
+    @apply opacity-0 scale-95;
+  }
+
+  /* =============================================================================
+     GAMING UI COMPONENTS
+     ============================================================================= */
+
+  /**
+   * @brief Gaming-style glow effect utility
+   * 
+   * @description Adds neon glow effect to gaming UI elements.
+   */
+  .glow-primary {
+    @apply 
+      shadow-lg;
+  }
+
+  /**
+   * @brief Text with glow effect
+   * 
+   * @description Text styling with subtle glow for gaming aesthetic.
+   */
+  .text-glow {
+    text-shadow: 0 0 10px currentColor;
+  }
+
+  /**
+   * @brief Gaming score display
+   * 
+   * @description Large, prominent text for game scores with monospace font.
+   */
+  .score-display {
+    @apply 
+      font-mono text-4xl font-bold text-green-500
+      text-center;
+  }
+
+  /* =============================================================================
+     GAME CONTAINER STYLES - Phase 4.1
+     ============================================================================= */
+
+  /**
+   * @brief Game container base styles
+   * 
+   * @description Base styling for the main game container component.
+   */
+  .game-container {
+    @apply relative w-full min-h-screen bg-black text-green-400 font-mono;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .game-main {
+    @apply flex-1 flex flex-col lg:flex-row gap-4 p-4;
+  }
+
+  .game-area {
+    @apply flex-1 flex flex-col;
+  }
+
+  .game-canvas-container {
+    @apply relative flex-1 min-h-96 bg-gray-900 border border-green-600 rounded-lg overflow-hidden;
+  }
+
+  .game-sidebar {
+    @apply w-full lg:w-80 space-y-4;
+  }
+
+  /**
+   * @brief Game UI button styles
+   * 
+   * @description Standardized button styles for game interface.
+   */
+  .game-btn-primary {
+    @apply px-4 py-2 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg 
+           transition-all duration-200 transform hover:scale-105 active:scale-95;
+  }
+
+  .game-btn-secondary {
+    @apply px-4 py-2 bg-gray-700 hover:bg-gray-600 text-green-400 border border-green-600
+           font-bold rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95;
+  }
+
+  .game-btn-danger {
+    @apply px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg
+           transition-all duration-200 transform hover:scale-105 active:scale-95;
+  }
+
+  /**
+   * @brief Neon glow effects for gaming theme
+   * 
+   * @description Enhanced glow effects for game elements.
+   */
+  .neon-glow {
+    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+
+  .neon-border {
+    box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  }
+
+  /**
+   * @brief Game loading animations
+   * 
+   * @description Custom animations for game loading states.
+   */
+  @keyframes pulse-glow {
+    0%, 100% { 
+      opacity: 1;
+      text-shadow: 0 0 10px currentColor;
+    }
+    50% { 
+      opacity: 0.8;
+      text-shadow: 0 0 20px currentColor;
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  /* =============================================================================
+     SCOREBOARD STYLES - Phase 4.1
+     ============================================================================= */
+
+  /**
+   * @brief Scoreboard component styles
+   * 
+   * @description Styling for the Pong game scoreboard component.
+   */
+  .scoreboard {
+    @apply bg-gray-900 border border-green-600 rounded-lg p-4 text-center;
+  }
+
+  .player-score {
+    @apply flex-1;
+  }
+
+  .score-display {
+    @apply text-4xl font-bold font-mono text-green-400;
+  }
+
+  .score-animate {
+    @apply animate-pulse text-yellow-400;
+    transform: scale(1.1);
+    transition: all 0.3s ease;
+  }
+
+  .winner-glow {
+    @apply text-yellow-300;
+    text-shadow: 0 0 15px currentColor, 0 0 25px currentColor;
+  }
+
+  /**
+   * @brief Game progress bar
+   */
+  .match-progress .progress-bar {
+    @apply bg-gradient-to-r from-green-600 to-green-400 rounded-full transition-all duration-300;
+  }
+
+  /* =============================================================================
+     ENHANCED GAME ANIMATIONS - Phase 4.2
+     ============================================================================= */
+
+  /**
+   * @brief Retro gaming scan lines effect
+   * 
+   * @description Classic CRT monitor scan lines for authentic retro feel.
+   */
+  @keyframes scan-lines {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 0 10px;
+    }
+  }
+
+  .retro-scanlines {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .retro-scanlines::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 65, 0.1) 2px,
+      rgba(0, 255, 65, 0.1) 4px
+    );
+    animation: scan-lines 0.1s linear infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /**
+   * @brief Matrix-style text rain effect
+   * 
+   * @description Background matrix rain animation for gaming ambiance.
+   */
+  @keyframes matrix-rain {
+    0% {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh);
+      opacity: 0;
+    }
+  }
+
+  .matrix-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: -1;
+    opacity: 0.1;
+  }
+
+  .matrix-char {
+    position: absolute;
+    color: #00ff41;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    animation: matrix-rain 3s linear infinite;
+  }
+
+  /**
+   * @brief Game button hover effects with sound-like feedback
+   * 
+   * @description Enhanced button interactions with retro gaming feel.
+   */
+  .game-btn-enhanced {
+    @apply relative overflow-hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .game-btn-enhanced:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+  }
+
+  .game-btn-enhanced:active {
+    transform: translateY(0);
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.6);
+  }
+
+  .game-btn-enhanced::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: left 0.5s;
+  }
+
+  .game-btn-enhanced:hover::before {
+    left: 100%;
+  }
+
+  /**
+   * @brief Score change animations with impact effects
+   * 
+   * @description Visual feedback for score changes in Pong game.
+   */
+  @keyframes score-impact {
+    0% {
+      transform: scale(1);
+      text-shadow: 0 0 10px currentColor;
+    }
+    50% {
+      transform: scale(1.3);
+      text-shadow: 0 0 30px currentColor, 0 0 40px currentColor;
+    }
+    100% {
+      transform: scale(1);
+      text-shadow: 0 0 10px currentColor;
+    }
+  }
+
+  .score-impact {
+    animation: score-impact 0.6s ease-out;
+  }
+
+  /**
+   * @brief Game state transition animations
+   * 
+   * @description Smooth transitions between game states.
+   */
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.5s ease-out;
+  }
+
+  .animate-slide-in-left {
+    animation: slide-in-left 0.4s ease-out;
+  }
+
+  /**
+   * @brief Pong ball trail effect
+   * 
+   * @description Visual trail effect for the Pong ball.
+   */
+  @keyframes ball-trail {
+    0% {
+      box-shadow: 0 0 0 0 rgba(255, 255, 0, 0.8);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(255, 255, 0, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 255, 0, 0);
+    }
+  }
+
+  .ball-trail {
+    animation: ball-trail 0.3s ease-out infinite;
+  }
+
+  /**
+   * @brief Paddle glow effects for active state
+   * 
+   * @description Visual feedback when paddles are being controlled.
+   */
+  .paddle-active {
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.6);
+    border: 2px solid rgba(0, 255, 65, 0.8);
+  }
+
+  /**
+   * @brief Game victory celebration effect
+   * 
+   * @description Special animation for game win states.
+   */
+  @keyframes victory-pulse {
+    0%, 100% {
+      transform: scale(1);
+      text-shadow: 0 0 20px currentColor;
+    }
+    25% {
+      transform: scale(1.05);
+      text-shadow: 0 0 30px currentColor, 0 0 40px currentColor;
+    }
+    50% {
+      transform: scale(1.1);
+      text-shadow: 0 0 40px currentColor, 0 0 60px currentColor;
+    }
+    75% {
+      transform: scale(1.05);
+      text-shadow: 0 0 30px currentColor, 0 0 40px currentColor;
+    }
+  }
+
+  .victory-celebration {
+    animation: victory-pulse 1s ease-in-out infinite;
+  }
+
+  /* =============================================================================
+     RESPONSIVE VISUAL FEEDBACK UTILITIES - Phase 4.2
+     ============================================================================= */
+
+  /**
+   * @brief Button press feedback
+   * 
+   * @description Immediate visual feedback for button presses.
+   */
+  .btn-press-feedback:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
+
+  /**
+   * @brief Loading states with gaming theme
+   * 
+   * @description Enhanced loading animations for game components.
+   */
+  @keyframes loading-dots {
+    0%, 20% {
+      color: rgba(0, 255, 65, 1);
+    }
+    40% {
+      color: rgba(0, 255, 65, 0.4);
+    }
+    100% {
+      color: rgba(0, 255, 65, 0.4);
+    }
+  }
+
+  .loading-text::after {
+    content: '...';
+    animation: loading-dots 1.4s infinite;
+  }
+
+  /**
+   * @brief Error state visual feedback
+   * 
+   * @description Gaming-themed error state animations.
+   */
+  @keyframes error-shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+  }
+
+  .error-shake {
+    animation: error-shake 0.5s ease-in-out;
+  }
+
+  /**
+   * @brief Success state visual feedback
+   * 
+   * @description Positive feedback animations for successful actions.
+   */
+  @keyframes success-glow {
+    0% {
+      box-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.8), 0 0 30px rgba(34, 197, 94, 0.4);
+    }
+    100% {
+      box-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
+    }
+  }
+
+  .success-glow {
+    animation: success-glow 0.8s ease-in-out;
+  }
+
+}

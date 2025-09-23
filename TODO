@@ -1,0 +1,8 @@
+fix auth
+Add scroll to the pages
+fix All button in game page (all buttons have this error: Uncaught TypeError: this.handleExitGame is not a function
+    at HTMLButtonElement.onclick)
+create test for the frontend (test uses mock data instead of real api calls, to simulate the data flow, route changing, button interaction etc..)
+create backend
+create usermanagement system
+make database run

@@ -1,0 +1,108 @@
+/**
+ * @brief Tailwind CSS configuration for ft_transcendence
+ * 
+ * @description Implements custom gaming theme with matrix green colors,
+ * retro styling, and Pong-specific design tokens. Phase A2 Point 1 implementation
+ * following the gaming aesthetic specifications from docs/frontend/tailwindcss.md
+ */
+
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx,html}",
+  ],
+  theme: {
+    extend: {
+      /**
+       * @brief Gaming color palette for ft_transcendence
+       * 
+       * @description Primary colors based on retro gaming and Matrix aesthetic
+       * with specific colors for Pong game elements
+       */
+      colors: {
+        // Primary Brand Colors - Matrix green theme
+        primary: {
+          DEFAULT: '#00ff41',    // Matrix green
+          dark: '#00cc33',       // Darker green for hover states
+          light: '#33ff66'       // Lighter green for highlights
+        },
+        
+        // Secondary and accent colors
+        secondary: '#ff0080',      // Neon pink for contrast
+        accent: '#00ffff',         // Cyan accent color
+        
+        // Game-specific colors for Pong elements
+        game: {
+          paddle: '#ffffff',       // White paddles
+          ball: '#ffff00',         // Yellow ball
+          field: '#000000'         // Black game field
+        },
+        
+        // UI Colors for dark gaming theme
+        surface: '#1a1a1a',       // Card/panel background
+        border: '#333333',         // Border color
+        
+        // Text colors
+        text: {
+          primary: '#ffffff',      // Primary text
+          secondary: '#cccccc',    // Secondary text
+          muted: '#888888'         // Muted text
+        },
+        
+        // Status colors for notifications and feedback
+        success: '#22c55e',        // Success green
+        warning: '#f59e0b',        // Warning amber
+        error: '#ef4444',          // Error red
+        info: '#3b82f6'            // Info blue
+      },
+      
+      /**
+       * @brief Gaming typography system
+       * 
+       * @description Monospace fonts for retro gaming aesthetic
+       */
+      fontFamily: {
+        mono: ['Courier New', 'monospace'],
+        game: ['Orbitron', 'monospace'] // For future game UI elements
+      },
+      
+      /**
+       * @brief Gaming-specific animations
+       * 
+       * @description Custom animations for retro gaming effects
+       */
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'glow': 'glow 2s ease-in-out infinite alternate'
+      },
+      
+      /**
+       * @brief Custom keyframes for gaming effects
+       * 
+       * @description Glow animation for neon-style gaming UI
+       */
+      keyframes: {
+        glow: {
+          'from': {
+            'box-shadow': '0 0 5px currentColor'
+          },
+          'to': {
+            'box-shadow': '0 0 20px currentColor, 0 0 30px currentColor'
+          }
+        }
+      },
+      
+      /**
+       * @brief Extended spacing for gaming layouts
+       * 
+       * @description Additional spacing values for game-specific layouts
+       */
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem'
+      }
+    }
+  },
+  plugins: []
+}

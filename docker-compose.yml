@@ -1,0 +1,96 @@
+services:
+  ### NGINX ###
+  nginx:
+    container_name: ft_transcendence_nginx
+    image: ft_transcendence_nginx:local
+    build:
+      context: ./srcs/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - proxy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+### FRONTEND ###
+  frontend:
+    container_name: ft_transcendence_frontend
+    image: ft_transcendence_frontend:local
+    build:
+      context: ./srcs/frontend
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/frontend/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/frontend/src:/app/src:rw
+      - ./srcs/frontend/public:/app/public:rw
+    networks:
+      - proxy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+### BACKEND ###
+  backend:
+    container_name: ft_transcendence_backend
+    image: ft_transcendence_backend:local
+    build:
+      context: ./srcs/backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/backend/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/backend/src:/app/src:rw
+      - ./srcs/backend/package.json:/app/package.json:ro
+      # mount for sqlite db file
+      - db-data:/app/db-data:rw
+    networks:
+      - proxy
+      - db-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    depends_on:
+      - db
+### DATABASE - work as init container for db create, migrate and seeding ###
+  db:
+    container_name: ft_transcendence_db
+    image: ft_transcendence_db:local
+    build:
+      context: ./srcs/db
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/db/.env
+    volumes:
+      - db-data:/app/db-data:rw
+    networks:
+      - db-network
+    restart: on-failure
+### NETWORKS ###
+networks:
+  proxy:
+    driver: bridge
+  db-network:
+    driver: bridge
+
+### VOLUMES ###
+volumes:
+  frontend-data:
+    driver: local
+  db-data:
+    driver: local

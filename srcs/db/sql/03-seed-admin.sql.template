@@ -1,0 +1,14 @@
+-- ft_transcendence Database Admin User
+-- Version: 1.0
+-- Description: Create database admin user with proper role assignment
+-- NOTE: This template uses environment variable placeholders that will be substituted by the shell script
+
+-- Insert database admin user (only if not exists)
+INSERT OR IGNORE INTO users (username, email, password_hash) VALUES 
+    ('dbadmin', '{{DB_ADMIN_EMAIL}}', '{{DB_ADMIN_PASSWORD_HASH}}');
+
+-- Assign db_admin role to database admin user
+INSERT OR IGNORE INTO user_roles (user_id, role_id) 
+SELECT u.id, r.id 
+FROM users u, roles r 
+WHERE u.username = 'dbadmin' AND r.name = 'db_admin';
