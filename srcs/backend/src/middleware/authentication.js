@@ -12,6 +12,13 @@ import jwt from 'jsonwebtoken'
 import { logger } from '../logger.js'
 import databaseConnection from '../database.js'
 import { getUserById } from '../utils/auth_utils.js'
+import { 
+  verifyAccessToken, 
+  verifyRefreshToken, 
+  generateTokenPair,
+  extractBearerToken,
+  isJwtConfigured 
+} from '../utils/jwt.js'
 
 // Create middleware-specific logger
 const authMiddlewareLogger = logger.child({ module: 'middleware/authentication' })
@@ -53,25 +60,23 @@ export function sanitizeUser(user) {
 export async function requireAuth(request, reply) {
   try {
     // Extract token from Authorization header
-    const authHeader = request.headers.authorization
+    const token = extractBearerToken(request.headers.authorization)
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       authMiddlewareLogger.warn('🔐 Authentication failed: Missing or invalid Authorization header')
       reply.status(401)
       return { success: false, message: 'Authentication required. Please provide a valid Bearer token.' }
     }
     
-    const token = authHeader.replace('Bearer ', '')
-    
-    // Verify JWT token
-    const jwtSecret = process.env.JWT_SECRET
-    if (!jwtSecret) {
+    // Check if JWT is configured
+    if (!isJwtConfigured()) {
       authMiddlewareLogger.error('🔐 JWT_SECRET not configured')
       reply.status(500)
       return { success: false, message: 'Authentication service unavailable' }
     }
     
-    const decoded = jwt.verify(token, jwtSecret)
+    // Verify JWT token using utility function
+    const decoded = verifyAccessToken(token)
     
     // Get user from database
     const user = await getUserById(decoded.userId)
@@ -181,22 +186,15 @@ export function requireRole(requiredRole) {
  */
 export async function optionalAuth(request, reply) {
   try {
-    const authHeader = request.headers.authorization
+    const token = extractBearerToken(request.headers.authorization)
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      // No token provided, continue without authentication
+    if (!token || !isJwtConfigured()) {
+      // No token provided or JWT not configured, continue without authentication
       return
     }
     
-    const token = authHeader.replace('Bearer ', '')
-    const jwtSecret = process.env.JWT_SECRET
-    
-    if (!jwtSecret) {
-      return // Continue without authentication if JWT_SECRET not configured
-    }
-    
-    const decoded = jwt.verify(token, jwtSecret)
-    const user = getUserById(decoded.userId)
+    const decoded = verifyAccessToken(token)
+    const user = await getUserById(decoded.userId)
     
     if (user && user.is_active) {
       request.user = sanitizeUser(user)
@@ -212,10 +210,11 @@ export async function optionalAuth(request, reply) {
 }
 
 // =============================================================================
-// JWT UTILITY FUNCTIONS
+// JWT UTILITY FUNCTIONS (DEPRECATED - USE utils/jwt.js instead)
 // =============================================================================
 
 /**
+ * @deprecated Use generateTokenPair from utils/jwt.js instead
  * @brief Generate JWT access token
  * @param {object} user - User object
  * @param {string} expiresIn - Token expiration (default: 15m)
@@ -240,6 +239,7 @@ export function generateAccessToken(user, expiresIn = '15m') {
 }
 
 /**
+ * @deprecated Use generateTokenPair from utils/jwt.js instead
  * @brief Generate JWT refresh token
  * @param {object} user - User object
  * @param {string} expiresIn - Token expiration (default: 7d)
@@ -262,6 +262,7 @@ export function generateRefreshToken(user, expiresIn = '7d') {
 }
 
 /**
+ * @deprecated Use verifyRefreshToken from utils/jwt.js instead
  * @brief Verify refresh token
  * @param {string} token - JWT refresh token
  * @returns {object} - Decoded token payload

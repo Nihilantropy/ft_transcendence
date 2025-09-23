@@ -10,7 +10,7 @@
 import { logger } from '../../logger.js'
 import { verifyEmailSchema } from '../../middleware/validation.js'
 import { userService } from '../../services/index.js'
-import { generateAccessToken, generateRefreshToken } from '../../middleware/authentication.js'
+import { generateTokenPair } from '../../utils/jwt.js'
 
 // Create route-specific logger
 const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
@@ -48,8 +48,7 @@ async function verifyEmailRoute(fastify) {
       }
       
       // 2. Generate authentication tokens for auto-login
-      const accessToken = generateAccessToken(verifiedUser)
-      const refreshToken = generateRefreshToken(verifiedUser)
+      const tokens = generateTokenPair(verifiedUser)
       
       verifyEmailLogger.info('✅ Email verified successfully', {
         userId: verifiedUser.id,
@@ -69,8 +68,10 @@ async function verifyEmailRoute(fastify) {
           email_verified: true
         },
         tokens: {
-          accessToken,
-          refreshToken
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          tokenType: tokens.tokenType,
+          expiresIn: tokens.expiresIn
         }
       }
     })
