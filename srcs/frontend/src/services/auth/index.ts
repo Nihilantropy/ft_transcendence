@@ -8,25 +8,13 @@
 // Authentication Services
 export { AuthService, authService } from './AuthService'
 export { PasswordUtils } from './PasswordUtils'
-export { GoogleOAuthService, googleOAuthService } from './GoogleOAuthService'
+// export { GoogleOAuthService, googleOAuthService } from './GoogleOAuthService'
 
 // Auth Types (from types index)
 export type { 
   LoginCredentials, 
   RegisterCredentials
 } from './AuthService'
-
-export type { 
-  AuthResponse,
-  User
-} from '../../types'
-
-// OAuth Types
-export type {
-  OAuthConfig,
-  OAuthTokenResponse,
-  OAuthError
-} from './GoogleOAuthService'
 
 // Password Utility Types
 export type { 

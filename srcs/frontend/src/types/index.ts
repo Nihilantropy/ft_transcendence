@@ -28,7 +28,10 @@ export type {
   AppState,
   ID,
   Timestamp,
-  EventCallback
+  EventCallback,
+  OAuthProvider,
+  OAuthState,
+  GoogleProfile
 } from './store.types'
 
 // Utility re-exports for convenience

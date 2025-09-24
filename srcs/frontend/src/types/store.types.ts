@@ -132,14 +132,14 @@ export interface GoogleProfile {
  * @brief OAuth state for security (CSRF protection)
  */
 export interface OAuthState {
-  /** Random state parameter for CSRF protection */
-  state: string
-  
-  /** Original page to redirect to after auth */
-  returnTo?: string
-  
   /** Timestamp when state was generated */
-  createdAt: Date
+  timestamp: number
+  /** Random nonce for CSRF protection */
+  nonce: string
+  /** Optional return URL after authentication */
+  returnTo?: string
+  /** Code verifier for PKCE flow */
+  codeVerifier?: string
 }
 
 /**

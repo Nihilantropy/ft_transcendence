@@ -1,296 +1,238 @@
-/**
- * @brief Google OAuth 2.0 Service for ft_transcendence
- * 
- * @description Minimal, essential OAuth 2.0 implementation for Google authentication.
- * Handles authorization URL generation, token exchange, and user profile fetching.
- */
+// /**
+//  * @brief Simple Google OAuth 2.0 Service
+//  * 
+//  * @description Clean, reliable OAuth implementation following Google's official example.
+//  * Focused on core functionality without over-engineering.
+//  * 
+//  * @param googleapis - Google APIs client library
+//  * @param URLSearchParams - Browser's native URL handling
+//  * 
+//  * @return Simple, maintainable OAuth flow for frontend applications
+//  */
 
-import type { GoogleProfile, OAuthState } from '../../types/store.types'
+// import { google } from 'googleapis'
 
-/**
- * @brief OAuth configuration interface
- */
-export interface OAuthConfig {
-  clientId: string
-  redirectUri: string
-  scope: string[]
-}
+// // Simple type definitions
+// export interface OAuthConfig {
+//   clientId: string
+//   clientSecret?: string
+//   redirectUri: string
+//   scopes: string[]
+// }
 
-/**
- * @brief OAuth token response from Google
- */
-export interface OAuthTokenResponse {
-  access_token: string
-  token_type: string
-  expires_in: number
-  refresh_token?: string
-  scope: string
-  id_token?: string
-}
+// export interface OAuthCallbackResult {
+//   code: string | null
+//   error: string | null
+//   state?: string | null
+// }
 
-/**
- * @brief OAuth error response
- */
-export interface OAuthError {
-  error: string
-  error_description?: string
-  error_uri?: string
-}
+// export interface OAuthError {
+//   error: string
+//   error_description?: string
+// }
 
-/**
- * @brief Google OAuth 2.0 service class
- * 
- * @description Essential OAuth implementation with security best practices.
- */
-export class GoogleOAuthService {
-  private readonly config: OAuthConfig
-  private readonly GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
-  private readonly GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-  private readonly GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
+// /**
+//  * @brief Simple Google OAuth 2.0 service
+//  * 
+//  * @description Lightweight implementation following official Google patterns.
+//  * Handles auth URL generation, callback validation, and token exchange.
+//  */
+// export class GoogleOAuthService {
+//   private readonly config: OAuthConfig
+//   private readonly oauth2Client: any
 
-  constructor() {
-    // Load configuration from environment variables
-    this.config = {
-      clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-      redirectUri: window.location.origin + import.meta.env.VITE_GOOGLE_REDIRECT_URI,
-      scope: [
-        'openid',
-        'email', 
-        'profile'
-      ]
-    }
-
-    if (!this.config.clientId) {
-      console.warn('⚠️ Google OAuth client ID not configured')
-    }
-  }
-
-  /**
-   * @brief Generate secure OAuth state parameter
-   */
-  private generateState(returnTo?: string): OAuthState {
-    // Generate cryptographically secure random state
-    const array = new Uint8Array(32)
-    crypto.getRandomValues(array)
-    const state = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
-
-    return {
-      state,
-      returnTo,
-      createdAt: new Date()
-    }
-  }
-
-  /**
-   * @brief Store OAuth state securely
-   */
-  private storeOAuthState(oauthState: OAuthState): void {
-    try {
-      // Store in sessionStorage (more secure than localStorage for temporary data)
-      sessionStorage.setItem('oauth_state', JSON.stringify(oauthState))
-    } catch (error) {
-      console.error('Failed to store OAuth state:', error)
-      throw new Error('OAuth state storage failed')
-    }
-  }
-
-  /**
-   * @brief Retrieve and validate OAuth state
-   */
-  private getStoredOAuthState(stateParam: string): OAuthState | null {
-    try {
-      const storedJson = sessionStorage.getItem('oauth_state')
-      if (!storedJson) {
-        console.error('No OAuth state found in storage')
-        return null
-      }
-
-      const stored: OAuthState = JSON.parse(storedJson)
-      
-      // Validate state parameter matches
-      if (stored.state !== stateParam) {
-        console.error('OAuth state mismatch - possible CSRF attack')
-        return null
-      }
-
-      // Check if state is not too old (max 10 minutes)
-      const maxAge = 10 * 60 * 1000 // 10 minutes
-      if (Date.now() - new Date(stored.createdAt).getTime() > maxAge) {
-        console.error('OAuth state expired')
-        return null
-      }
-
-      return stored
-    } catch (error) {
-      console.error('Failed to retrieve OAuth state:', error)
-      return null
-    } finally {
-      // Clean up stored state
-      sessionStorage.removeItem('oauth_state')
-    }
-  }
-
-  /**
-   * @brief Check if OAuth is properly configured
-   */
-  public isConfigured(): boolean {
-    return Boolean(this.config.clientId && this.config.redirectUri)
-  }
-
-  /**
-   * @brief Generate Google OAuth authorization URL
-   */
-  public generateAuthUrl(returnTo?: string): string {
-    if (!this.isConfigured()) {
-      throw new Error('Google OAuth not configured')
-    }
-
-    // Generate secure state parameter
-    const oauthState = this.generateState(returnTo)
-    this.storeOAuthState(oauthState)
-
-    // Build authorization URL
-    const params = new URLSearchParams({
-      client_id: this.config.clientId,
-      redirect_uri: this.config.redirectUri,
-      response_type: 'code',
-      scope: this.config.scope.join(' '),
-      state: oauthState.state,
-      access_type: 'offline', // Get refresh token
-      prompt: 'consent' // Force consent screen to get refresh token
-    })
-
-    const authUrl = `${this.GOOGLE_AUTH_URL}?${params.toString()}`
-    console.log('🔐 Generated OAuth URL:', authUrl)
+//   constructor() {
+//     // Get configuration from environment
+//     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+//     const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET
+//     const baseUri = import.meta.env.VITE_APP_BASE_URL || window.location.origin
     
-    return authUrl
-  }
+//     if (!clientId) {
+//       throw new Error('VITE_GOOGLE_CLIENT_ID is required')
+//     }
 
-  /**
-   * @brief Exchange authorization code for access token
-   */
-  public async exchangeCodeForToken(code: string, state: string): Promise<OAuthTokenResponse> {
-    // Validate state parameter
-    const storedState = this.getStoredOAuthState(state)
-    if (!storedState) {
-      throw new Error('Invalid or expired OAuth state')
-    }
+//     this.config = {
+//       clientId,
+//       clientSecret, // Optional for frontend-only flows
+//       redirectUri: `${baseUri}/auth/oauth/google/callback`,
+//       scopes: [
+//         'https://www.googleapis.com/auth/userinfo.email',
+//         'https://www.googleapis.com/auth/userinfo.profile'
+//       ]
+//     }
 
-    try {
-      const response = await fetch(this.GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: this.config.clientId,
-          client_secret: '', // Note: In production, this should be handled by backend
-          code,
-          grant_type: 'authorization_code',
-          redirect_uri: this.config.redirectUri,
-        }),
-      })
+//     // Initialize OAuth2 client
+//     this.oauth2Client = new google.auth.OAuth2(
+//       this.config.clientId,
+//       this.config.clientSecret,
+//       this.config.redirectUri
+//     )
 
-      if (!response.ok) {
-        const errorData: OAuthError = await response.json()
-        throw new Error(`Token exchange failed: ${errorData.error_description || errorData.error}`)
-      }
+//     console.log('🔐 Google OAuth Service initialized', {
+//       redirectUri: this.config.redirectUri,
+//       scopes: this.config.scopes.length
+//     })
+//   }
 
-      const tokenData: OAuthTokenResponse = await response.json()
-      console.log('🔐 OAuth token exchange successful')
+//   /**
+//    * @brief Check if OAuth is properly configured
+//    * 
+//    * @return boolean - True if client ID and redirect URI are available
+//    */
+//   public isAvailable(): boolean {
+//     return !!(this.config.clientId && this.config.redirectUri)
+//   }
+
+//   /**
+//    * @brief Generate OAuth authorization URL
+//    * 
+//    * @param options - Optional state parameter for redirect handling
+//    * @return string - Authorization URL to redirect user to
+//    */
+//   public getAuthorizationUrl(state?: string): string {
+//     if (!this.isAvailable()) {
+//       throw new Error('Google OAuth is not properly configured')
+//     }
+
+//     const authUrl = this.oauth2Client.generateAuthUrl({
+//       access_type: 'offline',
+//       scope: this.config.scopes,
+//       state: state || undefined,
+//       prompt: 'select_account' // Allow user to choose account
+//     })
+
+//     return authUrl
+//   }
+
+//   /**
+//    * @brief Start OAuth flow by redirecting to Google
+//    * 
+//    * @param returnTo - Optional URL to return to after OAuth completion
+//    */
+//   public startOAuth(returnTo?: string): void {
+//     try {
+//       const state = returnTo ? btoa(JSON.stringify({ returnTo })) : undefined
+//       const authUrl = this.getAuthorizationUrl(state)
       
-      return tokenData
-    } catch (error) {
-      console.error('OAuth token exchange failed:', error)
-      throw error
-    }
-  }
-
-  /**
-   * @brief Fetch Google user profile
-   */
-  public async fetchUserProfile(accessToken: string): Promise<GoogleProfile> {
-    try {
-      const response = await fetch(`${this.GOOGLE_USERINFO_URL}?access_token=${accessToken}`)
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch user profile: ${response.statusText}`)
-      }
-
-      const profile: GoogleProfile = await response.json()
-      console.log('🔐 Google profile fetched for:', profile.email)
+//       console.log('🔗 Starting OAuth flow', { 
+//         returnTo: returnTo || 'none' 
+//       })
       
-      return profile
-    } catch (error) {
-      console.error('Failed to fetch Google profile:', error)
-      throw error
-    }
-  }
+//       window.location.href = authUrl
+//     } catch (error) {
+//       console.error('❌ Failed to start OAuth:', error)
+//       throw error
+//     }
+//   }
 
-  /**
-   * @brief Initiate OAuth flow
-   */
-  public startOAuthFlow(returnTo?: string): void {
-    if (!this.isConfigured()) {
-      throw new Error('Google OAuth not configured. Please set VITE_GOOGLE_CLIENT_ID.')
-    }
+//   /**
+//    * @brief Validate OAuth callback parameters
+//    * 
+//    * @param params - URLSearchParams from the callback URL
+//    * @return OAuthCallbackResult - Parsed callback data with validation
+//    */
+//   public validateCallback(params: URLSearchParams): OAuthCallbackResult {
+//     const code = params.get('code')
+//     const error = params.get('error')
+//     const errorDescription = params.get('error_description')
+//     const state = params.get('state')
 
-    const authUrl = this.generateAuthUrl(returnTo)
-    window.location.href = authUrl
-  }
+//     // Handle OAuth errors from Google
+//     if (error) {
+//       console.error('❌ OAuth error:', error, errorDescription)
+//       return {
+//         code: null,
+//         error: `${error}: ${errorDescription || 'Unknown error'}`,
+//         state
+//       }
+//     }
 
-  /**
-   * @brief Complete OAuth flow (to be called on callback page)
-   */
-  public async completeOAuthFlow(searchParams: URLSearchParams): Promise<{
-    profile: GoogleProfile
-    tokens: OAuthTokenResponse
-    returnTo?: string
-  }> {
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    const error = searchParams.get('error')
+//     // Validate authorization code presence
+//     if (!code) {
+//       console.error('❌ No authorization code received')
+//       return {
+//         code: null,
+//         error: 'No authorization code received from Google'
+//       }
+//     }
 
-    // Handle OAuth errors
-    if (error) {
-      const errorDescription = searchParams.get('error_description')
-      throw new Error(`OAuth error: ${errorDescription || error}`)
-    }
+//     console.log('✅ OAuth callback validated')
+//     return {
+//       code,
+//       error: null,
+//       state
+//     }
+//   }
 
-    // Validate required parameters
-    if (!code || !state) {
-      throw new Error('Missing authorization code or state parameter')
-    }
-
-    try {
-      // Exchange code for tokens
-      const tokens = await this.exchangeCodeForToken(code, state)
+//   /**
+//    * @brief Exchange authorization code for access token
+//    * 
+//    * @param code - Authorization code from OAuth callback
+//    * @return Promise<any> - Token response from Google
+//    */
+//   public async exchangeCodeForTokens(code: string): Promise<any> {
+//     try {
+//       const { tokens } = await this.oauth2Client.getToken(code)
       
-      // Fetch user profile
-      const profile = await this.fetchUserProfile(tokens.access_token)
+//       console.log('✅ Tokens exchanged successfully')
+//       return tokens
+//     } catch (error) {
+//       console.error('❌ Token exchange failed:', error)
+//       throw new Error('Failed to exchange authorization code for tokens')
+//     }
+//   }
 
-      // Get return URL from stored state
-      const storedState = this.getStoredOAuthState(state)
-      
-      return {
-        profile,
-        tokens,
-        returnTo: storedState?.returnTo
-      }
-    } catch (error) {
-      console.error('OAuth flow completion failed:', error)
-      throw error
-    }
-  }
+//   /**
+//    * @brief Parse return URL from state parameter
+//    * 
+//    * @param state - State parameter from OAuth callback
+//    * @return string | undefined - Return URL if valid state
+//    */
+//   public parseReturnUrl(state?: string | null): string | undefined {
+//     if (!state) return undefined
 
-  /**
-   * @brief Parse OAuth callback URL
-   */
-  public parseCallbackUrl(url: string = window.location.href): URLSearchParams {
-    const urlObj = new URL(url)
-    return urlObj.searchParams
-  }
-}
+//     try {
+//       const decoded = JSON.parse(atob(state))
+//       return decoded.returnTo
+//     } catch (error) {
+//       console.warn('⚠️ Failed to parse state parameter:', error)
+//       return undefined
+//     }
+//   }
 
-// Export singleton instance
-export const googleOAuthService = new GoogleOAuthService()
+//   /**
+//    * @brief Get OAuth configuration (safe for logging)
+//    * 
+//    * @return Partial config without sensitive data
+//    */
+//   public getConfig(): Omit<OAuthConfig, 'clientSecret'> {
+//     const { clientSecret, ...safeConfig } = this.config
+//     return safeConfig
+//   }
+
+//   /**
+//    * @brief Set OAuth credentials for API calls
+//    * 
+//    * @param tokens - Token object from Google OAuth
+//    */
+//   public setCredentials(tokens: any): void {
+//     this.oauth2Client.setCredentials(tokens)
+//     console.log('✅ OAuth credentials set for API calls')
+//   }
+
+//   /**
+//    * @brief Get authenticated OAuth client for API calls
+//    * 
+//    * @return OAuth2 client with credentials set
+//    */
+//   public getAuthenticatedClient(): any {
+//     return this.oauth2Client
+//   }
+// }
+
+// /**
+//  * @brief Export singleton instance
+//  * 
+//  * @description Single instance for consistent OAuth state management
+//  */
+// export const googleOAuthService = new GoogleOAuthService()

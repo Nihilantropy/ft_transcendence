@@ -10,7 +10,7 @@ import { HomePage } from '../pages/home/HomePage'
 import { GamePage } from '../pages/game/GamePage'
 import { ProfilePage } from '../pages/profile/ProfilePage'
 import { FriendsPage } from '../pages/friends/FriendsPage'
-import { LoginPage, ForgotPasswordPage, ResetPasswordPage, EmailVerificationPage, TwoFactorSetupPage, OAuthCallbackPage } from '../pages/auth'
+import { LoginPage, ForgotPasswordPage, ResetPasswordPage, EmailVerificationPage, TwoFactorSetupPage } from '../pages/auth'
 import { UsernameSelectionPage } from '../pages/auth/UsernameSelectionPage'
 
 // Global page container reference
@@ -144,11 +144,11 @@ export function configureRoutes(router: Router): void {
     redirect: '/login'
   })
 
-  router.register('/auth/oauth/callback', async () => {
-    console.log('🔗 Loading OAuth Callback page')
-    loadPage(OAuthCallbackPage)
-    document.title = 'OAuth Callback - ft_transcendence'
-  })
+  // router.register('/auth/oauth/callback', async () => {
+  //   console.log('🔗 Loading OAuth Callback page')
+  //   loadPage(OAuthCallbackPage)
+  //   document.title = 'OAuth Callback - ft_transcendence'
+  // })
 
   // Protected routes (simple auth requirement)
   router.register('/game', async () => {

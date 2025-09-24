@@ -1,42 +1,116 @@
-/**
- * @brief OAuth Google callback route for ft_transcendence backend
- */
-
 import { logger } from '../../logger.js'
+import { generateTokenPair } from '../../utils/jwt.js'
+import userService from '../../services/user.service.js'
 
 const oauthCallbackLogger = logger.child({ module: 'routes/auth/oauth-callback' })
 
 async function oauthCallbackRoute(fastify, options) {
-  fastify.post('/oauth/google/callback', async (request, reply) => {
+  fastify.get('/oauth/google/callback', async (request, reply) => {
     try {
-      const { code, state } = request.body
-      
+      const { code, state, error } = request.query
+
       oauthCallbackLogger.info('🌐 Google OAuth callback received')
+
+      if (error) throw new Error(`OAuth error: ${error}`)
+      if (!code || !state) throw new Error('Missing authorization code or state')
+
+      // 1. Exchange code for tokens
+      const tokenData = await exchangeCodeForTokens(code)
       
-      // TODO: Implement Google OAuth logic
-      // 1. Exchange code for tokens with Google
-      // 2. Get user profile from Google API
-      // 3. Check if user exists by google_id or email
-      // 4. If new user: create account with OAuth data
-      // 5. If existing user: update OAuth data
-      // 6. Generate JWT tokens
-      // 7. Update user status
+      // 2. Get user profile from Google
+      const googleProfile = await getGoogleUserProfile(tokenData.access_token)
       
-      return {
-        success: true,
-        user: {}, // TODO: Return user object
-        token: 'jwt-access-token',
-        refreshToken: 'jwt-refresh-token',
-        isNewUser: false // TODO: Determine if this is a new user
-      }
+      // 3. Find or create user using existing service
+      const { user, isNewUser } = await findOrCreateOAuthUser(googleProfile)
+      
+      // 4. Generate JWT tokens
+      const { accessToken, refreshToken } = generateTokenPair(user)
+      
+      // 5. Update user status to online
+      userService.updateUserOnlineStatus(user.id, true)
+      
+      // 6. Redirect to appropriate frontend route
+      const redirectUrl = isNewUser 
+        ? `https://localhost/username-selection?token=${accessToken}&refresh=${refreshToken}`
+        : `https://localhost/profile?token=${accessToken}&refresh=${refreshToken}`
+      
+      reply.redirect(redirectUrl)
+      
     } catch (error) {
       oauthCallbackLogger.error('❌ Google OAuth failed', { error: error.message })
-      reply.status(400)
-      return { success: false, message: 'OAuth authentication failed' }
+      reply.redirect(`https://localhost/login?error=${encodeURIComponent(error.message)}`)
     }
   })
+}
+
+/**
+ * @brief Exchange authorization code for Google tokens
+ */
+async function exchangeCodeForTokens(code) {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID || '',
+      client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: 'https://localhost/api/auth/oauth/google/callback'
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to exchange code for tokens')
+  }
+
+  return await response.json()
+}
+
+/**
+ * @brief Get user profile from Google API
+ */
+async function getGoogleUserProfile(accessToken) {
+  const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch user profile')
+  }
+
+  return await response.json()
+}
+
+async function findOrCreateOAuthUser(googleProfile) {
+  // First check by OAuth provider ID
+  let user = userService.getUserByOAuthProvider('google', googleProfile.id)
   
-  oauthCallbackLogger.info('✅ OAuth callback route registered successfully')
+  if (user) {
+    return { user, isNewUser: false }
+  }
+  
+  // Check by email
+  user = userService.getUserByEmail(googleProfile.email)
+  
+  if (user) {
+    // Link Google account to existing user
+    userService.updateUserOAuthData(user.id, 'google', googleProfile.id)
+    return { user, isNewUser: false }
+  }
+
+  // Create new OAuth user
+  const username = userService.createUniqueUsername(googleProfile.email)
+  
+  user = await userService.createOAuthUser({
+    email: googleProfile.email,
+    username,
+    googleId: googleProfile.id,
+    firstName: googleProfile.given_name,
+    lastName: googleProfile.family_name,
+    avatarUrl: googleProfile.picture
+  })
+
+  return { user, isNewUser: true }
 }
 
 export default oauthCallbackRoute

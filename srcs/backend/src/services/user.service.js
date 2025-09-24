@@ -388,6 +388,140 @@ export class UserService {
     }
   }
 
+  /***********************************/
+  /* OAUTH USER MANAGEMENT METHODS   */
+  /***********************************/
+
+  /**
+   * @brief Create OAuth user (no password required)
+   */
+  async createOAuthUser({ email, username, googleId, firstName, lastName, avatarUrl }) {
+    try {
+      const oauthProviders = JSON.stringify({
+        google: {
+          id: googleId,
+          connected_at: new Date().toISOString()
+        }
+      })
+      
+      userServiceLogger.debug('Creating OAuth user', { username, email, provider: 'google' })
+      
+      const newUser = databaseConnection.transaction(() => {
+        // Insert user
+        const insertResult = databaseConnection.run(`
+          INSERT INTO users (
+            username, email, display_name, avatar_url, 
+            email_verified, oauth_providers, is_active, is_online,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [
+          username,
+          email.toLowerCase(),
+          `${firstName} ${lastName}`.trim() || username,
+          avatarUrl,
+          1, // OAuth emails are pre-verified
+          oauthProviders,
+          1, // active
+          0  // offline initially
+        ])
+        
+        const userId = insertResult.lastInsertRowid
+        
+        // Assign default role
+        const userRoleId = this.getRoleId('user')
+        if (userRoleId) {
+          databaseConnection.run(`
+            INSERT INTO user_roles (user_id, role_id, granted_at) 
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `, [userId, userRoleId])
+        }
+        
+        // Create user stats
+        databaseConnection.run(`
+          INSERT INTO user_stats (
+            user_id, games_played, games_won, games_lost,
+            total_score, ranking, updated_at
+          ) VALUES (?, 0, 0, 0, 0, 1000, CURRENT_TIMESTAMP)
+        `, [userId])
+        
+        return {
+          id: userId,
+          username,
+          email: email.toLowerCase(),
+          email_verified: true,
+          display_name: `${firstName} ${lastName}`.trim() || username,
+          avatar_url: avatarUrl,
+          is_active: true,
+          is_online: false
+        }
+      })
+      
+      userServiceLogger.info('✅ OAuth user created', { userId: newUser.id, provider: 'google' })
+      return newUser
+      
+    } catch (error) {
+      userServiceLogger.error('❌ OAuth user creation failed', { error: error.message })
+      throw new DatabaseError('Failed to create OAuth user')
+    }
+  }
+
+  /**
+   * @brief Update user's OAuth provider data
+   */
+  updateUserOAuthData(userId, provider, providerId) {
+    try {
+      // Get current OAuth providers
+      const user = databaseConnection.get(
+        'SELECT oauth_providers FROM users WHERE id = ?', 
+        [userId]
+      )
+      
+      let oauthProviders = {}
+      if (user?.oauth_providers) {
+        oauthProviders = JSON.parse(user.oauth_providers)
+      }
+      
+      // Add/update provider data
+      oauthProviders[provider] = {
+        id: providerId,
+        connected_at: new Date().toISOString()
+      }
+      
+      // Update database
+      databaseConnection.run(`
+        UPDATE users 
+        SET oauth_providers = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [JSON.stringify(oauthProviders), userId])
+      
+      userServiceLogger.debug('✅ OAuth data updated', { userId, provider })
+      
+    } catch (error) {
+      userServiceLogger.error('❌ Failed to update OAuth data', { error: error.message })
+      throw new DatabaseError('Failed to update OAuth data')
+    }
+  }
+
+  /**
+   * @brief Find user by OAuth provider ID
+   */
+  getUserByOAuthProvider(provider, providerId) {
+    try {
+      const user = databaseConnection.get(`
+        SELECT id, username, email, email_verified, is_active, is_online,
+              oauth_providers, created_at, updated_at
+        FROM users 
+        WHERE oauth_providers LIKE ? AND is_active = 1
+        LIMIT 1
+      `, [`%"${provider}":{"id":"${providerId}"%`])
+      
+      return user || null
+      
+    } catch (error) {
+      userServiceLogger.error('Failed to get user by OAuth provider', { provider, error: error.message })
+      throw new DatabaseError('Database error while retrieving OAuth user')
+    }
+  }
 }
 
 export const userService = new UserService()
@@ -447,3 +581,4 @@ function usernameExists(username) {
     throw error
   }
 }
+

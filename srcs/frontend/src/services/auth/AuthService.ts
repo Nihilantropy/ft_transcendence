@@ -30,7 +30,8 @@
 import { ApiService } from '../api/BaseApiService'
 import { PasswordUtils } from './PasswordUtils'
 import { catchErrorTyped } from '../error'
-import type { 
+// import { googleOAuthService, type OAuthError, type OAuthCallbackResult } from './GoogleOAuthService'
+import type {
   AuthResponse, 
   LoginRequest, 
   RegisterRequest
@@ -697,106 +698,87 @@ export class AuthService extends ApiService {
   }
 
   // ===========================================
-  // OAuth 2.0 Methods
+  // Enhanced OAuth 2.0 Methods
   // ===========================================
 
   /**
-   * @brief Check if OAuth is enabled and configured
+   * @brief Check if Google OAuth is available and properly configured
    */
   public isOAuthAvailable(): boolean {
     return import.meta.env.VITE_OAUTH_ENABLED === 'true'
   }
 
   /**
-   * @brief Initiate Google OAuth flow
+   * @brief Initiate Google OAuth flow with PKCE
    */
-  public startGoogleOAuth(returnTo?: string): void {
-    console.log('🔐 Starting Google OAuth flow')
-    // Redirect to backend OAuth endpoint
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
-    const oauthUrl = `${baseUrl}/auth/oauth/google`
-    const params = new URLSearchParams()
-    if (returnTo) {
-      params.append('returnTo', returnTo)
+  async startGoogleOAuth(): Promise<void> {
+    const oauthAvailable = this.isOAuthAvailable()
+    if (!oauthAvailable) {
+      throw new Error('Google OAuth is not available or not properly configured')
     }
-    window.location.href = `${oauthUrl}?${params.toString()}`
+
+    const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    const REDIRECT_URI = import.meta.env.VITE_OAUTH_REDIRECT_URI
+    // Generate PKCE parameters
+    const codeVerifier = this.generateCodeVerifier();
+    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+    const state = this.generateState();
+
+    // Store PKCE parameters for callback verification
+    sessionStorage.setItem('oauth_code_verifier', codeVerifier);
+    sessionStorage.setItem('oauth_state', state);
+
+    // Build OAuth URL
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID || '',
+      redirect_uri: REDIRECT_URI || 'https://localhost/api/auth/oauth/google/callback',
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'consent',
+      state: state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256'
+    });
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    
+    // Redirect to Google
+    window.location.href = authUrl;
   }
 
   /**
-   * @brief Handle OAuth callback and complete authentication
+   * @brief Generate cryptographically secure code verifier
    */
-  public async handleOAuthCallback(searchParams: URLSearchParams): Promise<{ success: boolean; user?: any; token?: string; message?: string; returnTo?: string }> {
-    console.log('🔐 Processing OAuth callback')
-    
-    // Extract OAuth parameters from URL
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    const returnTo = searchParams.get('returnTo')
-    
-    if (!code) {
-      throw new Error('OAuth authorization code not found')
-    }
-
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse>('/auth/oauth/google/callback', {
-        code,
-        state,
-        returnTo
-      })
-    )
-
-    if (error) {
-      throw new Error(error.message || 'OAuth authentication failed')
-    }
-
-    if (!apiResponse?.success || !apiResponse.data.success) {
-      throw new Error(apiResponse?.data.message || 'OAuth authentication failed')
-    }
-
-    const accessToken = apiResponse.data.tokens?.accessToken
-    const refreshToken = apiResponse.data.tokens?.refreshToken
-
-    if (apiResponse.data.user && accessToken) {
-      // Store authentication data
-      this.storeAuth(apiResponse.data.user, accessToken)
-      
-      // Store refresh token if provided
-      if (refreshToken) {
-        localStorage.setItem('ft_refresh_token', refreshToken)
-      }
-      
-      console.log('🔐 OAuth authentication successful:', apiResponse.data.user.username)
-      
-      return {
-        success: true,
-        user: apiResponse.data.user,
-        token: accessToken,
-        message: `OAuth authentication successful. ${returnTo ? `Redirecting to ${returnTo}` : 'Welcome!'}`,
-        returnTo: returnTo || undefined
-      }
-    } else {
-      throw new Error('Invalid OAuth response data')
-    }
+  private generateCodeVerifier(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return btoa(String.fromCharCode(...array))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
   }
 
   /**
-   * @brief Link Google account to existing user
+   * @brief Generate code challenge from verifier
    */
-  public async linkGoogleAccount(): Promise<{ success: boolean; message?: string }> {
-    if (!this.isAuthenticated()) {
-      throw new Error('User must be authenticated to link accounts')
-    }
+  private async generateCodeChallenge(verifier: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+  }
 
-    console.log('🔐 Starting Google account linking')
-    // Redirect to OAuth linking endpoint
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
-    const linkUrl = `${baseUrl}/auth/oauth/google/link`
-    window.location.href = linkUrl
-    
-    return {
-      success: true,
-      message: 'Redirecting to Google for account linking...'
-    }
+  /**
+   * @brief Generate random state parameter
+   */
+  private generateState(): string {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    return btoa(String.fromCharCode(...array)).replace(/=/g, '');
   }
 
   /**

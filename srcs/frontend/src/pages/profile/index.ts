@@ -7,4 +7,4 @@
 
 // Profile Pages
 export { ProfilePage } from './ProfilePage'
-export type { ProfilePageProps, ProfilePageState, UserProfile } from './ProfilePage'
+export type { ProfilePageProps, ProfilePageState } from './ProfilePage'
