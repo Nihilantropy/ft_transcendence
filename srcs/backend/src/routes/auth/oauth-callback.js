@@ -47,22 +47,34 @@ async function oauthCallbackRoute(fastify, options) {
  * @brief Exchange authorization code for Google tokens
  */
 async function exchangeCodeForTokens(code) {
+  oauthCallbackLogger.info('🔄 Exchanging code for tokens', { 
+    clientId: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'MISSING',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'MISSING',
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'https://localhost/api/auth/oauth/google/callback'
+  })
+  oauthCallbackLogger.debug('Sent code', { code: code.substring(0, 8) + '...' })
+
+  const tokenParams = {
+    client_id: process.env.GOOGLE_CLIENT_ID || '',
+    client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+    code,
+    grant_type: 'authorization_code',
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'https://localhost/api/auth/oauth/google/callback'
+  }
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID || '',
-      client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
-      code,
-      grant_type: 'authorization_code',
-      redirect_uri: 'https://localhost/api/auth/oauth/google/callback'
-    })
+    body: new URLSearchParams(tokenParams)
   })
 
   if (!response.ok) {
+    oauthCallbackLogger.error('🌐 Google OAuth tokens exchange failed', { 
+      status: response.status, 
+      body: await response.text(),
+      sentParams: Object.keys(tokenParams)
+    })
     throw new Error('Failed to exchange code for tokens')
   }
-
   return await response.json()
 }
 

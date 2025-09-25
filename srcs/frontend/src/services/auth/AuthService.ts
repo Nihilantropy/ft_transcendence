@@ -719,14 +719,9 @@ export class AuthService extends ApiService {
 
     const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
     const REDIRECT_URI = import.meta.env.VITE_OAUTH_REDIRECT_URI
-    // Generate PKCE parameters
-    const codeVerifier = this.generateCodeVerifier();
-    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
-    const state = this.generateState();
-
-    // Store PKCE parameters for callback verification
-    sessionStorage.setItem('oauth_code_verifier', codeVerifier);
-    sessionStorage.setItem('oauth_state', state);
+    // Generate and store state for security
+    const state = Math.random().toString(36).substring(2, 15)
+    sessionStorage.setItem('oauth_state', state)
 
     // Build OAuth URL
     const params = new URLSearchParams({
@@ -736,49 +731,13 @@ export class AuthService extends ApiService {
       scope: 'openid email profile',
       access_type: 'offline',
       prompt: 'consent',
-      state: state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256'
+      state: state
     });
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     
     // Redirect to Google
     window.location.href = authUrl;
-  }
-
-  /**
-   * @brief Generate cryptographically secure code verifier
-   */
-  private generateCodeVerifier(): string {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return btoa(String.fromCharCode(...array))
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
-  }
-
-  /**
-   * @brief Generate code challenge from verifier
-   */
-  private async generateCodeChallenge(verifier: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return btoa(String.fromCharCode(...new Uint8Array(digest)))
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
-  }
-
-  /**
-   * @brief Generate random state parameter
-   */
-  private generateState(): string {
-    const array = new Uint8Array(16);
-    crypto.getRandomValues(array);
-    return btoa(String.fromCharCode(...array)).replace(/=/g, '');
   }
 
   /**
