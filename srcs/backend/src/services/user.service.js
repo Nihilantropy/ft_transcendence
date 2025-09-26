@@ -64,7 +64,7 @@ export class UserService {
    */
   createUniqueUsername(email) {
     try {
-      return generateUniqueUsername(email) // Now synchronous!
+      return generateUniqueUsername(email)
     } catch (error) {
       userServiceLogger.error('Failed to generate unique username', { email, error: error.message })
       throw new DatabaseError('Failed to generate username')
@@ -379,7 +379,7 @@ export class UserService {
         UPDATE users 
         SET is_online = ?, last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [isOnline, userId])
+      `, [isOnline ? 1 : 0, userId])
       
       userServiceLogger.debug('Updated user online status, rows changed:', result.changes)
     } catch (error) {
@@ -417,7 +417,7 @@ export class UserService {
         `, [
           username,
           email.toLowerCase(),
-          `${firstName} ${lastName}`.trim() || username,
+          username,
           avatarUrl,
           1, // OAuth emails are pre-verified
           oauthProviders,
@@ -503,23 +503,34 @@ export class UserService {
   }
 
   /**
-   * @brief Find user by OAuth provider ID
+   * @brief Find user by Google OAuth ID from oauth_providers JSON field
+   * 
+   * @param {string} googleId - Google user identifier
+   * @return {Object|null} User object or null if not found
    */
-  getUserByOAuthProvider(provider, providerId) {
+  findUserByGoogleId(googleId) {
     try {
-      const user = databaseConnection.get(`
-        SELECT id, username, email, email_verified, is_active, is_online,
-              oauth_providers, created_at, updated_at
-        FROM users 
-        WHERE oauth_providers LIKE ? AND is_active = 1
-        LIMIT 1
-      `, [`%"${provider}":{"id":"${providerId}"%`])
+      userServiceLogger.debug('Finding user by Google ID:', googleId)
       
+      const user = databaseConnection.get(`
+        SELECT id, username, email, display_name, avatar_url, 
+              email_verified, oauth_providers, is_active, is_online,
+              created_at, updated_at
+        FROM users 
+        WHERE JSON_EXTRACT(oauth_providers, '$.google.id') = ? 
+          AND is_active = 1
+        LIMIT 1
+      `, [googleId])
+      
+      userServiceLogger.debug('User found by Google ID:', !!user)
       return user || null
       
     } catch (error) {
-      userServiceLogger.error('Failed to get user by OAuth provider', { provider, error: error.message })
-      throw new DatabaseError('Database error while retrieving OAuth user')
+      userServiceLogger.error('Failed to find user by Google ID', { 
+        googleId, 
+        error: error.message 
+      })
+      throw new DatabaseError('Database error while finding user by Google ID')
     }
   }
 }

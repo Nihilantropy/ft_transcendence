@@ -95,9 +95,10 @@ async function getGoogleUserProfile(accessToken) {
 
 async function findOrCreateOAuthUser(googleProfile) {
   // First check by OAuth provider ID
-  let user = userService.getUserByOAuthProvider('google', googleProfile.id)
+  let user = userService.findUserByGoogleId(googleProfile.id)
   
   if (user) {
+    oauthCallbackLogger.info('✅ Existing OAuth user found', { userId: user.id })
     return { user, isNewUser: false }
   }
   
@@ -106,6 +107,10 @@ async function findOrCreateOAuthUser(googleProfile) {
   
   if (user) {
     // Link Google account to existing user
+    oauthCallbackLogger.info('🔗 Linking Google account to existing user', { 
+      userId: user.id,
+      email: googleProfile.email 
+    })
     userService.updateUserOAuthData(user.id, 'google', googleProfile.id)
     return { user, isNewUser: false }
   }

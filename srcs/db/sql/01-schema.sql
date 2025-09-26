@@ -31,7 +31,7 @@ CREATE TABLE users (
     email TEXT UNIQUE NOT NULL,
     
     -- Authentication
-    password_hash TEXT NOT NULL,
+    password_hash TEXT NULL,
     email_verified BOOLEAN DEFAULT FALSE,
     email_verification_token TEXT,
     password_reset_token TEXT,
@@ -48,7 +48,7 @@ CREATE TABLE users (
     
     -- OAuth
     google_id TEXT UNIQUE,
-    oauth_providers TEXT, -- JSON array: ["google", "github"]
+    oauth_providers TEXT, -- "google"
     
     -- Two-Factor Auth
     two_factor_enabled BOOLEAN DEFAULT FALSE,
@@ -59,6 +59,11 @@ CREATE TABLE users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Indexes for OAuth lookups
+CREATE INDEX idx_users_google_id ON users(google_id);
+CREATE INDEX idx_users_oauth_providers ON users(oauth_providers);
+CREATE INDEX idx_users_email ON users(email);
 
 -- User roles junction table
 CREATE TABLE user_roles (
