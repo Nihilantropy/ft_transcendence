@@ -1,18 +1,14 @@
 /**
  * @brief Email verification route for ft_transcendence backend
  * 
- * @description Handles email verification with:
- * - Verification token validation
- * - Email activation
- * - Automatic authentication after verification
+ * @description Clean email verification using schema-driven validation
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/index.js'
+import { routeSchemas } from '../../schemas/routes/auth.js'
 import { userService } from '../../services/index.js'
 import { generateAccessToken, generateRefreshToken } from '../../utils/jwt.js'
 
-// Create route-specific logger
 const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
 
 /**
@@ -21,30 +17,30 @@ const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
  */
 async function verifyEmailRoute(fastify) {
   
-  /**
-   * @route POST /verify-email
-   * @description Verify user email via API call and return tokens
-   */
   fastify.post('/verify-email', {
-    schema: routeSchemas.verifyEmail,
-    handler: fastify.errors.asyncHandler(async (request, reply) => {
+    schema: routeSchemas.verifyEmail
+  }, async (request, reply) => {
+    try {
       const { token } = request.body
       
-      verifyEmailLogger.info('📧 Email verification attempt (POST)', { 
-        token: token.substring(0, 8) + '...',
-        tokenLength: token.length,
-        tokenFull: token  // Temporary for debugging
+      verifyEmailLogger.info('📧 Email verification attempt', { 
+        token: token.substring(0, 8) + '...'
       })
       
       // 1. Verify email using user service
       const verifiedUser = userService.verifyUserEmail(token)
       
       if (!verifiedUser) {
-        verifyEmailLogger.warn('❌ Email verification failed', {
-          token: token.substring(0, 8) + '...',
-          reason: 'Token not found or already used'
-        })
-        throw fastify.errors.badRequest('Invalid or expired verification token')
+        verifyEmailLogger.warn('❌ Email verification failed - invalid token')
+        reply.status(400)
+        return {
+          success: false,
+          message: 'Invalid or expired verification token',
+          error: {
+            code: 'INVALID_TOKEN',
+            details: 'Verification token is invalid or has already been used'
+          }
+        }
       }
       
       // 2. Generate authentication tokens for auto-login
@@ -58,7 +54,6 @@ async function verifyEmailRoute(fastify) {
       })
       
       // 3. Return success response with tokens
-      reply.status(200)
       return {
         success: true,
         message: 'Email verified successfully. You are now logged in.',
@@ -73,10 +68,22 @@ async function verifyEmailRoute(fastify) {
           refreshToken
         }
       }
-    })
+      
+    } catch (error) {
+      verifyEmailLogger.error('❌ Email verification failed', { error: error.message })
+      reply.status(400)
+      return {
+        success: false,
+        message: 'Email verification failed',
+        error: {
+          code: 'VERIFICATION_ERROR',
+          details: error.message
+        }
+      }
+    }
   })
   
-  verifyEmailLogger.info('✅ Email verification route registered successfully (POST only)')
+  verifyEmailLogger.info('✅ Email verification route registered successfully')
 }
 
 export default verifyEmailRoute

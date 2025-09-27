@@ -12,13 +12,11 @@ export default [
     properties: {
       success: { 
         type: 'boolean', 
-        description: 'Operation success status',
-        example: true
+        description: 'Operation success status'
       },
       message: { 
         type: 'string', 
-        description: 'Human-readable response message',
-        example: 'Operation completed successfully'
+        description: 'Human-readable response message'
       }
     },
     required: ['success', 'message']
@@ -31,25 +29,21 @@ export default [
     properties: {
       success: { 
         type: 'boolean', 
-        description: 'Operation success status (always false)',
-        example: false
+        description: 'Operation success status (always false)'
       },
       message: { 
         type: 'string', 
-        description: 'Error description',
-        example: 'Operation failed'
+        description: 'Error description'
       },
       error: { 
         type: 'object',
         description: 'Detailed error information',
         properties: {
           code: { 
-            type: 'string',
-            example: 'VALIDATION_ERROR'
+            type: 'string'
           },
           details: { 
-            type: 'string',
-            example: 'Invalid input provided'
+            type: 'string'
           }
         }
       }
@@ -63,19 +57,16 @@ export default [
     type: 'object',
     properties: {
       success: { 
-        type: 'boolean', 
-        example: false
+        type: 'boolean'
       },
       message: { 
-        type: 'string',
-        example: 'Validation failed'
+        type: 'string'
       },
       error: {
         type: 'object',
         properties: {
           code: { 
-            type: 'string',
-            example: 'VALIDATION_ERROR'
+            type: 'string'
           },
           details: {
             type: 'array',

@@ -40,25 +40,21 @@ const schemas = [
         type: 'string',
         minLength: 3,
         maxLength: 30,
-        description: 'Username or email',
-        example: 'john_doe'
+        description: 'Username or email'
       },
       password: { 
         type: 'string',
         minLength: 8,
         maxLength: 128,
-        description: 'User password',
-        example: 'SecurePassword123!'
+        description: 'User password'
       },
       rememberMe: { 
         type: 'boolean',
-        description: 'Keep user logged in',
-        example: false
+        description: 'Keep user logged in'
       },
       twoFactorToken: { 
         type: 'string',
-        description: '2FA token (if enabled)',
-        example: '123456'
+        description: '2FA token (if enabled)'
       }
     },
     required: ['username', 'password']
@@ -69,30 +65,111 @@ const schemas = [
     $id: 'LoginResponse',
     type: 'object',
     properties: {
-      success: { type: 'boolean', example: true },
-      message: { type: 'string', example: 'Login successful' },
+      success: { type: 'boolean' },
+      message: { type: 'string' },
       user: {
         type: 'object',
         properties: {
-          id: { type: 'integer', example: 1 },
-          username: { type: 'string', example: 'john_doe' },
-          email: { type: 'string', example: 'john@example.com' },
-          is_online: { type: 'boolean', example: true }
+          id: { type: 'integer' },
+          username: { type: 'string' },
+          email: { type: 'string' },
+          is_online: { type: 'boolean' }
         }
       },
       tokens: {
         type: 'object',
         properties: {
-          accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-          refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-          tokenType: { type: 'string', example: 'Bearer' },
-          expiresIn: { type: 'string', example: '15m' }
+          accessToken: { type: 'string' },
+          refreshToken: { type: 'string' },
+          tokenType: { type: 'string' },
+          expiresIn: { type: 'string' }
         }
       },
-      requiresTwoFactor: { type: 'boolean', example: false },
-      tempToken: { type: 'string', example: 'temp-2fa-token' }
+      requiresTwoFactor: { type: 'boolean' },
+      tempToken: { type: 'string' }
     },
     required: ['success', 'message']
+  },
+
+  // Register request schema
+  {
+    $id: 'RegisterRequest',
+    type: 'object',
+    properties: {
+      email: { 
+        type: 'string',
+        format: 'email',
+        description: 'Valid email address'
+      },
+      password: { 
+        type: 'string',
+        minLength: 8,
+        maxLength: 128,
+        description: 'Strong password'
+      }
+    },
+    required: ['email', 'password']
+  },
+
+  // Register response schema
+  {
+    $id: 'RegisterResponse',
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      data: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          username: { type: 'string' },
+          email: { type: 'string' },
+          email_verified: { type: 'boolean' }
+        }
+      }
+    },
+    required: ['success', 'message', 'data']
+  },
+
+  // Email verification request
+  {
+    $id: 'VerifyEmailRequest',
+    type: 'object',
+    properties: {
+      token: { 
+        type: 'string',
+        minLength: 32,
+        description: 'Email verification token'
+      }
+    },
+    required: ['token']
+  },
+
+  // Email verification response
+  {
+    $id: 'VerifyEmailResponse',
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      user: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          username: { type: 'string' },
+          email: { type: 'string' },
+          email_verified: { type: 'boolean' }
+        }
+      },
+      tokens: {
+        type: 'object',
+        properties: {
+          accessToken: { type: 'string' },
+          refreshToken: { type: 'string' }
+        }
+      }
+    },
+    required: ['success', 'message', 'user', 'tokens']
   },
 
   // Token refresh request
@@ -102,8 +179,7 @@ const schemas = [
     properties: {
       refreshToken: { 
         type: 'string',
-        description: 'Valid refresh token',
-        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        description: 'Valid refresh token'
       }
     },
     required: ['refreshToken']
@@ -115,6 +191,33 @@ const schemas = [
 // =============================================================================
 
 export const routeSchemas = {
+  // Register route
+  register: {
+    tags: ['auth'],
+    operationId: 'registerUser',
+    summary: 'User registration',
+    description: 'Register new user account with auto-generated username',
+    body: { $ref: 'RegisterRequest#' },
+    response: {
+      201: { $ref: 'RegisterResponse#' },
+      400: { $ref: 'ValidationError#' },
+      409: { $ref: 'ErrorResponse#' }
+    }
+  },
+
+  // Email verification route
+  verifyEmail: {
+    tags: ['auth'],
+    operationId: 'verifyEmail',
+    summary: 'Verify email address',
+    description: 'Verify user email and return authentication tokens',
+    body: { $ref: 'VerifyEmailRequest#' },
+    response: {
+      200: { $ref: 'VerifyEmailResponse#' },
+      400: { $ref: 'ErrorResponse#' }
+    }
+  },
+
   // Login route
   login: {
     tags: ['auth'],
@@ -138,46 +241,9 @@ export const routeSchemas = {
     security: authSecurity,
     headers: { $ref: 'AuthHeaders#' },
     response: {
-      200: { $ref: 'LoginResponse#' },
+      200: { $ref: 'SuccessResponse#' },
       401: { $ref: 'ErrorResponse#' },
       400: { $ref: 'ErrorResponse#' }
-    }
-  },
-
-  register: {
-    tags: ['auth'],
-    operationId: 'registerUser',
-    summary: 'User registration',
-    description: 'Register a new user account',
-    body: { $ref: 'RegisterRequest#' },
-    response: {
-      201: { $ref: 'RegisterResponse#' },
-      409: { $ref: 'ErrorResponse#' },
-      400: { $ref: 'ValidationError#' }
-    }
-  },
-
-  // Email verification route
-  verifyEmail: {
-    tags: ['auth'],
-    operationId: 'verifyEmail',
-    summary: 'Verify user email',
-    description: 'Verify user email using the provided token',
-    querystring: {
-      type: 'object',
-      properties: {
-        token: { 
-          type: 'string',
-          description: 'Email verification token',
-          example: 'verification-token-123'
-        }
-      },
-      required: ['token']
-    },
-    response: {
-      200: { $ref: 'GenericResponse#' },
-      400: { $ref: 'ErrorResponse#' },
-      404: { $ref: 'ErrorResponse#' }
     }
   },
 
