@@ -4,7 +4,7 @@ import userService from '../../services/user.service.js'
 
 const oauthCallbackLogger = logger.child({ module: 'routes/auth/oauth-callback' })
 
-async function oauthCallbackRoute(fastify, options) {
+async function oauthCallbackRoute(fastify) {
   fastify.get('/oauth/google/callback', async (request, reply) => {
     try {
       const { code, state, error } = request.query
@@ -38,7 +38,7 @@ async function oauthCallbackRoute(fastify, options) {
       
     } catch (error) {
       oauthCallbackLogger.error('❌ Google OAuth failed', { error: error.message })
-      reply.redirect(`https://localhost/login?error=${encodeURIComponent(error.message)}`)
+      reply.redirect(`https://localhost/login?error=oauth_failed`)
     }
   })
 }
