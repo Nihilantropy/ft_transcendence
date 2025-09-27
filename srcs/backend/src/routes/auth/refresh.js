@@ -8,6 +8,7 @@
  */
 
 import { logger } from '../../logger.js'
+import { routeSchemas } from '../../schemas/index.js'
 
 // Create route-specific logger
 const refreshLogger = logger.child({ module: 'routes/auth/refresh' })
@@ -23,7 +24,7 @@ async function refreshRoute(fastify, options) {
    * @description Generate new access token using refresh token
    */
   fastify.post('/refresh', {
-    schema: refreshTokenSchema,
+    schema: routeSchemas.refresh,
     handler: async (request, reply) => {
       try {
         const { refreshToken } = request.body

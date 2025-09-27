@@ -1,10 +1,36 @@
 /**
  * @brief Authentication route schemas for ft_transcendence backend
  * 
- * @description Request/response schemas for all auth endpoints
+ * @description Complete route schemas with centralized definitions
  */
 
-export default [
+// =============================================================================
+// SHARED COMPONENTS
+// =============================================================================
+
+const authHeaders = {
+  $id: 'AuthHeaders',
+  type: 'object',
+  properties: {
+    authorization: {
+      type: 'string',
+      description: 'Bearer JWT token',
+      pattern: '^Bearer .+$'
+    }
+  },
+  required: ['authorization']
+}
+
+const authSecurity = [{ bearerAuth: [] }]
+
+// =============================================================================
+// REQUEST/RESPONSE SCHEMAS
+// =============================================================================
+
+const schemas = [
+  // Auth headers
+  authHeaders,
+
   // Login request schema
   {
     $id: 'LoginRequest',
@@ -69,42 +95,7 @@ export default [
     required: ['success', 'message']
   },
 
-  // Register request schema
-  {
-    $id: 'RegisterRequest',
-    type: 'object',
-    properties: {
-      username: { 
-        type: 'string',
-        minLength: 3,
-        maxLength: 30,
-        pattern: '^[a-zA-Z0-9_-]+$',
-        description: 'Username (alphanumeric, underscore, hyphen)',
-        example: 'john_doe'
-      },
-      email: { 
-        type: 'string',
-        format: 'email',
-        description: 'Valid email address',
-        example: 'john@example.com'
-      },
-      password: { 
-        type: 'string',
-        minLength: 8,
-        maxLength: 128,
-        description: 'Strong password',
-        example: 'SecurePassword123!'
-      },
-      confirmPassword: { 
-        type: 'string',
-        description: 'Password confirmation',
-        example: 'SecurePassword123!'
-      }
-    },
-    required: ['username', 'email', 'password', 'confirmPassword']
-  },
-
-  // Token refresh request schema
+  // Token refresh request
   {
     $id: 'RefreshTokenRequest',
     type: 'object',
@@ -116,62 +107,93 @@ export default [
       }
     },
     required: ['refreshToken']
-  },
-
-  // Token refresh response schema
-  {
-    $id: 'RefreshTokenResponse',
-    type: 'object',
-    properties: {
-      success: { type: 'boolean', example: true },
-      accessToken: { 
-        type: 'string',
-        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
-      },
-      tokenType: { type: 'string', example: 'Bearer' },
-      expiresIn: { type: 'string', example: '15m' }
-    },
-    required: ['success', 'accessToken', 'tokenType', 'expiresIn']
-  },
-
-  // Username check request schema
-  {
-    $id: 'CheckUsernameRequest',
-    type: 'object',
-    properties: {
-      username: { 
-        type: 'string',
-        minLength: 3,
-        maxLength: 30,
-        pattern: '^[a-zA-Z0-9_-]+$',
-        example: 'john_doe'
-      }
-    },
-    required: ['username']
-  },
-
-  // Username check response schema
-  {
-    $id: 'CheckUsernameResponse',
-    type: 'object',
-    properties: {
-      available: { type: 'boolean', example: true },
-      message: { type: 'string', example: 'Username is available' }
-    },
-    required: ['available', 'message']
-  },
-
-  // Forgot password request schema
-  {
-    $id: 'ForgotPasswordRequest',
-    type: 'object',
-    properties: {
-      email: { 
-        type: 'string',
-        format: 'email',
-        example: 'john@example.com'
-      }
-    },
-    required: ['email']
   }
 ]
+
+// =============================================================================
+// COMPLETE ROUTE SCHEMAS
+// =============================================================================
+
+export const routeSchemas = {
+  // Login route
+  login: {
+    tags: ['auth'],
+    operationId: 'loginUser',
+    summary: 'User login',
+    description: 'Authenticate user with username/email and password',
+    body: { $ref: 'LoginRequest#' },
+    response: {
+      200: { $ref: 'LoginResponse#' },
+      401: { $ref: 'ErrorResponse#' },
+      400: { $ref: 'ValidationError#' }
+    }
+  },
+
+  // Logout route
+  logout: {
+    tags: ['auth'],
+    operationId: 'logoutUser',
+    summary: 'User logout',
+    description: 'Invalidate JWT token and cleanup user session',
+    security: authSecurity,
+    headers: { $ref: 'AuthHeaders#' },
+    response: {
+      200: { $ref: 'LoginResponse#' },
+      401: { $ref: 'ErrorResponse#' },
+      400: { $ref: 'ErrorResponse#' }
+    }
+  },
+
+  register: {
+    tags: ['auth'],
+    operationId: 'registerUser',
+    summary: 'User registration',
+    description: 'Register a new user account',
+    body: { $ref: 'RegisterRequest#' },
+    response: {
+      201: { $ref: 'RegisterResponse#' },
+      409: { $ref: 'ErrorResponse#' },
+      400: { $ref: 'ValidationError#' }
+    }
+  },
+
+  // Email verification route
+  verifyEmail: {
+    tags: ['auth'],
+    operationId: 'verifyEmail',
+    summary: 'Verify user email',
+    description: 'Verify user email using the provided token',
+    querystring: {
+      type: 'object',
+      properties: {
+        token: { 
+          type: 'string',
+          description: 'Email verification token',
+          example: 'verification-token-123'
+        }
+      },
+      required: ['token']
+    },
+    response: {
+      200: { $ref: 'GenericResponse#' },
+      400: { $ref: 'ErrorResponse#' },
+      404: { $ref: 'ErrorResponse#' }
+    }
+  },
+
+  // Token refresh route
+  refresh: {
+    tags: ['auth'],
+    operationId: 'refreshToken',
+    summary: 'Refresh access token',
+    description: 'Generate new access token using refresh token',
+    body: { $ref: 'RefreshTokenRequest#' },
+    response: {
+      200: { $ref: 'LoginResponse#' },
+      401: { $ref: 'ErrorResponse#' },
+      400: { $ref: 'ValidationError#' }
+    }
+  }
+}
+
+export default schemas

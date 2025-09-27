@@ -8,6 +8,7 @@ import { logger } from '../../logger.js'
 import { verifyPassword } from '../../utils/auth_utils.js'
 import { generateTokenPair } from '../../utils/jwt.js'
 import { userService } from '../../services/user.service.js'
+import { routeSchemas } from '../../schemas/index.js'
 
 const loginLogger = logger.child({ module: 'routes/auth/login' })
 
@@ -18,7 +19,7 @@ const loginLogger = logger.child({ module: 'routes/auth/login' })
 async function loginRoute(fastify, options) {
   
   fastify.post('/login', {
-    schema: loginRouteSchema
+    schema: routeSchemas.login
   }, async (request, reply) => {
     try {
       const { username, password, rememberMe = false, twoFactorToken } = request.body

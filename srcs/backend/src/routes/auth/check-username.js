@@ -8,6 +8,7 @@
  */
 
 import { logger } from '../../logger.js'
+import { routeSchemas } from '../../schemas/index.js'
 
 // Create route-specific logger
 const checkUsernameLogger = logger.child({ module: 'routes/auth/check-username' })
@@ -23,7 +24,7 @@ async function checkUsernameRoute(fastify, options) {
    * @description Check if username is available for registration
    */
   fastify.post('/check-username', {
-    schema: checkUsernameSchema,
+    schema: routeSchemas.checkUsername,
     handler: async (request, reply) => {
       try {
         const { username } = request.body

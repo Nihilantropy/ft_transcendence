@@ -8,6 +8,7 @@
  */
 
 import { logger } from '../../logger.js'
+import { routeSchemas } from '../../schemas/index.js'
 import { userService } from '../../services/index.js'
 import { generateAccessToken, generateRefreshToken } from '../../utils/jwt.js'
 
@@ -25,7 +26,7 @@ async function verifyEmailRoute(fastify) {
    * @description Verify user email via API call and return tokens
    */
   fastify.post('/verify-email', {
-    schema: verifyEmailSchema,
+    schema: routeSchemas.verifyEmail,
     handler: fastify.errors.asyncHandler(async (request, reply) => {
       const { token } = request.body
       

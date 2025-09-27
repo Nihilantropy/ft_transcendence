@@ -1,68 +1,49 @@
 /**
- * @brief User registration route for ft_transcendence backend - Better-SQLite3 optimized
+ * @brief User registration route for ft_transcendence backend
  * 
- * @description Handles user registration with:
- * - Email and password validation
- * - Automatic unique username generation
- * - Centralized error handling via error handler plugin
- * - Clean service-based database interactions
+ * @description Clean registration using existing services
  */
 
 import { logger } from '../../logger.js'
 import { userService, emailService } from '../../services/index.js'
+import { routeSchemas } from '../../schemas/routes/auth.js'
 
-// Create route-specific logger
 const registerLogger = logger.child({ module: 'routes/auth/register' })
 
 /**
- * @brief Register user registration route with centralized error handling
- * 
+ * @brief Register user registration route
  * @param {FastifyInstance} fastify - The Fastify instance
  */
 async function registerRoute(fastify, options) {
   
-  /**
-   * @route POST /register
-   * @description Register new user account with auto-generated username
-   */
   fastify.post('/register', {
-    schema: registerSchema,
-    handler: fastify.errors.asyncHandler(async (request, reply) => {
+    schema: routeSchemas.register
+  }, async (request, reply) => {
+    try {
       const { email, password } = request.body
       
       registerLogger.info('Registration attempt', { email })
       
-      // 1. Validate password strength
-      const passwordValidation = validatePasswordStrength(password)
-      if (!passwordValidation.isValid) {
-        throw fastify.errors.validation('Password does not meet security requirements', {
-          field: 'password',
-          reason: passwordValidation.message,
-          score: passwordValidation.score
-        })
+      // 1. Check email availability
+      if (userService.isEmailTaken(email)) {
+        reply.status(409)
+        return {
+          success: false,
+          message: 'Email is already registered',
+          error: {
+            code: 'EMAIL_EXISTS',
+            details: 'An account with this email already exists'
+          }
+        }
       }
       
-      // 2. Check email uniqueness (now synchronous!)
-      const isEmailTaken = userService.isEmailTaken(email) // No await!
-      if (isEmailTaken) {
-        throw fastify.errors.conflict('Email is already registered', {
-          field: 'email',
-          value: email
-        })
-      }
+      // 2. Generate unique username
+      const username = userService.createUniqueUsername(email)
       
-      // 3. Generate unique username automatically (now synchronous!)
-      const username = userService.createUniqueUsername(email) // No await!
-      registerLogger.info('Generated unique username', { email, username })
+      // 3. Create user
+      const newUser = await userService.createUser({ email, password, username })
       
-      // 4. Create user with service (still async due to password hashing)
-      const newUser = await userService.createUser({
-        email,
-        password,
-        username
-      })
-      
-      // 5. Send verification email
+      // 4. Send verification email
       const emailSent = await emailService.sendVerificationEmail({
         email: newUser.email,
         username: newUser.username,
@@ -80,11 +61,9 @@ async function registerRoute(fastify, options) {
         userId: newUser.id, 
         username: newUser.username, 
         email: newUser.email,
-        passwordScore: passwordValidation.score,
         emailSent
       })
       
-      // 6. Return success response (remove sensitive data)
       reply.status(201)
       return {
         success: true,
@@ -96,8 +75,22 @@ async function registerRoute(fastify, options) {
           email_verified: newUser.email_verified
         }
       }
-    })
+      
+    } catch (error) {
+      registerLogger.error('❌ Registration failed', { error: error.message })
+      reply.status(400)
+      return {
+        success: false,
+        message: 'Registration failed',
+        error: {
+          code: 'REGISTRATION_ERROR',
+          details: error.message
+        }
+      }
+    }
   })
+  
+  registerLogger.info('✅ Register route registered successfully')
 }
 
 export default registerRoute

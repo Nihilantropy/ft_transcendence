@@ -18,7 +18,6 @@ import 'dotenv/config'
 import database from './database.js'
 import { logger, createLoggerConfig } from './logger.js'
 import { registerRoutes } from './routes/index.js'
-import errorHandlerPlugin from './plugins/error-handler.js'
 import swaggerPlugin from './plugins/swagger.js'
 
 /**
@@ -55,9 +54,6 @@ await fastify.register(rateLimit, {
 
 // Register Swagger plugin (must be before routes registration)
 await fastify.register(swaggerPlugin)
-
-// Register centralized error handler
-await fastify.register(errorHandlerPlugin)
 
 // Register all application routes
 await registerRoutes(fastify)

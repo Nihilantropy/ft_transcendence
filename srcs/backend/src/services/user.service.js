@@ -16,7 +16,6 @@ import {
   generateVerificationToken, 
   generateUniqueUsername,
 } from '../utils/auth_utils.js'
-import { DatabaseError, ConflictError } from '../utils/errors.js'
 
 // Create service-specific logger
 const userServiceLogger = logger.child({ module: 'services/user' })
@@ -37,7 +36,7 @@ export class UserService {
       return emailExists(email)
     } catch (error) {
       userServiceLogger.error('Failed to check email existence', { email, error: error.message })
-      throw new DatabaseError('Database error while checking email')
+      throw new Error('Database error while checking email')
     }
   }
 
@@ -52,7 +51,7 @@ export class UserService {
       return usernameExists(username)
     } catch (error) {
       userServiceLogger.error('Failed to check username existence', { username, error: error.message })
-      throw new DatabaseError('Database error while checking username')
+      throw new Error('Database error while checking username')
     }
   }
 
@@ -67,7 +66,7 @@ export class UserService {
       return generateUniqueUsername(email)
     } catch (error) {
       userServiceLogger.error('Failed to generate unique username', { email, error: error.message })
-      throw new DatabaseError('Failed to generate username')
+      throw new Error('Failed to generate username')
     }
   }
 
@@ -198,17 +197,7 @@ export class UserService {
         error: error.message 
       })
       
-      // Handle specific constraint errors with clear messages
-      if (error.message.includes('UNIQUE constraint failed')) {
-        if (error.message.includes('users.username')) {
-          throw new ConflictError('Username already exists')
-        }
-        if (error.message.includes('users.email')) {
-          throw new ConflictError('Email already registered')
-        }
-      }
-      
-      throw new DatabaseError('Failed to create user')
+      throw new Error('Failed to create user')
     }
   }
 
@@ -232,7 +221,31 @@ export class UserService {
       
     } catch (error) {
       userServiceLogger.error('Failed to get user by email', { email, error: error.message })
-      throw new DatabaseError('Database error while retrieving user')
+      throw new Error('Database error while retrieving user')
+    }
+  }
+
+  /**
+   * @brief Get user by ID
+   * 
+   * @param {number} userId - User ID
+   * @return {Object|null} User object or null
+   */
+  getUserById(userId) {
+    try {
+      const user = databaseConnection.get(`
+        SELECT id, username, email, email_verified, 
+               is_active, is_online, created_at, updated_at
+        FROM users 
+        WHERE id = ? AND is_active = 1
+        LIMIT 1
+      `, [userId])
+      
+      return user || null
+      
+    } catch (error) {
+      userServiceLogger.error('Failed to get user by ID', { userId, error: error.message })
+      throw new Error('Database error while retrieving user')
     }
   }
 
@@ -256,7 +269,7 @@ export class UserService {
       
     } catch (error) {
       userServiceLogger.error('Failed to get user by username', { username, error: error.message })
-      throw new DatabaseError('Database error while retrieving user')
+      throw new Error('Database error while retrieving user')
     }
   }
 
@@ -461,7 +474,7 @@ export class UserService {
       
     } catch (error) {
       userServiceLogger.error('❌ OAuth user creation failed', { error: error.message })
-      throw new DatabaseError('Failed to create OAuth user')
+      throw new Error('Failed to create OAuth user')
     }
   }
 
@@ -498,7 +511,7 @@ export class UserService {
       
     } catch (error) {
       userServiceLogger.error('❌ Failed to update OAuth data', { error: error.message })
-      throw new DatabaseError('Failed to update OAuth data')
+      throw new Error('Failed to update OAuth data')
     }
   }
 
@@ -530,7 +543,7 @@ export class UserService {
         googleId, 
         error: error.message 
       })
-      throw new DatabaseError('Database error while finding user by Google ID')
+      throw new Error('Database error while finding user by Google ID')
     }
   }
 }
