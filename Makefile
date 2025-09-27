@@ -16,7 +16,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 .PHONY: all setup build up show stop start down restart re clean fclean help
 
 # Default target
-all: build up show
+all: build up show logs
 
 # Setup (simplified - no complex data directories needed)
 setup:

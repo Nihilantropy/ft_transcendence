@@ -31,8 +31,8 @@ async function oauthCallbackRoute(fastify) {
       
       // 6. Redirect to appropriate frontend route
       const redirectUrl = isNewUser 
-        ? `https://localhost/username-selection?token=${accessToken}&refresh=${refreshToken}`
-        : `https://localhost/profile?token=${accessToken}&refresh=${refreshToken}`
+        ? `https://localhost/username-selection`
+        : `https://localhost/profile`
       
       reply.redirect(redirectUrl)
       

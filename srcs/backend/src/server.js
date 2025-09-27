@@ -19,6 +19,7 @@ import database from './database.js'
 import { logger, createLoggerConfig } from './logger.js'
 import { registerRoutes } from './routes/index.js'
 import errorHandlerPlugin from './plugins/error-handler.js'
+import swaggerPlugin from './plugins/swagger.js'
 
 /**
  * @brief Initialize centralized logger
@@ -51,6 +52,9 @@ await fastify.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute'
 })
+
+// Register Swagger plugin (must be before routes registration)
+await fastify.register(swaggerPlugin)
 
 // Register centralized error handler
 await fastify.register(errorHandlerPlugin)
