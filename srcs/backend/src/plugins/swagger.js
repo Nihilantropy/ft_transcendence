@@ -7,12 +7,14 @@
  * - Custom component schema naming
  * - Development-friendly Swagger UI
  * - Nginx proxy compatibility
+ * - Centralized schema registration
  */
 
 import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
 import fp from 'fastify-plugin'
 import { logger } from '../logger.js'
+import { registerSchemas } from '../schemas/index.js'
 
 // Create plugin-specific logger
 const swaggerLogger = logger.child({ module: 'plugins/swagger' })
@@ -86,6 +88,24 @@ async function swaggerPlugin(fastify) {
             bearerFormat: 'JWT',
             description: 'JWT token for authenticated requests'
           }
+        },
+        responses: {
+          ValidationError: {
+            description: 'Validation error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ValidationError' }
+              }
+            }
+          },
+          InternalServerError: {
+            description: 'Internal server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          }
         }
       }
     },
@@ -98,6 +118,10 @@ async function swaggerPlugin(fastify) {
       }
     }
   })
+
+  // Register centralized schemas
+  await registerSchemas(fastify)
+  swaggerLogger.info('✅ Centralized schemas registered')
   
   // Register Swagger UI (available in both development and production for this project)
   await fastify.register(fastifySwaggerUi, {
