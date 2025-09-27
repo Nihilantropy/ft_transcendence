@@ -136,30 +136,3 @@ export function generateUniqueUsername(baseEmail = null) {
     throw error
   }
 }
-
-/**
- * @brief Get user by ID with basic info
- * 
- * @param {number} userId - User ID
- * @return {object|null} - User object or null if not found
- */
-export function getUserById(userId) {
-  try {
-    userServiceLogger.debug('Getting user by ID:', userId)
-    
-    const user = databaseConnection.get(`
-      SELECT id, username, email, display_name, avatar_url, 
-            email_verified, is_active, is_online, last_seen,
-            two_factor_enabled, created_at, updated_at
-      FROM users 
-      WHERE id = ? AND is_active = TRUE
-      LIMIT 1
-    `, [userId])
-    
-    userServiceLogger.debug('User found:', !!user)
-    return user || null
-  } catch (error) {
-    userServiceLogger.error('Error getting user by ID:', error.message)
-    throw error
-  }
-}

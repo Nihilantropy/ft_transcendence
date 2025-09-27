@@ -8,7 +8,6 @@
  */
 
 import { logger } from '../../logger.js'
-import { forgotPasswordSchema } from '../../middleware/validation.js'
 
 // Create route-specific logger
 const forgotPasswordLogger = logger.child({ module: 'routes/auth/forgot-password' })

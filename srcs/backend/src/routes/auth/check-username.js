@@ -8,7 +8,6 @@
  */
 
 import { logger } from '../../logger.js'
-import { checkUsernameSchema } from '../../middleware/validation.js'
 
 // Create route-specific logger
 const checkUsernameLogger = logger.child({ module: 'routes/auth/check-username' })

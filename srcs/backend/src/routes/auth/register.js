@@ -9,7 +9,6 @@
  */
 
 import { logger } from '../../logger.js'
-import { registerSchema, validatePasswordStrength } from '../../middleware/validation.js'
 import { userService, emailService } from '../../services/index.js'
 
 // Create route-specific logger

@@ -8,7 +8,6 @@
  */
 
 import { logger } from '../../logger.js'
-import { refreshTokenSchema } from '../../middleware/validation.js'
 
 // Create route-specific logger
 const refreshLogger = logger.child({ module: 'routes/auth/refresh' })

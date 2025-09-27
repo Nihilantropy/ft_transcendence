@@ -9,7 +9,6 @@
  */
 
 import { logger } from '../../logger.js'
-import { resetPasswordSchema } from '../../middleware/validation.js'
 
 // Create route-specific logger
 const resetPasswordLogger = logger.child({ module: 'routes/auth/reset-password' })
