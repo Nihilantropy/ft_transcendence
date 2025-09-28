@@ -9,6 +9,7 @@ import { verifyPassword } from '../../utils/auth_utils.js'
 import { generateTokenPair } from '../../utils/jwt.js'
 import { userService } from '../../services/user.service.js'
 import { routeSchemas } from '../../schemas/index.js'
+import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG } from '../../utils/coockie.js'
 
 const loginLogger = logger.child({ module: 'routes/auth/login' })
 
@@ -65,7 +66,15 @@ async function loginRoute(fastify, options) {
         access: { expiresIn: '15m' },
         refresh: { expiresIn: rememberMe ? '7d' : '1d' }
       })
-      
+
+      // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE
+      reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
+
+      // ✅ OPTIONALLY SET REFRESH TOKEN AS COOKIE TOO
+      if (rememberMe) {
+        reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_CONFIG)
+      }
+
       userService.updateUserOnlineStatus(user.id, true)
       
       loginLogger.info('✅ Login successful', { userId: user.id, username: user.username })
@@ -79,12 +88,7 @@ async function loginRoute(fastify, options) {
           email: user.email,
           is_online: true
         },
-        tokens: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          tokenType: tokens.tokenType,
-          expiresIn: tokens.expiresIn
-        }
+        refreshToken: rememberMe ? undefined : refreshToken
       }
       
     } catch (error) {

@@ -227,30 +227,19 @@ export function verifyRefreshToken(token) {
 // =============================================================================
 
 /**
- * @brief Generate token pair (access + refresh)
+ * @brief Generate token pair for cookie architecture
  * @param {object} user - User object
  * @param {object} options - Token options
- * @returns {object} - Token pair
+ * @returns {object} - Separate tokens for different handling
  */
 export function generateTokenPair(user, options = {}) {
+  const accessToken = generateAccessToken(user, options.access)
+  const refreshToken = generateRefreshToken(user, options.refresh)
+  
   return {
-    accessToken: generateAccessToken(user, options.access),
-    refreshToken: generateRefreshToken(user, options.refresh),
-    tokenType: 'Bearer',
-    expiresIn: options.access?.expiresIn || process.env.JWT_EXPIRES_IN || '15m'
+    accessToken,  // Will be set as HTTP-only cookie
+    refreshToken  // Will be returned in response body
   }
-}
-
-/**
- * @brief Extract token from Authorization header
- * @param {string} authHeader - Authorization header value
- * @returns {string|null} - Extracted token or null
- */
-export function extractBearerToken(authHeader) {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-  return authHeader.replace('Bearer ', '')
 }
 
 /**

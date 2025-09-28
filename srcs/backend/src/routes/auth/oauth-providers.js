@@ -29,11 +29,10 @@ async function oauthProvidersRoute(fastify, options) {
         providers: [
           {
             name: 'google',
-            enabled: true, // TODO: Check if GOOGLE_CLIENT_ID is configured
+            enabled: true,
             clientId: process.env.GOOGLE_CLIENT_ID || null,
             scopes: ['openid', 'email', 'profile']
           }
-          // TODO: Add GitHub, Discord when configured
         ]
       }
     } catch (error) {

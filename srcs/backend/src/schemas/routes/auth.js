@@ -5,31 +5,10 @@
  */
 
 // =============================================================================
-// SHARED COMPONENTS
-// =============================================================================
-
-const authHeaders = {
-  $id: 'AuthHeaders',
-  type: 'object',
-  properties: {
-    authorization: {
-      type: 'string',
-      description: 'Bearer JWT token',
-      pattern: '^Bearer .+$'
-    }
-  },
-  required: ['authorization']
-}
-
-const authSecurity = [{ bearerAuth: [] }]
-
-// =============================================================================
 // REQUEST/RESPONSE SCHEMAS
 // =============================================================================
 
 const schemas = [
-  // Auth headers
-  authHeaders,
 
   // Login request schema
   {
@@ -76,14 +55,9 @@ const schemas = [
           is_online: { type: 'boolean' }
         }
       },
-      tokens: {
-        type: 'object',
-        properties: {
-          accessToken: { type: 'string' },
-          refreshToken: { type: 'string' },
-          tokenType: { type: 'string' },
-          expiresIn: { type: 'string' }
-        }
+      refreshToken: { 
+        type: 'string',
+        description: 'Refresh token for memory storage'
       },
       requiresTwoFactor: { type: 'boolean' },
       tempToken: { type: 'string' }
@@ -161,28 +135,39 @@ const schemas = [
           email_verified: { type: 'boolean' }
         }
       },
-      tokens: {
-        type: 'object',
-        properties: {
-          accessToken: { type: 'string' },
-          refreshToken: { type: 'string' }
-        }
+      refreshToken: { 
+        type: 'string',
+        description: 'Refresh token for memory storage'
       }
     },
-    required: ['success', 'message', 'user', 'tokens']
+    required: ['success', 'message', 'user', 'refreshToken']
   },
 
-  // Token refresh request
   {
     $id: 'RefreshTokenRequest',
     type: 'object',
     properties: {
       refreshToken: { 
         type: 'string',
-        description: 'Valid refresh token'
+        description: 'Refresh token to obtain new access token'
       }
     },
     required: ['refreshToken']
+  },
+
+  // Token refresh request
+  {
+    $id: 'RefreshResponse',
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      refreshToken: { 
+        type: 'string',
+        description: 'New refresh token (optional rotation)'
+      }
+    },
+    required: ['success', 'message']
   }
 ]
 
@@ -233,8 +218,6 @@ export const routeSchemas = {
     operationId: 'logoutUser',
     summary: 'User logout',
     description: 'Invalidate JWT token and cleanup user session',
-    security: authSecurity,
-    headers: { $ref: 'AuthHeaders#' },
     response: {
       200: { $ref: 'SuccessResponse#' }
     }

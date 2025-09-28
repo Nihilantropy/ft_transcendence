@@ -14,41 +14,51 @@ import { routeSchemas } from '../../schemas/index.js'
 const refreshLogger = logger.child({ module: 'routes/auth/refresh' })
 
 /**
- * @brief Register refresh route
- * @param {FastifyInstance} fastify - The Fastify instance
+ * @brief Secure token refresh with HTTP-only cookies
  */
 async function refreshRoute(fastify, options) {
-  
-  /**
-   * @route POST /refresh
-   * @description Generate new access token using refresh token
-   */
   fastify.post('/refresh', {
-    schema: routeSchemas.refresh,
-    handler: async (request, reply) => {
-      try {
-        const { refreshToken } = request.body
-        
-        // TODO: Implement token refresh logic
-        // 1. Validate refresh token
-        // 2. Check if token is not expired or blacklisted
-        // 3. Extract user ID from token
-        // 4. Generate new access token (15min)
-        // 5. Optionally rotate refresh token
-        
-        return {
-          success: true,
-          token: 'new-jwt-access-token',
-          expiresAt: Date.now() + (15 * 60 * 1000)
-        }
-      } catch (error) {
-        refreshLogger.error('❌ Token refresh failed', { error: error.message })
+    schema: routeSchemas.refresh
+    
+  }, async (request, reply) => {
+    try {
+      // Get refresh token from body OR cookie
+      const refreshToken = request.body.refreshToken || request.cookies.refreshToken
+      refreshLogger.info('🔄 Token refresh attempt', { refreshToken })
+
+      if (!refreshToken) {
         reply.status(401)
-        return { success: false, message: 'Invalid refresh token' }
+        return {
+          success: false,
+          message: 'Refresh token required'
+        }
+      }
+      
+      // Verify refresh token and generate new access token
+      const { accessToken, refreshToken: newRefreshToken } = await refreshTokenPair(refreshToken)
+      
+      // ✅ SET NEW ACCESS TOKEN AS HTTP-ONLY COOKIE
+      reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
+      
+      // ✅ OPTIONALLY ROTATE REFRESH TOKEN
+      if (newRefreshToken) {
+        reply.setCookie('refreshToken', newRefreshToken, REFRESH_TOKEN_CONFIG)
+      }
+      
+      return {
+        success: true,
+        message: 'Token refreshed successfully',
+        refreshToken: newRefreshToken // Only if not using cookie storage
+      }
+      
+    } catch (error) {
+      reply.status(401)
+      return {
+        success: false,
+        message: 'Invalid refresh token'
       }
     }
   })
-  
 }
 
 export default refreshRoute
