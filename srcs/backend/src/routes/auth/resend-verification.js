@@ -32,7 +32,6 @@ async function resendVerificationRoute(fastify, options) {
     }
   })
   
-  resendVerificationLogger.info('✅ Resend verification route registered successfully')
 }
 
 export default resendVerificationRoute

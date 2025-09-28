@@ -7,6 +7,7 @@
 import { logger } from '../../logger.js'
 import { userService, emailService } from '../../services/index.js'
 import { routeSchemas } from '../../schemas/routes/auth.js'
+import { validatePasswordStrength } from '../../middleware/validation.js'
 
 const registerLogger = logger.child({ module: 'routes/auth/register' })
 
@@ -36,14 +37,28 @@ async function registerRoute(fastify, options) {
           }
         }
       }
-      
-      // 2. Generate unique username
+
+      // 2. Validate password strength
+      const passwordResult = validatePasswordStrength(password)
+      if (!passwordResult.isValid) {
+        reply.status(400)
+        return {
+          success: false,
+          message: 'Password does not meet security requirements',
+          error: {
+            code: 'WEAK_PASSWORD',
+            details: passwordResult.message
+          }
+        }
+      }
+
+      // 3. Generate unique username
       const username = userService.createUniqueUsername(email)
       
-      // 3. Create user
+      // 4. Create user
       const newUser = await userService.createUser({ email, password, username })
       
-      // 4. Send verification email
+      // 5. Send verification email
       const emailSent = await emailService.sendVerificationEmail({
         email: newUser.email,
         username: newUser.username,
@@ -90,7 +105,6 @@ async function registerRoute(fastify, options) {
     }
   })
   
-  registerLogger.info('✅ Register route registered successfully')
 }
 
 export default registerRoute

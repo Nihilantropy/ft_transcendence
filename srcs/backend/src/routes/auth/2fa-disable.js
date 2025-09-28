@@ -30,7 +30,6 @@ async function twoFADisableRoute(fastify, options) {
     }
   })
   
-  twoFADisableLogger.info('✅ 2FA disable routes registered successfully')
 }
 
 export default twoFADisableRoute

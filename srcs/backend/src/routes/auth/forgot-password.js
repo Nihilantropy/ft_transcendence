@@ -52,7 +52,6 @@ async function forgotPasswordRoute(fastify, options) {
     }
   })
   
-  forgotPasswordLogger.info('✅ Forgot password route registered successfully')
 }
 
 export default forgotPasswordRoute

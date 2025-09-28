@@ -51,7 +51,6 @@ async function oauthLinkRoute(fastify, options) {
     }
   })
   
-  oauthLinkLogger.info('✅ OAuth link/unlink routes registered successfully')
 }
 
 export default oauthLinkRoute

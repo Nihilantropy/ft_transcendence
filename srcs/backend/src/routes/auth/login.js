@@ -54,8 +54,8 @@ async function loginRoute(fastify, options) {
       if (user.two_factor_enabled && !twoFactorToken) {
         return {
           success: false,
-          requiresTwoFactor: true,
           message: 'Two-factor authentication required',
+          requiresTwoFactor: true,
           tempToken: 'temp-2fa-token'
         }
       }
@@ -63,7 +63,7 @@ async function loginRoute(fastify, options) {
       // 4. Generate tokens and update status
       const tokens = generateTokenPair(user, {
         access: { expiresIn: '15m' },
-        refresh: rememberMe ? { expiresIn: '7d' } : null
+        refresh: { expiresIn: rememberMe ? '7d' : '1d' }
       })
       
       userService.updateUserOnlineStatus(user.id, true)
@@ -73,13 +73,18 @@ async function loginRoute(fastify, options) {
       return {
         success: true,
         message: 'Login successful',
-        user: { ...sanitizeUser(user), is_online: true },
-        tokens: rememberMe ? tokens : {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          is_online: true
+        },
+        tokens: {
           accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
           tokenType: tokens.tokenType,
           expiresIn: tokens.expiresIn
-        },
-        expiresAt: Date.now() + (15 * 60 * 1000)
+        }
       }
       
     } catch (error) {
@@ -93,7 +98,6 @@ async function loginRoute(fastify, options) {
     }
   })
   
-  loginLogger.info('✅ Login route registered successfully')
 }
 
 export default loginRoute

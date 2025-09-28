@@ -49,7 +49,6 @@ async function logoutRoute(fastify, options) {
     }
   })
   
-  logoutLogger.info('✅ Logout route registered successfully')
 }
 
 export default logoutRoute

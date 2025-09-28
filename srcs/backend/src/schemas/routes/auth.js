@@ -131,19 +131,19 @@ const schemas = [
     required: ['success', 'message', 'data']
   },
 
-  // Email verification request
-  {
-    $id: 'VerifyEmailRequest',
+    // Email verification request - Query parameter
+    {
+    $id: 'VerifyEmailQuery',
     type: 'object',
     properties: {
-      token: { 
+        token: { 
         type: 'string',
         minLength: 32,
-        description: 'Email verification token'
-      }
+        description: 'Email verification token from query string'
+        }
     },
     required: ['token']
-  },
+    },
 
   // Email verification response
   {
@@ -200,7 +200,7 @@ export const routeSchemas = {
     body: { $ref: 'RegisterRequest#' },
     response: {
       201: { $ref: 'RegisterResponse#' },
-      400: { $ref: 'ValidationError#' },
+      400: { $ref: 'ErrorResponse#' },
       409: { $ref: 'ErrorResponse#' }
     }
   },
@@ -211,7 +211,7 @@ export const routeSchemas = {
     operationId: 'verifyEmail',
     summary: 'Verify email address',
     description: 'Verify user email and return authentication tokens',
-    body: { $ref: 'VerifyEmailRequest#' },
+    querystring: { $ref: 'VerifyEmailQuery#' },
     response: {
       200: { $ref: 'VerifyEmailResponse#' },
       400: { $ref: 'ErrorResponse#' }
@@ -227,8 +227,8 @@ export const routeSchemas = {
     body: { $ref: 'LoginRequest#' },
     response: {
       200: { $ref: 'LoginResponse#' },
-      401: { $ref: 'ErrorResponse#' },
-      400: { $ref: 'ValidationError#' }
+      400: { $ref: 'ErrorResponse#' },
+      401: { $ref: 'ErrorResponse#' }
     }
   },
 
@@ -242,8 +242,8 @@ export const routeSchemas = {
     headers: { $ref: 'AuthHeaders#' },
     response: {
       200: { $ref: 'SuccessResponse#' },
-      401: { $ref: 'ErrorResponse#' },
-      400: { $ref: 'ErrorResponse#' }
+      400: { $ref: 'ErrorResponse#' },
+      401: { $ref: 'ErrorResponse#' }
     }
   },
 
@@ -256,8 +256,8 @@ export const routeSchemas = {
     body: { $ref: 'RefreshTokenRequest#' },
     response: {
       200: { $ref: 'LoginResponse#' },
-      401: { $ref: 'ErrorResponse#' },
-      400: { $ref: 'ValidationError#' }
+      400: { $ref: 'ErrorResponse#' },
+      401: { $ref: 'ErrorResponse#' }
     }
   }
 }

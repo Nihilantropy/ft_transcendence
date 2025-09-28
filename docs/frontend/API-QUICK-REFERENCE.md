@@ -69,19 +69,12 @@ Request:  { email: string }
 Response: { success: boolean, message: string }
 ```
 
-### `POST /auth/check-username`
-```typescript
-Request:  { username: string }
-Response: { available: boolean, message?: string }
-Note:     Check if username is available for registration
-```
-
-### `POST /auth/set-username`
+### `POST /auth/set-user`
 ```typescript
 Headers:  Authorization: Bearer <token>
 Request:  { username: string }
-Response: { success: boolean, message: string, user?: User }
-Note:     Set username for authenticated user. Returns updated user data on success.
+Response: { available: boolean, message?: string }
+Note:     Check if username is available for registration
 ```
 
 ---

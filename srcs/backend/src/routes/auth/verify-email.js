@@ -7,7 +7,7 @@
 import { logger } from '../../logger.js'
 import { routeSchemas } from '../../schemas/routes/auth.js'
 import { userService } from '../../services/index.js'
-import { generateAccessToken, generateRefreshToken } from '../../utils/jwt.js'
+import { generateAccessToken, generateRefreshToken, generateTokenPair } from '../../utils/jwt.js'
 
 const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
 
@@ -21,7 +21,7 @@ async function verifyEmailRoute(fastify) {
     schema: routeSchemas.verifyEmail
   }, async (request, reply) => {
     try {
-      const { token } = request.body
+      const { token } = request.query
       
       verifyEmailLogger.info('📧 Email verification attempt', { 
         token: token.substring(0, 8) + '...'
@@ -44,9 +44,11 @@ async function verifyEmailRoute(fastify) {
       }
       
       // 2. Generate authentication tokens for auto-login
-      const accessToken = generateAccessToken(verifiedUser)
-      const refreshToken = generateRefreshToken(verifiedUser)
-      
+      const { accessToken, refreshToken } = generateTokenPair(verifiedUser, {
+        access: { expiresIn: '15m' },
+        refresh: rememberMe ? { expiresIn: '7d' } : null
+      })
+
       verifyEmailLogger.info('✅ Email verified successfully', {
         userId: verifiedUser.id,
         username: verifiedUser.username,
@@ -83,7 +85,6 @@ async function verifyEmailRoute(fastify) {
     }
   })
   
-  verifyEmailLogger.info('✅ Email verification route registered successfully')
 }
 
 export default verifyEmailRoute

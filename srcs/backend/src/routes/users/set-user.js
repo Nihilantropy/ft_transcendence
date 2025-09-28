@@ -30,7 +30,6 @@ async function setUsernameRoute(fastify, options) {
     }
   })
   
-  setUsernameLogger.info('✅ Set username route registered successfully')
 }
 
 export default setUsernameRoute

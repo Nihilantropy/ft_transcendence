@@ -54,7 +54,6 @@ async function resetPasswordRoute(fastify, options) {
     }
   })
   
-  resetPasswordLogger.info('✅ Reset password route registered successfully')
 }
 
 export default resetPasswordRoute

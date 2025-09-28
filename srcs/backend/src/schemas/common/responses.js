@@ -49,38 +49,5 @@ export default [
       }
     },
     required: ['success', 'message']
-  },
-
-  // Validation error response schema
-  {
-    $id: 'ValidationError',
-    type: 'object',
-    properties: {
-      success: { 
-        type: 'boolean'
-      },
-      message: { 
-        type: 'string'
-      },
-      error: {
-        type: 'object',
-        properties: {
-          code: { 
-            type: 'string'
-          },
-          details: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                field: { type: 'string' },
-                message: { type: 'string' }
-              }
-            }
-          }
-        }
-      }
-    },
-    required: ['success', 'message']
   }
 ]

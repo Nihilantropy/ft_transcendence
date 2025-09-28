@@ -52,10 +52,6 @@ async function swaggerPlugin(fastify) {
         {
           url: `https://localhost${API_BASE_PATH}`,
           description: 'Production server (via nginx proxy)'
-        },
-        {
-          url: (process.env.BACKEND_URL || 'http://localhost:8000') + API_BASE_PATH,
-          description: 'Development server (direct backend access)'
         }
       ],
       

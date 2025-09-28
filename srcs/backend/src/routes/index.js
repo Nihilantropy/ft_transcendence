@@ -8,6 +8,7 @@ import { logger } from '../logger.js'
 import healthRoutes from './health.js'
 import dbTestRoutes from './db-test.js'
 import authRoutes from './auth/index.js'
+import userRoutes from './users/index.js'
 import swaggerPlugin from '../plugins/swagger.js'
 
 // Create route-specific logger
@@ -43,6 +44,9 @@ export async function registerRoutes(fastify) {
     // Authentication routes
     await fastify.register(authRoutes, { prefix: '/auth' })
     routeLogger.info('🔐 Authentication routes registered')
+
+    await fastify.register(userRoutes, { prefix: '/users' })
+    routeLogger.info('🔐 Users routes registered')
     
     // Database testing routes (development only)
     if (process.env.NODE_ENV === 'development') {

@@ -441,7 +441,7 @@ export class AuthService extends ApiService {
     console.log('🏷️ Checking username availability:', username)
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse & { available?: boolean }>('/auth/check-username', { username })
+      this.post<AuthResponse & { available?: boolean }>('/users/set-user', { username })
     )
 
     if (error) {

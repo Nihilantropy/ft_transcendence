@@ -3,7 +3,7 @@
  * @param {string} password - Password to validate
  * @return {object} - Validation result
  */
-function validatePasswordStrength(password) {
+export function validatePasswordStrength(password) {
   // Basic password strength validation
   const hasLength = password.length >= 8
   const hasUpper = /[A-Z]/.test(password)

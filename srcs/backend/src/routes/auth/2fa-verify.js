@@ -30,7 +30,6 @@ async function twoFAVerifyRoute(fastify, options) {
     }
   })
   
-  twoFAVerifyLogger.info('✅ 2FA verification routes registered successfully')
 }
 
 export default twoFAVerifyRoute

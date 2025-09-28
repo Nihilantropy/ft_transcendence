@@ -49,7 +49,6 @@ async function refreshRoute(fastify, options) {
     }
   })
   
-  refreshLogger.info('✅ Refresh route registered successfully')
 }
 
 export default refreshRoute

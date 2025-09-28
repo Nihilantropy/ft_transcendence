@@ -43,7 +43,6 @@ async function oauthProvidersRoute(fastify, options) {
     }
   })
   
-  oauthProvidersLogger.info('✅ OAuth providers route registered successfully')
 }
 
 export default oauthProvidersRoute

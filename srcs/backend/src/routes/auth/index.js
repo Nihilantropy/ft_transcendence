@@ -26,10 +26,6 @@ import resetPasswordRoute from './reset-password.js'
 import verifyEmailRoute from './verify-email.js'
 import resendVerificationRoute from './resend-verification.js'
 
-// Username management routes
-import checkUsernameRoute from './check-username.js'
-import setUsernameRoute from './set-username.js'
-
 // OAuth 2.0 routes
 import oauthProvidersRoute from './oauth-providers.js'
 import oauthCallbackRoute from './oauth-callback.js'
@@ -87,16 +83,6 @@ async function authRoutes(fastify, options) {
   
   await fastify.register(resendVerificationRoute)
   authLogger.info('✅ Resend verification route registered')
-  
-  // =============================================================================
-  // USERNAME MANAGEMENT ROUTES
-  // =============================================================================
-  
-  await fastify.register(checkUsernameRoute)
-  authLogger.info('✅ Check username route registered')
-  
-  await fastify.register(setUsernameRoute)
-  authLogger.info('✅ Set username route registered')
   
   // =============================================================================
   // OAUTH 2.0 ROUTES
