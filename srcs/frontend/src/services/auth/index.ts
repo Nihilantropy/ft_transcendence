@@ -6,27 +6,6 @@
  */
 
 // Authentication Services
-export { AuthService, authService } from './AuthService'
-export { PasswordUtils } from '../utils/PasswordUtils'
-// export { GoogleOAuthService, googleOAuthService } from './GoogleOAuthService'
+export * from './AuthService'
+export * from '../utils/PasswordUtils'
 
-// Auth Types (from types index)
-export type { 
-  LoginCredentials, 
-  RegisterCredentials
-} from './AuthService'
-
-// Password Utility Types
-export type { 
-  PasswordStrength, 
-  PasswordValidation 
-} from '../utils/PasswordUtils'
-
-// Future authentication services
-// export { TokenManager } from './TokenManager'
-// export { TwoFactorAuth } from './TwoFactorAuth'
-
-// Auth Utilities (to be implemented in Phase B2)
-// export { authGuard } from './authGuard'
-// export { sessionManager } from './sessionManager'
-// export { authStorage } from './authStorage'

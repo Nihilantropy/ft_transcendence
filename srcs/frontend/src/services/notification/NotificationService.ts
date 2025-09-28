@@ -6,12 +6,6 @@
  */
 
 import { webSocketService } from '../websocket'
-import type {
-  NotificationData,
-  NotificationEventHandlers,
-  NotificationCategory,
-  NotificationState
-} from '../../types/notification.types'
 
 /**
  * @brief Core notification management service

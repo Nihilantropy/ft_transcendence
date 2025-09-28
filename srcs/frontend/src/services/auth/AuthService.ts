@@ -1,20 +1,28 @@
-import { z } from 'zod'
-import { ApiService } from '../api/BaseApiService'
+/**
+ * @brief Authentication service class with Zod schema validation
+ * 
+ * @description Handles JWT authentication with cookie-based access tokens
+ * and memory/localStorage refresh tokens based on rememberMe preference.
+ * Aligned with backend auth.js schemas for consistent validation.
+ */
+
+import { ApiService, type ApiResponse } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
-import { validateData } from '../utils/validation'
 import { 
-  LoginCredentialsSchema, 
-  RegisterCredentialsSchema,
-  AuthResponseSchema,
-  UserSchema,
   type User,
-  type LoginCredentials,
-  type RegisterCredentials,
-  type AuthResponse
-} from '../schemas/auth.schemas'
+  type LoginRequest,
+  type LoginResponse,
+  type RegisterRequest,
+  type RegisterForm,
+  type RefreshTokenRequestSchema,
+  type VerifyEmailQuery,
+  type SuccessResponse,
+  type ErrorResponse
+} from './schemas/auth.schemas'
+import { executeLogin } from './loginService'
 
 /**
- * @brief Authentication service class - Zod-powered
+ * @brief Authentication service singleton
  */
 export class AuthService extends ApiService {
   private static instance: AuthService
@@ -33,110 +41,148 @@ export class AuthService extends ApiService {
     return AuthService.instance
   }
 
-  private loadStoredAuth(): void {
-    const user = this.getCurrentUser()
-    if (user) {
-      console.log('🔐 Loaded stored authentication for:', user.username)
-    }
-  }
+  // ==========================================================================
+  // AUTHENTICATION METHODS
+  // ==========================================================================
 
   /**
-   * @brief Login with cookie architecture and Zod validation
+   * @brief Login using extracted business logic
+   * 
+   * @param credentials - Login credentials
+   * 
+   * @return Promise<{ success: boolean; user?: User }>
    */
-  public async login(credentials: LoginCredentialsSchema): Promise<{ success: boolean; user?: User }> {
-    const validation = validateData(LoginCredentialsSchema, credentials)
-    if (!validation.success) {
-      throw new Error(validation.errors.join(', '))
-    }
-
-    const validCredentials: LoginCredentialsSchema = validation.data
-    console.log('🔐 Attempting login for:', validCredentials.identifier)
+  public async login(credentials: LoginRequest): Promise<{ success: boolean; user?: User }> {
+    console.log('🔐 Attempting login for:', credentials.identifier)
     
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/login', {
-        identifier: validCredentials.identifier,
-        password: validCredentials.password,
-        rememberMe: validCredentials.rememberMe
-      })
+    // Use extracted login logic
+    const [error, response] = await catchErrorTyped(
+      executeLogin(credentials, (endpoint, data) => this.post(endpoint, data))
     )
 
     if (error) {
       throw new Error(error.message || 'Login failed')
     }
 
-    const responseValidation = validateData(AuthResponseSchema, apiResponse)
-    if (!responseValidation.success) {
-      throw new Error('Invalid server response')
+    if (!response.success || !response.user) {
+      throw new Error(response.message || 'Authentication failed')
     }
 
-    const response = responseValidation.data
-    if (!response.success || !response.data.success || !response.data.user) {
-      throw new Error(response.data.message || 'Login failed')
-    }
-
-    const user = response.data.user
-
-    // Handle refresh token based on rememberMe
-    if (response.data.refreshToken) {
-      if (validCredentials.rememberMe) {
-        localStorage.setItem('ft_refresh_token', response.data.refreshToken)
+    // Handle refresh token storage
+    if (response.refreshToken) {
+      if (credentials.rememberMe) {
+        localStorage.setItem('ft_refresh_token', response.refreshToken)
       } else {
-        this.refreshToken = response.data.refreshToken
+        this.refreshToken = response.refreshToken
       }
     }
 
-    this.storeUser(user)
-    console.log('✅ Login successful for:', user.username)
+    // Store user data
+    this.storeUser(response.user)
+    console.log('✅ Login successful for:', response.user.username)
     
-    return { success: true, user }
+    return { success: true, user: response.user }
   }
 
   /**
-   * @brief Register with Zod validation
+   * @brief Register new user account
+   * @param credentials - Registration form data (with confirmation)
+   * @return Success status and message
    */
-  public async register(credentials: unknown): Promise<{ success: boolean; message?: string }> {
-    const validation = validateData(RegisterCredentialsSchema, credentials)
+  public async register(credentials: RegisterForm): Promise<{ success: boolean; message: string }> {
+    const validation = validateData(RegisterFormSchema, credentials)
     if (!validation.success) {
       throw new Error(validation.errors.join(', '))
     }
 
-    const validCredentials = validation.data
-    console.log('📝 Attempting registration for:', validCredentials.email)
+    // Convert to backend request format (no confirmPassword)
+    const registerRequest: RegisterRequest = {
+      email: validation.data.email,
+      password: validation.data.password
+    }
+
+    console.log('📝 Attempting registration for:', registerRequest.email)
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/register', {
-        email: validCredentials.email,
-        password: validCredentials.password
-      })
+      this.post('/auth/register', registerRequest)
     )
 
     if (error) {
       throw new Error(error.message || 'Registration failed')
     }
 
-    const responseValidation = validateData(AuthResponseSchema, apiResponse)
-    if (!responseValidation.success) {
+    // Validate register response (has nested data structure)
+    const response = safeParseApiResponse(RegisterResponseSchema, apiResponse)
+    if (!response) {
+      if (isErrorResponse(apiResponse)) {
+        throw new Error(apiResponse.message || 'Registration failed')
+      }
       throw new Error('Invalid server response')
     }
 
-    const response = responseValidation.data
-    if (!response.success || !response.data.success) {
-      throw new Error(response.data.message || 'Registration failed')
+    if (!response.success) {
+      throw new Error(response.message || 'Registration failed')
     }
 
-    console.log('✅ Registration successful for:', validCredentials.email)
+    console.log('✅ Registration successful for:', registerRequest.email)
     
     return { 
       success: true, 
-      message: response.data.message || 'Registration successful!' 
+      message: response.message || 'Registration successful! Please check your email for verification.' 
     }
   }
 
   /**
-   * @brief Logout with cookie architecture
+   * @brief Verify email with token from query parameter
+   * @param token - Email verification token
+   * @return Success status and user data
+   */
+  public async verifyEmail(token: string): Promise<{ success: boolean; user?: User }> {
+    const validation = validateData(VerifyEmailQuerySchema, { token })
+    if (!validation.success) {
+      throw new Error(validation.errors.join(', '))
+    }
+
+    console.log('📧 Verifying email with token')
+    
+    const [error, apiResponse] = await catchErrorTyped(
+      this.get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
+    )
+
+    if (error) {
+      throw new Error(error.message || 'Email verification failed')
+    }
+
+    const response = safeParseApiResponse(VerifyEmailResponseSchema, apiResponse)
+    if (!response) {
+      if (isErrorResponse(apiResponse)) {
+        throw new Error(apiResponse.message || 'Email verification failed')
+      }
+      throw new Error('Invalid server response')
+    }
+
+    if (!response.success) {
+      throw new Error(response.message || 'Email verification failed')
+    }
+
+    // Store refresh token in memory (email verification doesn't use rememberMe)
+    if (response.refreshToken) {
+      this.refreshToken = response.refreshToken
+    }
+
+    this.storeUser(response.user)
+    console.log('✅ Email verified and user logged in:', response.user.username)
+    
+    return { success: true, user: response.user }
+  }
+
+  /**
+   * @brief Logout user and clear stored data
    */
   public async logout(): Promise<void> {
-    const [error] = await catchErrorTyped(this.post('/auth/logout', {}))
+    const [error] = await catchErrorTyped(
+      this.post('/auth/logout', {})
+    )
     
     if (error) {
       console.warn('Logout API call failed:', error)
@@ -147,31 +193,38 @@ export class AuthService extends ApiService {
   }
 
   /**
-   * @brief Refresh token with cookie architecture
+   * @brief Refresh access token using stored refresh token
+   * @return Success status
    */
   public async refreshAuthToken(): Promise<boolean> {
     const refreshToken = this.getRefreshToken()
-    if (!refreshToken) return false
+    if (!refreshToken) {
+      console.warn('No refresh token available')
+      return false
+    }
 
+    const requestData: RefreshTokenRequestSchema = { refreshToken }
+    
     const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/refresh', { refreshToken })
+      this.post('/auth/refresh', requestData)
     )
 
     if (error) {
-      console.warn('Token refresh failed')
+      console.warn('Token refresh failed:', error.message)
       this.clearStoredAuth()
       return false
     }
 
-    const responseValidation = validateData(AuthResponseSchema, apiResponse)
-    if (!responseValidation.success || !responseValidation.data.success) {
+    const response = safeParseApiResponse(RefreshResponseSchema, apiResponse)
+    if (!response || !response.success) {
+      console.warn('Invalid refresh response')
       this.clearStoredAuth()
       return false
     }
 
     // Update refresh token if rotated
-    if (responseValidation.data.data.refreshToken) {
-      this.updateRefreshToken(responseValidation.data.data.refreshToken)
+    if (response.refreshToken) {
+      this.updateRefreshToken(response.refreshToken)
     }
 
     console.log('✅ Access token refreshed')
@@ -179,9 +232,11 @@ export class AuthService extends ApiService {
   }
 
   /**
-   * @brief Request password reset with validation
+   * @brief Request password reset email
+   * @param email - User email address
+   * @return Success status and message
    */
-  public async requestPasswordReset(email: unknown): Promise<{ success: boolean; message?: string }> {
+  public async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
     const emailSchema = z.string().email('Valid email required')
     const validation = validateData(emailSchema, email)
     
@@ -189,122 +244,37 @@ export class AuthService extends ApiService {
       throw new Error(validation.errors.join(', '))
     }
 
-    console.log('📧 Requesting password reset for:', validation.data)
+    console.log('🔑 Requesting password reset for:', email)
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/forgot-password', { email: validation.data })
+      this.post('/auth/forgot-password', { email })
     )
 
     if (error) {
-      throw new Error(error.message || 'Password reset request failed')
+      throw new Error(error.message || 'Failed to request password reset')
     }
 
-    const responseValidation = validateData(AuthResponseSchema, apiResponse)
-    if (!responseValidation.success || !responseValidation.data.success) {
-      throw new Error(responseValidation.data?.data.message || 'Password reset request failed')
+    const response = safeParseApiResponse(SuccessResponseSchema, apiResponse)
+    if (!response || !response.success) {
+      if (isErrorResponse(apiResponse)) {
+        throw new Error(apiResponse.message || 'Failed to request password reset')
+      }
+      throw new Error('Invalid server response')
     }
 
     console.log('✅ Password reset email sent')
     return { 
       success: true, 
-      message: responseValidation.data.data.message || 'Password reset email sent successfully'
-    }
-  }
-
-  /**
-   * @brief Reset password with validation
-   */
-  public async resetPassword(token: unknown, newPassword: unknown): Promise<{ success: boolean; message?: string }> {
-    const resetSchema = z.object({
-      token: z.string().min(1, 'Reset token required'),
-      password: z.string().min(8, 'Password must be at least 8 characters')
-    })
-
-    const validation = validateData(resetSchema, { token, password: newPassword })
-    if (!validation.success) {
-      throw new Error(validation.errors.join(', '))
-    }
-
-    console.log('🔐 Resetting password with token')
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/reset-password', {
-        token: validation.data.token,
-        password: validation.data.password
-      })
-    )
-
-    if (error) {
-      throw new Error(error.message || 'Password reset failed')
-    }
-
-    const responseValidation = validateData(AuthResponseSchema, apiResponse)
-    if (!responseValidation.success || !responseValidation.data.success) {
-      throw new Error(responseValidation.data?.data.message || 'Password reset failed')
-    }
-
-    console.log('✅ Password reset successful')
-    return { 
-      success: true, 
-      message: responseValidation.data.data.message || 'Password reset successful'
-    }
-  }
-
-  /**
-   * @brief Verify email with validation
-   */
-  public async verifyEmail(token: unknown): Promise<{ success: boolean; message?: string; user?: User }> {
-    const tokenSchema = z.string().min(1, 'Verification token required')
-    const validation = validateData(tokenSchema, token)
-    
-    if (!validation.success) {
-      throw new Error(validation.errors.join(', '))
-    }
-
-    console.log('📧 Verifying email with token')
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.get(`/auth/verify-email?token=${validation.data}`)
-    )
-
-    if (error) {
-      throw new Error(error.message || 'Email verification failed')
-    }
-
-    const responseValidation = validateData(AuthResponseSchema, apiResponse)
-    if (!responseValidation.success || !responseValidation.data.success) {
-      throw new Error(responseValidation.data?.data.message || 'Email verification failed')
-    }
-
-    const response = responseValidation.data.data
-
-    // Auto-authenticate if user data provided
-    if (response.user) {
-      this.storeUser(response.user)
-      
-      if (response.refreshToken) {
-        localStorage.setItem('ft_refresh_token', response.refreshToken)
-      }
-      
-      console.log('✅ Email verified - User authenticated:', response.user.username)
-      return { 
-        success: true, 
-        message: response.message || 'Email verified successfully',
-        user: response.user 
-      }
-    }
-
-    console.log('✅ Email verified successfully')
-    return { 
-      success: true, 
-      message: response.message || 'Email verified successfully'
+      message: response.message || 'Password reset email sent successfully'
     }
   }
 
   /**
    * @brief Resend email verification
+   * @param email - User email address
+   * @return Success status and message
    */
-  public async resendEmailVerification(email: unknown): Promise<{ success: boolean; message?: string }> {
+  public async resendVerificationEmail(email: string): Promise<{ success: boolean; message: string }> {
     const emailSchema = z.string().email('Valid email required')
     const validation = validateData(emailSchema, email)
     
@@ -312,25 +282,28 @@ export class AuthService extends ApiService {
       throw new Error(validation.errors.join(', '))
     }
 
-    console.log('📧 Resending email verification for:', validation.data)
+    console.log('📧 Resending verification email for:', email)
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/resend-verification', { email: validation.data })
+      this.post('/auth/resend-verification', { email })
     )
 
     if (error) {
       throw new Error(error.message || 'Failed to resend verification email')
     }
 
-    const responseValidation = validateData(AuthResponseSchema, apiResponse)
-    if (!responseValidation.success || !responseValidation.data.success) {
-      throw new Error(responseValidation.data?.data.message || 'Failed to resend verification email')
+    const response = safeParseApiResponse(SuccessResponseSchema, apiResponse)
+    if (!response || !response.success) {
+      if (isErrorResponse(apiResponse)) {
+        throw new Error(apiResponse.message || 'Failed to resend verification email')
+      }
+      throw new Error('Invalid server response')
     }
 
     console.log('✅ Verification email resent')
     return { 
       success: true, 
-      message: responseValidation.data.data.message || 'Verification email sent successfully'
+      message: response.message || 'Verification email sent successfully'
     }
   }
 
@@ -338,6 +311,10 @@ export class AuthService extends ApiService {
   // UTILITY METHODS
   // ==========================================================================
 
+  /**
+   * @brief Get current authenticated user
+   * @return User object or null
+   */
   public getCurrentUser(): User | null {
     if (this.currentUser) return this.currentUser
     
@@ -346,10 +323,10 @@ export class AuthService extends ApiService {
       if (!userJson) return null
       
       const userData = JSON.parse(userJson)
-      const validation = validateData(UserSchema, userData)
+      const user = safeParseApiResponse(UserSchema, userData)
       
-      if (validation.success) {
-        this.currentUser = validation.data
+      if (user) {
+        this.currentUser = user
         return this.currentUser
       } else {
         console.warn('Invalid stored user data, clearing...')
@@ -362,14 +339,27 @@ export class AuthService extends ApiService {
     }
   }
 
+  /**
+   * @brief Check if user is authenticated
+   * @return Authentication status
+   */
   public isAuthenticated(): boolean {
-    return !!this.getRefreshToken()
+    return !!this.getCurrentUser() && !!this.getRefreshToken()
   }
 
+  /**
+   * @brief Check if 2FA is enabled for current user
+   * @return 2FA status
+   */
   public is2FAEnabled(): boolean {
-    return this.currentUser?.twoFactorAuth?.enabled || false
+    // Note: 2FA info should come from separate endpoint when needed
+    return false // Placeholder - implement when 2FA schema is defined
   }
 
+  /**
+   * @brief Check if OAuth is available
+   * @return OAuth availability
+   */
   public isOAuthAvailable(): boolean {
     return import.meta.env.VITE_OAUTH_ENABLED === 'true'
   }
@@ -378,6 +368,10 @@ export class AuthService extends ApiService {
   // PRIVATE METHODS
   // ==========================================================================
 
+  /**
+   * @brief Store user data in localStorage
+   * @param user - User object to store
+   */
   private storeUser(user: User): void {
     try {
       localStorage.setItem('ft_user', JSON.stringify(user))
@@ -387,6 +381,9 @@ export class AuthService extends ApiService {
     }
   }
 
+  /**
+   * @brief Clear all stored authentication data
+   */
   private clearStoredAuth(): void {
     localStorage.removeItem('ft_user')
     localStorage.removeItem('ft_refresh_token')
@@ -394,17 +391,42 @@ export class AuthService extends ApiService {
     this.refreshToken = null
   }
 
+  /**
+   * @brief Get refresh token from memory or localStorage
+   * @return Refresh token or null
+   */
   private getRefreshToken(): string | null {
     return this.refreshToken || localStorage.getItem('ft_refresh_token')
   }
 
+  /**
+   * @brief Update refresh token in current storage location
+   * @param newToken - New refresh token
+   */
   private updateRefreshToken(newToken: string): void {
     if (this.refreshToken) {
+      // Token was in memory, keep it in memory
       this.refreshToken = newToken
     } else {
+      // Token was in localStorage, update localStorage
       localStorage.setItem('ft_refresh_token', newToken)
+    }
+  }
+
+  /**
+   * @brief Load stored authentication on service initialization
+   */
+  private loadStoredAuth(): void {
+    const user = this.getCurrentUser()
+    if (user) {
+      console.log('🔐 Loaded stored authentication for:', user.username)
     }
   }
 }
 
+// Export singleton instance
 export const authService = AuthService.getInstance()
+
+function executeLogin(credentials: { identifier: string; password: string; rememberMe?: boolean | undefined; twoFactorToken?: string | undefined }, arg1: (endpoint: any, data: any) => Promise<ApiResponse<unknown>>): Promise<unknown> {
+  throw new Error('Function not implemented.')
+}
