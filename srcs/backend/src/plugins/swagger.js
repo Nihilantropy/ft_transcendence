@@ -86,14 +86,6 @@ async function swaggerPlugin(fastify) {
           }
         },
         responses: {
-          ValidationError: {
-            description: 'Validation error',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ValidationError' }
-              }
-            }
-          },
           InternalServerError: {
             description: 'Internal server error',
             content: {

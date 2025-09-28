@@ -199,9 +199,7 @@ export const routeSchemas = {
     description: 'Register new user account with auto-generated username',
     body: { $ref: 'RegisterRequest#' },
     response: {
-      201: { $ref: 'RegisterResponse#' },
-      400: { $ref: 'ErrorResponse#' },
-      409: { $ref: 'ErrorResponse#' }
+      201: { $ref: 'RegisterResponse#' }
     }
   },
 
@@ -213,8 +211,7 @@ export const routeSchemas = {
     description: 'Verify user email and return authentication tokens',
     querystring: { $ref: 'VerifyEmailQuery#' },
     response: {
-      200: { $ref: 'VerifyEmailResponse#' },
-      400: { $ref: 'ErrorResponse#' }
+      200: { $ref: 'VerifyEmailResponse#' }
     }
   },
 
@@ -226,9 +223,7 @@ export const routeSchemas = {
     description: 'Authenticate user with username/email and password',
     body: { $ref: 'LoginRequest#' },
     response: {
-      200: { $ref: 'LoginResponse#' },
-      400: { $ref: 'ErrorResponse#' },
-      401: { $ref: 'ErrorResponse#' }
+      200: { $ref: 'LoginResponse#' }
     }
   },
 
@@ -241,9 +236,7 @@ export const routeSchemas = {
     security: authSecurity,
     headers: { $ref: 'AuthHeaders#' },
     response: {
-      200: { $ref: 'SuccessResponse#' },
-      400: { $ref: 'ErrorResponse#' },
-      401: { $ref: 'ErrorResponse#' }
+      200: { $ref: 'SuccessResponse#' }
     }
   },
 
@@ -255,9 +248,7 @@ export const routeSchemas = {
     description: 'Generate new access token using refresh token',
     body: { $ref: 'RefreshTokenRequest#' },
     response: {
-      200: { $ref: 'LoginResponse#' },
-      400: { $ref: 'ErrorResponse#' },
-      401: { $ref: 'ErrorResponse#' }
+      200: { $ref: 'LoginResponse#' }
     }
   }
 }

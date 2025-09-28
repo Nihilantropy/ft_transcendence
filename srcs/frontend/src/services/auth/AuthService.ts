@@ -361,7 +361,7 @@ export class AuthService extends ApiService {
     console.log('📧 Verifying email with token')
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse>('/auth/verify-email', { token })
+      this.get<AuthResponse>('/auth/verify-email?token=' + token)
     )
 
     if (error) {
