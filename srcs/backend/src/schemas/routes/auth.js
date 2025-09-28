@@ -15,7 +15,7 @@ const schemas = [
     $id: 'LoginRequest',
     type: 'object',
     properties: {
-      username: { 
+      identifier: { 
         type: 'string',
         minLength: 3,
         maxLength: 30,
@@ -36,7 +36,7 @@ const schemas = [
         description: '2FA token (if enabled)'
       }
     },
-    required: ['username', 'password']
+    required: ['identifier', 'password']
   },
 
   // Login response schema

@@ -23,12 +23,12 @@ async function loginRoute(fastify, options) {
     schema: routeSchemas.login
   }, async (request, reply) => {
     try {
-      const { username, password, rememberMe = false, twoFactorToken } = request.body
+      const { identifier, password, rememberMe = false, twoFactorToken } = request.body
       
-      loginLogger.info('🔐 Login attempt', { username, has2FA: !!twoFactorToken })
+      loginLogger.info('🔐 Login attempt', { identifier, has2FA: !!twoFactorToken })
       
       // 1. Find user by username or email
-      const user = userService.getUserByUsername(username) || userService.getUserByEmail(username)
+      const user = userService.getUserByUsername(identifier) || userService.getUserByEmail(identifier)
       
       if (!user || !user.is_active) {
         reply.status(401)
@@ -62,9 +62,9 @@ async function loginRoute(fastify, options) {
       }
       
       // 4. Generate tokens and update status
-      const tokens = generateTokenPair(user, {
+      const { accessToken, refreshToken } = generateTokenPair(user, {
         access: { expiresIn: '15m' },
-        refresh: { expiresIn: rememberMe ? '7d' : '1d' }
+        refresh: { expiresIn: '1d' }
       })
 
       // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE

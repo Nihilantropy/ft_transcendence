@@ -14,6 +14,7 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { Server as SocketIOServer } from 'socket.io'
+import cookie from '@fastify/cookie'
 import 'dotenv/config'
 import database from './database.js'
 import { logger, createLoggerConfig } from './logger.js'
@@ -51,6 +52,11 @@ await fastify.register(cors, {
 await fastify.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute'
+})
+
+await fastify.register(cookie, {
+  secret: process.env.COOKIE_SECRET || 'your-32-character-secret-key-here!',
+  parseOptions: {}
 })
 
 // Register Swagger plugin (must be before routes registration)
