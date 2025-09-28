@@ -6,11 +6,11 @@
  */
 
 // Base API Service
-export { ApiService, apiService } from './BaseApiService'
+export * from './BaseApiService'
 
 // Specific API Services
-export { UserApiService, userApiService } from './UserApiService'
-export { FriendsService, friendsService } from './FriendsService'
+export * from './UserService'
+export * from './FriendsService'
 
 // API Configuration (to be implemented in Phase B3)
 // export { apiConfig } from './config'

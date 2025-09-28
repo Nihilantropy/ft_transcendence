@@ -28,7 +28,7 @@
  */
 
 import { ApiService } from '../api/BaseApiService'
-import { PasswordUtils } from './PasswordUtils'
+import { PasswordUtils } from '../utils/PasswordUtils'
 import { catchErrorTyped } from '../error'
 // import { googleOAuthService, type OAuthError, type OAuthCallbackResult } from './GoogleOAuthService'
 import type {
@@ -38,10 +38,6 @@ import type {
 } from '../../types/api.types'
 import type { User } from '../../types/global.types'
 
-// Type aliases for backwards compatibility
-export type LoginCredentials = LoginRequest
-export type RegisterCredentials = RegisterRequest
-
 /**
  * @brief Authentication service class
  * 
@@ -50,7 +46,7 @@ export type RegisterCredentials = RegisterRequest
 export class AuthService extends ApiService {
   private static instance: AuthService
   private currentUser: User | null = null
-  private authToken: string | null = null
+  private refreshToken: String | null = null
 
   constructor() {
     super()
@@ -72,11 +68,9 @@ export class AuthService extends ApiService {
    */
   private loadStoredAuth(): void {
     try {
-      const token = localStorage.getItem('ft_auth_token')
       const userJson = localStorage.getItem('ft_user')
-      
-      if (token && userJson) {
-        this.authToken = token
+
+      if (userJson) {
         this.currentUser = JSON.parse(userJson)
         console.log('🔐 Loaded stored authentication for:', this.currentUser?.username)
       }
@@ -89,14 +83,12 @@ export class AuthService extends ApiService {
   /**
    * @brief Store authentication data in localStorage
    */
-  private storeAuth(user: User, token: string): void {
+  private storeUser(user: User): void {
     try {
-      localStorage.setItem('ft_auth_token', token)
       localStorage.setItem('ft_user', JSON.stringify(user))
-      this.authToken = token
       this.currentUser = user
     } catch (error) {
-      console.error('Failed to store auth:', error)
+      console.error('Failed to store user:', error)
     }
   }
 
@@ -105,9 +97,7 @@ export class AuthService extends ApiService {
    */
   private clearStoredAuth(): void {
     localStorage.removeItem('ft_user')
-    localStorage.removeItem('ft_auth_token')
     localStorage.removeItem('ft_refresh_token')
-    this.authToken = null
     this.currentUser = null
   }
 
@@ -117,11 +107,11 @@ export class AuthService extends ApiService {
    * @param credentials - User login credentials
    * @returns Promise resolving to authentication response
    */
-  public async login(credentials: LoginCredentials): Promise<{ success: boolean; user?: User }> {
+  public async login(credentials: any): Promise<{ success: boolean; user?: User }> {
     console.log('🔐 Attempting login for:', credentials.identifier)
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse>('/login', {
+      this.post<AuthResponse>('/auth/login', {
         identifier: credentials.identifier,  // Can be email or username
         password: credentials.password,
         rememberMe: credentials.rememberMe || false
@@ -136,16 +126,21 @@ export class AuthService extends ApiService {
       throw new Error(apiResponse?.data.message || 'Login failed')
     }
 
-    // Support both old (token) and new (tokens) response formats
-    const accessToken = apiResponse.data.tokens?.accessToken
-    const refreshToken = apiResponse.data.tokens?.refreshToken
-
-    if (!apiResponse.data.user || !accessToken) {
+    if (!apiResponse.data.user) {
       throw new Error('Invalid response from server')
     }
 
+    const refreshToken = apiResponse.data.refreshToken
+    if (refreshToken) {
+      if (credentials.rememberMe) {
+        localStorage.setItem('ft_refresh_token', refreshToken)
+      } else {
+        this.refreshToken = refreshToken  // Store in memory
+      }
+    }
+
     // Store authentication data
-    this.storeAuth(apiResponse.data.user, accessToken)
+    this.storeUser(apiResponse.data.user)
     
     // Store refresh token if provided
     if (refreshToken) {
@@ -166,7 +161,7 @@ export class AuthService extends ApiService {
    * @param credentials - User registration credentials
    * @returns Promise resolving to authentication response
    */
-  public async register(credentials: RegisterRequest): Promise<{ success: boolean; message?: string }> {
+  public async register(credentials: any): Promise<{ success: boolean; message?: string }> {
     console.log('📝 Attempting registration for:', credentials.email)
     
     // Validate passwords match (client-side check)
@@ -206,52 +201,27 @@ export class AuthService extends ApiService {
     }
   }
 
+  // TODO refactor in order to use catchErrorTyped and new cookie architecture for authentication/tokens
   /**
    * @brief Logout current user
    */
   public async logout(): Promise<void> {
-    try {
-      if (this.authToken) {
-        // Notify backend of logout (optional, fire-and-forget)
-        this.post('/auth/logout', {}).catch((error: any) => {
-          console.warn('Backend logout notification failed:', error)
-        })
-      }
-      
-      this.clearStoredAuth()
-      console.log('👋 User logged out')
-    } catch (error) {
+    const [error] = await catchErrorTyped(this.post('/auth/logout', {}))
+    
+    if (error) {
       console.error('Logout error:', error)
-      // Clear auth anyway
-      this.clearStoredAuth()
+      throw new Error('Logout failed')
     }
-  }
+    console.log('👋 User logged out')
+    // Clear auth anyway
+    this.clearStoredAuth()
+    }
 
-  /**
-   * @brief Check if user is currently authenticated
-   */
-  public isAuthenticated(): boolean {
-    return !!(this.currentUser && this.authToken)
-  }
-
-  /**
-   * @brief Get current authenticated user
-   */
-  public getCurrentUser(): User | null {
-    return this.currentUser
-  }
-
-  /**
-   * @brief Get current auth token
-   */
-  public getAuthToken(): string | null {
-    return this.authToken
-  }
-
+  
   /**
    * @brief Refresh authentication token
    */
-  public async refreshToken(): Promise<boolean> {
+  public async refreshAuthToken(): Promise<boolean> {
     try {
       const refreshToken = localStorage.getItem('ft_refresh_token')
       if (!refreshToken) {
@@ -267,7 +237,7 @@ export class AuthService extends ApiService {
         const newRefreshToken = apiResponse.data.tokens?.refreshToken
         
         if (accessToken) {
-          this.storeAuth(apiResponse.data.user, accessToken)
+          this.storeUser(apiResponse.data.user, accessToken)
           
           // Update refresh token if provided
           if (newRefreshToken) {
@@ -372,12 +342,11 @@ export class AuthService extends ApiService {
       throw new Error(apiResponse?.data.message || 'Email verification failed')
     }
 
-    // If verification successful AND we get user + tokens, authenticate the user
-    const accessToken = apiResponse.data.tokens?.accessToken
+    // If verification successful AND we get user, authenticate the user
     const refreshToken = apiResponse.data.tokens?.refreshToken
-    
-    if (apiResponse.data.user && accessToken) {
-      this.storeAuth(apiResponse.data.user, accessToken)
+
+    if (apiResponse.data.user) {
+      this.storeUser(apiResponse.data.user)
       
       // Store refresh token if provided
       if (refreshToken) {
@@ -424,85 +393,6 @@ export class AuthService extends ApiService {
     return { 
       success: true, 
       message: apiResponse.data.message || 'Verification email sent successfully'
-    }
-  }
-
-  // ============================================================================
-  // USERNAME MANAGEMENT METHODS
-  // ============================================================================
-
-  /**
-   * @brief Check if username is available
-   * 
-   * @param username - Username to check
-   * @returns Promise resolving to AuthResponse with availability data
-   */
-  public async checkUsernameAvailability(username: string): Promise<{ success: boolean; available: boolean; message?: string }> {
-    console.log('🏷️ Checking username availability:', username)
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse & { available?: boolean }>('/users/set-user', { username })
-    )
-
-    if (error) {
-      throw new Error(error.message || 'Failed to check username availability')
-    }
-
-    if (!apiResponse?.success || !apiResponse.data.success) {
-      throw new Error(apiResponse?.data.message || 'Failed to check username availability')
-    }
-
-    const available = apiResponse.data.available ?? false
-    console.log(available ? '✅ Username available' : '❌ Username taken:', username)
-    
-    return {
-      success: true,
-      available,
-      message: apiResponse.data.message
-    }
-  }
-
-  /**
-   * @brief Set username for current authenticated user
-   * 
-   * @param username - New username to set
-   * @returns Promise resolving to AuthResponse
-   */
-  public async setUsername(username: string): Promise<{ success: boolean; message?: string; user?: User }> {
-    console.log('🏷️ Setting username:', username)
-    
-    if (!this.isAuthenticated()) {
-      throw new Error('User must be authenticated to set username')
-    }
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse>('/auth/set-username', { username })
-    )
-
-    if (error) {
-      throw new Error(error.message || 'Failed to set username')
-    }
-
-    if (!apiResponse?.success || !apiResponse.data.success) {
-      throw new Error(apiResponse?.data.message || 'Failed to set username')
-    }
-
-    // If username set successfully and we get updated user data, update stored user
-    if (apiResponse.data.user) {
-      this.currentUser = apiResponse.data.user
-      localStorage.setItem('ft_user', JSON.stringify(this.currentUser))
-      console.log('✅ Username set successfully and user data updated')
-      
-      return {
-        success: true,
-        message: apiResponse.data.message || 'Username set successfully',
-        user: apiResponse.data.user
-      }
-    }
-
-    return {
-      success: true,
-      message: apiResponse.data.message || 'Username set successfully'
     }
   }
 

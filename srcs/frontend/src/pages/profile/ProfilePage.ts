@@ -431,7 +431,7 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
 
     try {
       // Try to get current user from API
-      const { userApiService } = await import('../../services/api/UserApiService')
+      const { userApiService } = await import('../../services/api/UserService')
       
       console.log('📡 Fetching user profile from API...')
       const profile = await userApiService.getCurrentUser()
@@ -597,7 +597,7 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
         return
       }
 
-      const { userApiService } = await import('../../services/api/UserApiService')
+      const { userApiService } = await import('../../services/api/UserService')
       
       const updatedProfile = await userApiService.updateUserProfile(this.state.profile.id, {
         username: newUsername,
@@ -665,7 +665,7 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
 
     try {
       console.log('📤 Uploading avatar...')
-      const { userApiService } = await import('../../services/api/UserApiService')
+      const { userApiService } = await import('../../services/api/UserService')
       
       const newAvatarUrl = await userApiService.uploadAvatar(this.state.profile.id, file)
       
@@ -698,7 +698,7 @@ export class ProfilePage extends Component<ProfilePageProps, ProfilePageState> {
     console.log('📋 Loading full game history...')
     
     try {
-      const { userApiService } = await import('../../services/api/UserApiService')
+      const { userApiService } = await import('../../services/api/UserService')
       
       if (!this.state.profile) {
         this.setError('Please reload the page to view game history.')

@@ -7,7 +7,7 @@
 
 // Authentication Services
 export { AuthService, authService } from './AuthService'
-export { PasswordUtils } from './PasswordUtils'
+export { PasswordUtils } from '../utils/PasswordUtils'
 // export { GoogleOAuthService, googleOAuthService } from './GoogleOAuthService'
 
 // Auth Types (from types index)
@@ -20,7 +20,7 @@ export type {
 export type { 
   PasswordStrength, 
   PasswordValidation 
-} from './PasswordUtils'
+} from '../utils/PasswordUtils'
 
 // Future authentication services
 // export { TokenManager } from './TokenManager'

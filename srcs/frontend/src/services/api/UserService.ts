@@ -5,11 +5,85 @@
  * Integrates with backend user service.
  */
 
-import { apiService } from './BaseApiService'
+import { ApiService } from './BaseApiService'
 import { catchErrorTyped } from '../error'
 import type { UserProfile, GameHistory, UserStats } from '../../types/user.types'
 
-export class UserApiService {
+export class UserService extends ApiService {
+  /**
+   * @brief Check if username is available
+   * 
+   * @param username - Username to check
+   * @returns Promise resolving to UserResponse with availability data
+   */
+  public async checkUsernameAvailability(username: string): Promise<{ success: boolean; available: boolean; message?: string }> {
+    console.log('🏷️ Checking username availability:', username)
+    
+    const [error, apiResponse] = await catchErrorTyped(
+      this.post<UserResponse & { available?: boolean }>('/users/set-user', { username })
+    )
+
+    if (error) {
+      throw new Error(error.message || 'Failed to check username availability')
+    }
+
+    if (!apiResponse?.success || !apiResponse.data.success) {
+      throw new Error(apiResponse?.data.message || 'Failed to check username availability')
+    }
+
+    const available = apiResponse.data.available ?? false
+    console.log(available ? '✅ Username available' : '❌ Username taken:', username)
+    
+    return {
+      success: true,
+      available,
+      message: apiResponse.data.message
+    }
+  }
+
+  /**
+   * @brief Set username for current authenticated user
+   * 
+   * @param username - New username to set
+   * @returns Promise resolving to UserResponse
+   */
+  public async setUsername(username: string): Promise<{ success: boolean; message?: string; user?: User }> {
+    console.log('🏷️ Setting username:', username)
+    
+    if (!this.isAuthenticated()) {
+      throw new Error('User must be authenticated to set username')
+    }
+    
+    const [error, apiResponse] = await catchErrorTyped(
+      this.post<UserResponse>('/auth/set-username', { username })
+    )
+
+    if (error) {
+      throw new Error(error.message || 'Failed to set username')
+    }
+
+    if (!apiResponse?.success || !apiResponse.data.success) {
+      throw new Error(apiResponse?.data.message || 'Failed to set username')
+    }
+
+    // If username set successfully and we get updated user data, update stored user
+    if (apiResponse.data.user) {
+      this.currentUser = apiResponse.data.user
+      localStorage.setItem('ft_user', JSON.stringify(this.currentUser))
+      console.log('✅ Username set successfully and user data updated')
+      
+      return {
+        success: true,
+        message: apiResponse.data.message || 'Username set successfully',
+        user: apiResponse.data.user
+      }
+    }
+
+    return {
+      success: true,
+      message: apiResponse.data.message || 'Username set successfully'
+    }
+  }
   /**
    * @brief Get user profile by ID
    */
@@ -142,4 +216,4 @@ export class UserApiService {
 }
 
 // Singleton instance
-export const userApiService = new UserApiService()
+export const userService = new UserService()
