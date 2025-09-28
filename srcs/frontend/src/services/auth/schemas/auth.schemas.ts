@@ -157,26 +157,6 @@ export const ErrorResponseSchema = z.object({
 })
 
 // =============================================================================
-// UNION TYPES FOR API RESPONSES
-// =============================================================================
-
-/**
- * @brief Complete login response (success or error)
- */
-export const CompleteLoginResponseSchema = z.union([
-  LoginResponseSchema,
-  ErrorResponseSchema
-])
-
-/**
- * @brief Complete register response (success or error)
- */
-export const CompleteRegisterResponseSchema = z.union([
-  RegisterResponseSchema,
-  ErrorResponseSchema
-])
-
-// =============================================================================
 // EXPORTED TYPES
 // =============================================================================
 
@@ -196,10 +176,6 @@ export type VerifyEmailResponse = z.infer<typeof VerifyEmailResponseSchema>
 export type RefreshResponse = z.infer<typeof RefreshResponseSchema>
 export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
-
-// Complete response types
-export type CompleteLoginResponse = z.infer<typeof CompleteLoginResponseSchema>
-export type CompleteRegisterResponse = z.infer<typeof CompleteRegisterResponseSchema>
 
 // =============================================================================
 // SCHEMA VALIDATION UTILITIES

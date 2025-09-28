@@ -6,8 +6,8 @@
  */
 
 import { Component } from '../../components/base/Component'
-import { authService, type LoginCredentials, PasswordUtils, type PasswordValidation } from '../../services/auth'
-import { type RegisterRequest } from '../../types/api.types'
+import { authService, type LoginCredentials, PasswordUtils, type PasswordValidation } from '../../services/schemas/auth.schemas'
+import { type RegisterRequest } from '../../services/schemas/auth.schemas'
 import { showPopup } from '../../components/ui/Popup'
 import { router } from '../../router/router'
 

@@ -18,6 +18,7 @@ import {
   type LoginResponse
 } from './schemas/auth.schemas'
 import { apiService } from '../api/BaseApiService'
+import { catchErrorTyped } from '../error'
 
 /**
  * @brief Execute login request with validation
@@ -28,7 +29,8 @@ import { apiService } from '../api/BaseApiService'
  * @return Promise<LoginResponse> - Validated response from backend
  */
 export async function executeLogin(
-  credentials: unknown,
+  credentials: LoginRequest,
+  endpoint: string = '/auth/login'
 ): Promise<LoginResponse> {
   // Validate input with Zod
   const validation = validateData(LoginRequestSchema, credentials)
@@ -39,10 +41,19 @@ export async function executeLogin(
   const validCredentials: LoginRequest = validation.data
 
   // Make API request
-  const apiResponse = await apiService.post('/auth/login', validCredentials)
+  const [error, response] = await catchErrorTyped(
+    apiService.post(endpoint, validCredentials)
+  )
+
+  if (error || !response) {
+    throw new Error(error?.message || 'Login failed')
+  }
+
+  console.log('✅ Login request successful:', response)
+  console.log('🔒 Tokens received - Access:', response.data)
 
   // Validate response with Zod
-  const responseValidation = validateData(LoginResponseSchema, apiResponse)
+  const responseValidation = validateData(LoginResponseSchema, response.data)
   if (!responseValidation.success) {
     throw new Error('Invalid server response format')
   }

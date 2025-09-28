@@ -7,7 +7,6 @@
  */
 
 import { ApiService, type ApiResponse } from '../api/BaseApiService'
-import { catchErrorTyped } from '../error'
 import { 
   type User,
   type LoginRequest,
@@ -19,7 +18,7 @@ import {
   type SuccessResponse,
   type ErrorResponse
 } from './schemas/auth.schemas'
-import { executeLogin } from './loginService'
+import { executeLogin } from './executeLogin'
 
 /**
  * @brief Authentication service singleton
@@ -47,88 +46,55 @@ export class AuthService extends ApiService {
 
   /**
    * @brief Login using extracted business logic
-   * 
    * @param credentials - Login credentials
-   * 
    * @return Promise<{ success: boolean; user?: User }>
+   * @throws Error on failure with descriptive message
    */
   public async login(credentials: LoginRequest): Promise<{ success: boolean; user?: User }> {
     console.log('🔐 Attempting login for:', credentials.identifier)
-    
-    // Use extracted login logic
-    const [error, response] = await catchErrorTyped(
-      executeLogin(credentials, (endpoint, data) => this.post(endpoint, data))
-    )
+    try {
+      const loginData = await executeLogin(credentials, '/auth/login')
 
-    if (error) {
+      // Handle refresh token storage
+      if (loginData.refreshToken) {
+        if (credentials.rememberMe) {
+          localStorage.setItem('ft_refresh_token', loginData.refreshToken)
+        } else {
+          this.refreshToken = loginData.refreshToken
+        }
+      }
+
+      // Store user data
+      this.storeUser(loginData.user)
+      console.log('✅ Login successful for:', loginData.user.username)
+
+      return { success: true, user: loginData.user }
+    } catch (error) {
+      console.warn('❌ Login failed:', error instanceof Error ? error.message : error)
       throw new Error(error.message || 'Login failed')
     }
-
-    if (!response.success || !response.user) {
-      throw new Error(response.message || 'Authentication failed')
-    }
-
-    // Handle refresh token storage
-    if (response.refreshToken) {
-      if (credentials.rememberMe) {
-        localStorage.setItem('ft_refresh_token', response.refreshToken)
-      } else {
-        this.refreshToken = response.refreshToken
-      }
-    }
-
-    // Store user data
-    this.storeUser(response.user)
-    console.log('✅ Login successful for:', response.user.username)
-    
-    return { success: true, user: response.user }
   }
 
   /**
-   * @brief Register new user account
+   * @brief Register new user account using extracted business logic
    * @param credentials - Registration form data (with confirmation)
-   * @return Success status and message
+   * @return Promise<{ success: boolean; message: string }>
+   * @throws Error on failure with descriptive message
    */
   public async register(credentials: RegisterForm): Promise<{ success: boolean; message: string }> {
-    const validation = validateData(RegisterFormSchema, credentials)
-    if (!validation.success) {
-      throw new Error(validation.errors.join(', '))
-    }
+    console.log('📝 Attempting registration for:', credentials.email)
+    try {
+      const registerData = await executeRegister(credentials, '/auth/register')
 
-    // Convert to backend request format (no confirmPassword)
-    const registerRequest: RegisterRequest = {
-      email: validation.data.email,
-      password: validation.data.password
-    }
-
-    console.log('📝 Attempting registration for:', registerRequest.email)
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/register', registerRequest)
-    )
-
-    if (error) {
-      throw new Error(error.message || 'Registration failed')
-    }
-
-    // Validate register response (has nested data structure)
-    const response = safeParseApiResponse(RegisterResponseSchema, apiResponse)
-    if (!response) {
-      if (isErrorResponse(apiResponse)) {
-        throw new Error(apiResponse.message || 'Registration failed')
+      console.log('✅ Registration successful for:', credentials.email)
+      
+      return { 
+        success: true, 
+        message: registerData.message || 'Registration successful! Please check your email for verification.' 
       }
-      throw new Error('Invalid server response')
-    }
-
-    if (!response.success) {
-      throw new Error(response.message || 'Registration failed')
-    }
-
-    console.log('✅ Registration successful for:', registerRequest.email)
-    
-    return { 
-      success: true, 
-      message: response.message || 'Registration successful! Please check your email for verification.' 
+    } catch (error) {
+      console.warn('❌ Registration failed:', error instanceof Error ? error.message : error)
+      throw new Error(error.message || 'Registration failed')
     }
   }
 
