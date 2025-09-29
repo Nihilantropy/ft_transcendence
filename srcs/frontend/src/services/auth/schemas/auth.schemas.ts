@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod'
+import { PasswordUtils } from '../../utils'
 
 // =============================================================================
 // BASE USER SCHEMA
@@ -48,9 +49,9 @@ export const RegisterRequestSchema = z.object({
     .email("Valid email required")
     .describe("Valid email address"),
   password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128, "Password too long")
-    .describe("Strong password")
+    .refine(PasswordUtils.validatePassword, {
+      message: "Password does not meet complexity requirements"
+    }),
 })
 
 /**
@@ -87,9 +88,9 @@ export const VerifyEmailQuerySchema = z.object({
  * @brief Login response schema matching backend
  */
 export const LoginResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  user: UserSchema.optional(),
+  success: z.boolean().nonoptional(),
+  message: z.string().nonoptional(),
+  user: UserSchema.nonoptional(),
   refreshToken: z.string()
     .describe("Refresh token for memory storage")
     .optional(),
@@ -101,14 +102,12 @@ export const LoginResponseSchema = z.object({
  * @brief Register response schema matching backend
  */
 export const RegisterResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  data: z.object({
-    id: z.number(),
-    username: z.string(),
-    email: z.string(),
-    email_verified: z.boolean()
-  })
+  success: z.boolean().nonoptional(),
+  message: z.string().nonoptional(),
+  user: UserSchema.nonoptional(),
+  refreshToken: z.string()
+    .describe("Refresh token for memory storage")
+    .optional(),
 })
 
 /**

@@ -58,5 +58,5 @@ export async function executeLogin(
     throw new Error('Invalid server response format')
   }
 
-  return responseValidation.data
+  return responseValidation.data as LoginResponse
 }

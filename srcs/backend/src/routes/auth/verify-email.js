@@ -5,7 +5,7 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/routes/auth.js'
+import { routeSchemas } from '../../schemas/routes/auth.schema.js'
 import { userService } from '../../services/index.js'
 import { generateTokenPair } from '../../utils/jwt.js'
 import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG } from '../../utils/coockie.js'

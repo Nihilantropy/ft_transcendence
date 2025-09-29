@@ -4,6 +4,8 @@
  * @description Complete route schemas with centralized definitions
  */
 
+// TODO add a UserSchema import from user.schemas.ts
+
 // =============================================================================
 // REQUEST/RESPONSE SCHEMAS
 // =============================================================================
@@ -46,15 +48,7 @@ const schemas = [
     properties: {
       success: { type: 'boolean' },
       message: { type: 'string' },
-      user: {
-        type: 'object',
-        properties: {
-          id: { type: 'integer' },
-          username: { type: 'string' },
-          email: { type: 'string' },
-          is_online: { type: 'boolean' }
-        }
-      },
+      user: { $ref: 'User#' },
       refreshToken: { 
         type: 'string',
         description: 'Refresh token for memory storage'
@@ -62,7 +56,7 @@ const schemas = [
       requiresTwoFactor: { type: 'boolean' },
       tempToken: { type: 'string' }
     },
-    required: ['success', 'message']
+    required: ['success', 'message', 'user']
   },
 
   // Register request schema
@@ -92,17 +86,14 @@ const schemas = [
     properties: {
       success: { type: 'boolean' },
       message: { type: 'string' },
-      data: {
-        type: 'object',
-        properties: {
-          id: { type: 'integer' },
-          username: { type: 'string' },
-          email: { type: 'string' },
-          email_verified: { type: 'boolean' }
-        }
-      }
+      user: { $ref: 'User#' },
+      refreshToken: { 
+        type: 'string',
+        description: 'Refresh token for memory storage'
+      },
     },
-    required: ['success', 'message', 'data']
+
+    required: ['success', 'message', 'user']
   },
 
     // Email verification request - Query parameter
@@ -126,21 +117,13 @@ const schemas = [
     properties: {
       success: { type: 'boolean' },
       message: { type: 'string' },
-      user: {
-        type: 'object',
-        properties: {
-          id: { type: 'integer' },
-          username: { type: 'string' },
-          email: { type: 'string' },
-          email_verified: { type: 'boolean' }
-        }
-      },
+      user: { $ref: 'User#' },
       refreshToken: { 
         type: 'string',
-        description: 'Refresh token for memory storage'
+        description: 'Refresh token for memory storage (optional)'
       }
     },
-    required: ['success', 'message', 'user', 'refreshToken']
+    required: ['success', 'message', 'user']
   },
 
   {
@@ -152,7 +135,7 @@ const schemas = [
         description: 'Refresh token to obtain new access token'
       }
     },
-    required: ['refreshToken']
+    required: ['refreshToken'] // TODO check if token is required in body or can be taken from cookie
   },
 
   // Token refresh request

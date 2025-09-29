@@ -19,6 +19,8 @@ import {
   type ErrorResponse
 } from './schemas/auth.schemas'
 import { executeLogin } from './executeLogin'
+import { executeRegister } from './executeRegister'
+import { error } from 'console'
 
 /**
  * @brief Authentication service singleton
@@ -53,7 +55,7 @@ export class AuthService extends ApiService {
   public async login(credentials: LoginRequest): Promise<{ success: boolean; user?: User }> {
     console.log('🔐 Attempting login for:', credentials.identifier)
     try {
-      const loginData = await executeLogin(credentials, '/auth/login')
+      const loginData: LoginResponse = await executeLogin(credentials, '/auth/login')
 
       // Handle refresh token storage
       if (loginData.refreshToken) {
@@ -65,23 +67,32 @@ export class AuthService extends ApiService {
       }
 
       // Store user data
-      this.storeUser(loginData.user)
-      console.log('✅ Login successful for:', loginData.user.username)
+      if (loginData.user) {
+        this.storeUser(loginData.user)
+        console.log('✅ Login successful for:', loginData.user.username)
+      } else {
+        throw new Error('Login response missing user data')
+      }
 
       return { success: true, user: loginData.user }
     } catch (error) {
-      console.warn('❌ Login failed:', error instanceof Error ? error.message : error)
-      throw new Error(error.message || 'Login failed')
+      if (error instanceof Error) {
+        console.warn('❌ Login failed:', error.message)
+        throw new Error(error.message || 'Login failed')
+      } else {
+        console.error('❌ Login failed:', error)
+        throw new Error('Login failed')
+      }
     }
   }
 
   /**
    * @brief Register new user account using extracted business logic
-   * @param credentials - Registration form data (with confirmation)
+   * @param credentials - Registration request data (taken from validated form)
    * @return Promise<{ success: boolean; message: string }>
    * @throws Error on failure with descriptive message
    */
-  public async register(credentials: RegisterForm): Promise<{ success: boolean; message: string }> {
+  public async register(credentials: RegisterRequest): Promise<{ success: boolean; message: string }> {
     console.log('📝 Attempting registration for:', credentials.email)
     try {
       const registerData = await executeRegister(credentials, '/auth/register')
@@ -93,8 +104,13 @@ export class AuthService extends ApiService {
         message: registerData.message || 'Registration successful! Please check your email for verification.' 
       }
     } catch (error) {
-      console.warn('❌ Registration failed:', error instanceof Error ? error.message : error)
-      throw new Error(error.message || 'Registration failed')
+      if (error instanceof Error) {
+        console.warn('❌ Registration failed:', error.message)
+        throw new Error(error.message || 'Registration failed')
+      } else {
+        console.error('❌ Registration failed:', error)
+        throw new Error('Registration failed')
+      }
     }
   }
 
@@ -392,7 +408,3 @@ export class AuthService extends ApiService {
 
 // Export singleton instance
 export const authService = AuthService.getInstance()
-
-function executeLogin(credentials: { identifier: string; password: string; rememberMe?: boolean | undefined; twoFactorToken?: string | undefined }, arg1: (endpoint: any, data: any) => Promise<ApiResponse<unknown>>): Promise<unknown> {
-  throw new Error('Function not implemented.')
-}
