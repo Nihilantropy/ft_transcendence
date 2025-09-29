@@ -6,21 +6,25 @@
  * Aligned with backend auth.js schemas for consistent validation.
  */
 
-import { ApiService, type ApiResponse } from '../api/BaseApiService'
-import { 
+import { ApiService } from '../api/BaseApiService'
+import {
+  UserSchema,
   type User,
   type LoginRequest,
   type LoginResponse,
-  type RegisterRequest,
   type RegisterForm,
-  type RefreshTokenRequestSchema,
-  type VerifyEmailQuery,
-  type SuccessResponse,
-  type ErrorResponse
+  safeParseApiResponse
 } from './schemas/auth.schemas'
 import { executeLogin } from './executeLogin'
 import { executeRegister } from './executeRegister'
-import { error } from 'console'
+import { executeVerifyEmail } from './executeVerifyEmail'
+import { executeLogout } from './executeLogout'
+import { executeRefreshToken } from './executeRefreshToken'
+import { executeRequestPasswordReset } from './executeRequestPasswordReset'
+import { executeResendVerificationEmail } from './executeResendVerificationEmail'
+import { executeSetup2FA } from './executeSetup2FA'
+import { executeVerify2FASetup } from './executeVerify2FASetup'
+import { executeVerify2FA } from './executeVerify2FA'
 
 /**
  * @brief Authentication service singleton
@@ -92,7 +96,7 @@ export class AuthService extends ApiService {
    * @return Promise<{ success: boolean; message: string }>
    * @throws Error on failure with descriptive message
    */
-  public async register(credentials: RegisterRequest): Promise<{ success: boolean; message: string }> {
+  public async register(credentials: RegisterForm): Promise<{ success: boolean; message: string }> {
     console.log('📝 Attempting registration for:', credentials.email)
     try {
       const registerData = await executeRegister(credentials, '/auth/register')
@@ -115,177 +119,469 @@ export class AuthService extends ApiService {
   }
 
   /**
-   * @brief Verify email with token from query parameter
-   * @param token - Email verification token
-   * @return Success status and user data
+   * @brief Verify email using extracted business logic
+   * @param token - Email verification token from query parameter
+   * @return Promise<{ success: boolean; user?: User }>
+   * @throws Error on failure with descriptive message
    */
   public async verifyEmail(token: string): Promise<{ success: boolean; user?: User }> {
-    const validation = validateData(VerifyEmailQuerySchema, { token })
-    if (!validation.success) {
-      throw new Error(validation.errors.join(', '))
-    }
+    console.log('📧 Attempting email verification')
+    try {
+      const verificationData = await executeVerifyEmail(token, '/auth/verify-email')
 
-    console.log('📧 Verifying email with token')
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
-    )
-
-    if (error) {
-      throw new Error(error.message || 'Email verification failed')
-    }
-
-    const response = safeParseApiResponse(VerifyEmailResponseSchema, apiResponse)
-    if (!response) {
-      if (isErrorResponse(apiResponse)) {
-        throw new Error(apiResponse.message || 'Email verification failed')
+      // Handle refresh token storage (email verification uses memory storage)
+      if (verificationData.refreshToken) {
+        this.refreshToken = verificationData.refreshToken
       }
-      throw new Error('Invalid server response')
-    }
 
-    if (!response.success) {
-      throw new Error(response.message || 'Email verification failed')
-    }
+      // Store user data
+      if (verificationData.user) {
+        this.storeUser(verificationData.user)
+        console.log('✅ Email verified and user logged in:', verificationData.user.username)
+      } else {
+        throw new Error('Verification response missing user data')
+      }
 
-    // Store refresh token in memory (email verification doesn't use rememberMe)
-    if (response.refreshToken) {
-      this.refreshToken = response.refreshToken
+      return { success: true, user: verificationData.user }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ Email verification failed:', error.message)
+        throw new Error(error.message || 'Email verification failed')
+      } else {
+        console.error('❌ Email verification failed:', error)
+        throw new Error('Email verification failed')
+      }
     }
-
-    this.storeUser(response.user)
-    console.log('✅ Email verified and user logged in:', response.user.username)
-    
-    return { success: true, user: response.user }
   }
 
   /**
-   * @brief Logout user and clear stored data
+   * @brief Logout user using extracted business logic
+   * @return Promise<void>
+   * @throws Error on failure with descriptive message
    */
   public async logout(): Promise<void> {
-    const [error] = await catchErrorTyped(
-      this.post('/auth/logout', {})
-    )
-    
-    if (error) {
-      console.warn('Logout API call failed:', error)
+    console.log('👋 Attempting logout')
+    try {
+      await executeLogout('/auth/logout')
+      console.log('✅ Logout successful')
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ Logout API call failed:', error.message)
+        // Continue with cleanup even if API call fails
+      } else {
+        console.error('❌ Logout API call failed:', error)
+      }
     }
     
+    // Always clear stored authentication data
     this.clearStoredAuth()
-    console.log('👋 User logged out')
+    console.log('🧹 Authentication data cleared')
   }
 
   /**
-   * @brief Refresh access token using stored refresh token
-   * @return Success status
+   * @brief Refresh access token using extracted business logic
+   * @return Promise<boolean> - Success status
    */
   public async refreshAuthToken(): Promise<boolean> {
     const refreshToken = this.getRefreshToken()
     if (!refreshToken) {
-      console.warn('No refresh token available')
+      console.warn('❌ No refresh token available')
       return false
     }
 
-    const requestData: RefreshTokenRequestSchema = { refreshToken }
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/refresh', requestData)
-    )
+    console.log('🔄 Attempting token refresh')
+    try {
+      const refreshData = await executeRefreshToken(refreshToken, '/auth/refresh')
 
-    if (error) {
-      console.warn('Token refresh failed:', error.message)
+      // Handle token rotation if new refresh token provided
+      if (refreshData.refreshToken) {
+        this.updateRefreshToken(refreshData.refreshToken)
+        console.log('🔄 Refresh token rotated')
+      }
+
+      console.log('✅ Access token refreshed successfully')
+      return true
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ Token refresh failed:', error.message)
+      } else {
+        console.error('❌ Token refresh failed:', error)
+      }
+      
+      // Clear stored auth on refresh failure (tokens likely expired)
       this.clearStoredAuth()
       return false
     }
-
-    const response = safeParseApiResponse(RefreshResponseSchema, apiResponse)
-    if (!response || !response.success) {
-      console.warn('Invalid refresh response')
-      this.clearStoredAuth()
-      return false
-    }
-
-    // Update refresh token if rotated
-    if (response.refreshToken) {
-      this.updateRefreshToken(response.refreshToken)
-    }
-
-    console.log('✅ Access token refreshed')
-    return true
   }
 
+
   /**
-   * @brief Request password reset email
+   * @brief Request password reset using extracted business logic
    * @param email - User email address
-   * @return Success status and message
+   * @return Promise<{ success: boolean; message: string }>
+   * @throws Error on failure with descriptive message
    */
   public async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
-    const emailSchema = z.string().email('Valid email required')
-    const validation = validateData(emailSchema, email)
-    
-    if (!validation.success) {
-      throw new Error(validation.errors.join(', '))
-    }
-
     console.log('🔑 Requesting password reset for:', email)
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/forgot-password', { email })
-    )
+    try {
+      const resetData = await executeRequestPasswordReset(email, '/auth/forgot-password')
 
-    if (error) {
-      throw new Error(error.message || 'Failed to request password reset')
-    }
-
-    const response = safeParseApiResponse(SuccessResponseSchema, apiResponse)
-    if (!response || !response.success) {
-      if (isErrorResponse(apiResponse)) {
-        throw new Error(apiResponse.message || 'Failed to request password reset')
+      console.log('✅ Password reset email sent')
+      return { 
+        success: true, 
+        message: resetData.message || 'Password reset email sent successfully'
       }
-      throw new Error('Invalid server response')
-    }
-
-    console.log('✅ Password reset email sent')
-    return { 
-      success: true, 
-      message: response.message || 'Password reset email sent successfully'
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ Password reset request failed:', error.message)
+        throw new Error(error.message || 'Failed to request password reset')
+      } else {
+        console.error('❌ Password reset request failed:', error)
+        throw new Error('Failed to request password reset')
+      }
     }
   }
 
   /**
-   * @brief Resend email verification
+   * @brief Resend verification email using extracted business logic
    * @param email - User email address
-   * @return Success status and message
+   * @return Promise<{ success: boolean; message: string }>
+   * @throws Error on failure with descriptive message
    */
   public async resendVerificationEmail(email: string): Promise<{ success: boolean; message: string }> {
-    const emailSchema = z.string().email('Valid email required')
-    const validation = validateData(emailSchema, email)
-    
-    if (!validation.success) {
-      throw new Error(validation.errors.join(', '))
+    console.log('📧 Resending verification email for:', email)
+    try {
+      const verificationData = await executeResendVerificationEmail(email, '/auth/resend-verification')
+
+      console.log('✅ Verification email resent')
+      return { 
+        success: true, 
+        message: verificationData.message || 'Verification email sent successfully'
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ Resend verification email failed:', error.message)
+        throw new Error(error.message || 'Failed to resend verification email')
+      } else {
+        console.error('❌ Resend verification email failed:', error)
+        throw new Error('Failed to resend verification email')
+      }
+    }
+  }
+
+  // ============================================================================
+  // TWO-FACTOR AUTHENTICATION METHODS
+  // ============================================================================
+
+  /**
+   * @brief Setup 2FA using extracted business logic
+   * @return Promise<{ success: boolean; setupData?: any; message?: string }>
+   * @throws Error on failure with descriptive message
+   */
+  public async setup2FA(): Promise<{ success: boolean; setupData?: any; message?: string }> {
+    if (!this.currentUser?.id) {
+      throw new Error('User must be logged in to setup 2FA')
     }
 
-    console.log('📧 Resending verification email for:', email)
+    console.log('🔐 Setting up 2FA for current user')
+    try {
+      const setup2FAData = await executeSetup2FA(this.currentUser.id, '/auth/2fa/setup')
+
+      if (setup2FAData.setupData) {
+        console.log('✅ 2FA setup data generated successfully')
+        return {
+          success: true,
+          setupData: setup2FAData.setupData,
+          message: setup2FAData.message
+        }
+      } else {
+        throw new Error('Failed to generate 2FA setup data')
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ 2FA setup failed:', error.message)
+        throw new Error(error.message || '2FA setup failed')
+      } else {
+        console.error('❌ 2FA setup failed:', error)
+        throw new Error('2FA setup failed')
+      }
+    }
+  }
+
+  /**
+   * @brief Verify 2FA setup using extracted business logic
+   * @param token - TOTP token from authenticator app
+   * @param secret - Secret key generated during setup
+   * @return Promise<{ success: boolean; message?: string }>
+   * @throws Error on failure with descriptive message
+   */
+  public async verify2FASetup(token: string, secret: string): Promise<{ success: boolean; message?: string }> {
+    if (!this.currentUser?.id) {
+      throw new Error('User must be logged in to verify 2FA setup')
+    }
+
+    console.log('🔐 Verifying 2FA setup token')
+    try {
+      const verificationData = await executeVerify2FASetup(
+        this.currentUser.id,
+        token,
+        secret,
+        '/auth/2fa/verify-setup'
+      )
+
+      console.log('✅ 2FA setup verified and enabled')
+      
+      // Update current user's 2FA status
+      if (this.currentUser) {
+        this.currentUser.twoFactorAuth = {
+          enabled: true,
+          setupComplete: true,
+          backupCodesGenerated: true
+        }
+        this.updateStoredUser()
+      }
+
+      return {
+        success: true,
+        message: verificationData.message
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ 2FA setup verification failed:', error.message)
+        throw new Error(error.message || '2FA setup verification failed')
+      } else {
+        console.error('❌ 2FA setup verification failed:', error)
+        throw new Error('2FA setup verification failed')
+      }
+    }
+  }
+
+  /**
+   * @brief Verify 2FA using extracted business logic
+   * @param token - TOTP token from authenticator app (optional)
+   * @param backupCode - Backup code (optional)
+   * @return Promise<{ success: boolean; message?: string; token?: string }>
+   * @throws Error on failure with descriptive message
+   */
+  public async verify2FA(token?: string, backupCode?: string): Promise<{ success: boolean; message?: string; token?: string }> {
+    if (!this.currentUser?.id) {
+      throw new Error('User must be logged in to verify 2FA')
+    }
+
+    console.log('🔐 Verifying 2FA token for login')
+    try {
+      const verificationData = await executeVerify2FA(
+        this.currentUser.id,
+        token,
+        backupCode,
+        '/auth/2fa/verify'
+      )
+
+      console.log('✅ 2FA verification successful')
+
+      // TODO access token are saved in cookies by backend, refresh token could be in response body. Refactor logic accordingly
+      // Update authentication state with tokens
+      const accessToken = verificationData.tokens?.accessToken
+      if (accessToken) {
+        this.authToken = accessToken
+        localStorage.setItem('ft_auth_token', this.authToken)
+        
+        // Store refresh token if provided
+        const refreshToken = verificationData.tokens?.refreshToken
+        if (refreshToken) {
+          localStorage.setItem('ft_refresh_token', refreshToken)
+        }
+      }
+
+      return {
+        success: true,
+        message: verificationData.message,
+        token: accessToken
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ 2FA verification failed:', error.message)
+        throw new Error(error.message || '2FA verification failed')
+      } else {
+        console.error('❌ 2FA verification failed:', error)
+        throw new Error('2FA verification failed')
+      }
+    }
+  }
+
+  /**
+   * @brief Disable 2FA for user account
+   * 
+   * @param password - User's current password for confirmation
+   * @param token - Optional 2FA token for additional security
+   * @returns Promise resolving to disable response
+   */
+  public async disable2FA(password: string, token?: string): Promise<{ success: boolean; message?: string }> {
+    console.log('🔐 Disabling 2FA for current user')
     
     const [error, apiResponse] = await catchErrorTyped(
-      this.post('/auth/resend-verification', { email })
+      this.post<AuthResponse>('/auth/2fa/disable', {
+        userId: this.currentUser?.id,
+        password,
+        token
+      })
     )
 
     if (error) {
-      throw new Error(error.message || 'Failed to resend verification email')
+      throw new Error(error.message || '2FA disable failed')
     }
 
-    const response = safeParseApiResponse(SuccessResponseSchema, apiResponse)
-    if (!response || !response.success) {
-      if (isErrorResponse(apiResponse)) {
-        throw new Error(apiResponse.message || 'Failed to resend verification email')
+    if (!apiResponse?.success || !apiResponse.data.success) {
+      throw new Error(apiResponse?.data.message || '2FA disable failed')
+    }
+
+    console.log('✅ 2FA disabled successfully')
+    // Update current user's 2FA status
+    if (this.currentUser) {
+      this.currentUser.twoFactorAuth = {
+        enabled: false,
+        setupComplete: false,
+        backupCodesGenerated: false
       }
-      throw new Error('Invalid server response')
+      this.updateStoredUser()
     }
 
-    console.log('✅ Verification email resent')
-    return { 
-      success: true, 
-      message: response.message || 'Verification email sent successfully'
+    return {
+      success: true,
+      message: apiResponse.data.message
+    }
+  }
+
+  /**
+   * @brief Check if current user has 2FA enabled
+   * 
+   * @returns boolean indicating 2FA status
+   */
+  public is2FAEnabled(): boolean {
+    return this.currentUser?.twoFactorAuth?.enabled || false
+  }
+
+  /**
+   * @brief Update stored user data in localStorage
+   */
+  private updateStoredUser(): void {
+    if (this.currentUser) {
+      localStorage.setItem('ft_user', JSON.stringify(this.currentUser))
+    }
+  }
+
+  // ===========================================
+  // Enhanced OAuth 2.0 Methods
+  // ===========================================
+
+  /**
+   * @brief Check if Google OAuth is available and properly configured
+   */
+  public isOAuthAvailable(): boolean {
+    return import.meta.env.VITE_OAUTH_ENABLED === 'true'
+  }
+
+  /**
+   * @brief Initiate Google OAuth flow with PKCE
+   */
+  async startGoogleOAuth(): Promise<void> {
+    const oauthAvailable = this.isOAuthAvailable()
+    if (!oauthAvailable) {
+      throw new Error('Google OAuth is not available or not properly configured')
+    }
+
+    const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    const REDIRECT_URI = import.meta.env.VITE_OAUTH_REDIRECT_URI
+    // Generate PKCE parameters
+    const codeVerifier = this.generateCodeVerifier();
+    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+    const state = this.generateState();
+
+    // Store PKCE parameters for callback verification
+    sessionStorage.setItem('oauth_code_verifier', codeVerifier);
+    sessionStorage.setItem('oauth_state', state);
+
+    // Build OAuth URL
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID || '',
+      redirect_uri: REDIRECT_URI || 'https://localhost/api/auth/oauth/google/callback',
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'consent',
+      state: state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256'
+    });
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    
+    // Redirect to Google
+    window.location.href = authUrl;
+  }
+
+  /**
+   * @brief Generate cryptographically secure code verifier
+   */
+  private generateCodeVerifier(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return btoa(String.fromCharCode(...array))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+  }
+
+  /**
+   * @brief Generate code challenge from verifier
+   */
+  private async generateCodeChallenge(verifier: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+  }
+
+  /**
+   * @brief Generate random state parameter
+   */
+  private generateState(): string {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    return btoa(String.fromCharCode(...array)).replace(/=/g, '');
+  }
+
+  /**
+   * @brief Unlink OAuth provider from account
+   */
+  public async unlinkOAuthProvider(provider: string): Promise<{ success: boolean; message?: string; user?: any }> {
+    const [error, apiResponse] = await catchErrorTyped(
+      this.delete<AuthResponse>(`/auth/oauth/${provider}`)
+    )
+
+    if (error) {
+      throw new Error(error.message || `Failed to unlink ${provider} account`)
+    }
+
+    if (!apiResponse?.success || !apiResponse.data.success) {
+      throw new Error(apiResponse?.data.message || `Failed to unlink ${provider} account`)
+    }
+
+    if (apiResponse.data.user) {
+      // Update stored user data
+      this.currentUser = apiResponse.data.user
+      this.updateStoredUser()
+      
+      console.log('🔐 OAuth provider unlinked successfully')
+    }
+    
+    return {
+      success: true,
+      message: apiResponse.data.message,
+      user: apiResponse.data.user
     }
   }
 
@@ -406,5 +702,4 @@ export class AuthService extends ApiService {
   }
 }
 
-// Export singleton instance
 export const authService = AuthService.getInstance()

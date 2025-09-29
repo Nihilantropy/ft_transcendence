@@ -6,10 +6,11 @@
  */
 
 import { Component } from '../../components/base/Component'
-import { authService, type LoginCredentials, PasswordUtils, type PasswordValidation } from '../../services/schemas/auth.schemas'
-import { type RegisterRequest } from '../../services/schemas/auth.schemas'
 import { showPopup } from '../../components/ui/Popup'
 import { router } from '../../router/router'
+import { authService } from '../../services/auth/AuthService'
+import { type PasswordValidation, PasswordUtils } from '../../services/utils'
+import { type LoginRequest } from '../../services/auth/schemas/auth.schemas'
 
 export interface LoginPageProps {
   /** Initial mode: 'login' or 'register' */
@@ -57,7 +58,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
     const form = event.target as HTMLFormElement
     const formData = new FormData(form)
 
-    const credentials: LoginCredentials = {
+    const credentials: LoginRequest = {
       identifier: formData.get('identifier') as string,  // Can be email or username
       password: formData.get('password') as string,
       rememberMe: formData.get('rememberMe') === 'on'
@@ -127,7 +128,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
   /**
    * @brief Perform login with credentials (extracted from handleLogin)
    */
-  private async performLogin(credentials: LoginCredentials): Promise<void> {
+  private async performLogin(credentials: LoginRequest): Promise<void> {
     this.setState({ 
       isLoading: true, 
       success: null 

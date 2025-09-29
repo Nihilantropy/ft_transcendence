@@ -80,6 +80,35 @@ export const VerifyEmailQuerySchema = z.object({
     .describe("Email verification token from query string")
 })
 
+/**
+ * @brief 2FA setup request schema
+ */
+export const Setup2FARequestSchema = z.object({
+  userId: z.number().positive('Valid user ID required')
+})
+
+/**
+ * @brief 2FA setup verification request schema
+ */
+export const Verify2FASetupRequestSchema = z.object({
+  userId: z.number().positive('Valid user ID required'),
+  token: z.string().min(6, 'TOTP token must be at least 6 digits').max(6, 'TOTP token must be exactly 6 digits'),
+  secret: z.string().min(16, 'Invalid secret key format')
+})
+
+/**
+ * @brief 2FA verification request schema
+ */
+export const Verify2FARequestSchema = z.object({
+  userId: z.number().positive('Valid user ID required'),
+  token: z.string().length(6, 'TOTP token must be exactly 6 digits').optional(),
+  backupCode: z.string().min(8, 'Invalid backup code format').optional()
+}).refine(data => data.token || data.backupCode, {
+  message: 'Either TOTP token or backup code must be provided',
+  path: ['token']
+})
+
+
 // =============================================================================
 // RESPONSE SCHEMAS
 // =============================================================================
@@ -132,6 +161,54 @@ export const RefreshResponseSchema = z.object({
 })
 
 /**
+ * @brief Password reset email request schema
+ */
+export const PasswordResetEmailSchema = z.object({
+  email: z.string().email('Valid email required')
+})
+
+/**
+ * @brief Resend verification email request schema
+ */
+export const ResendVerificationEmailSchema = z.object({
+  email: z.string().email('Valid email required')
+})
+
+/**
+ * @brief 2FA setup verification response schema
+ */
+export const Verify2FASetupResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string()
+})
+
+/**
+ * @brief 2FA setup response schema
+ */
+export const Setup2FAResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  setupData: z.object({
+    secret: z.string(),
+    qrCode: z.string(),
+    backupCodes: z.array(z.string())
+  }).optional()
+})
+
+/**
+ * @brief 2FA verification response schema
+ */
+export const Verify2FAResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  tokens: z.object({
+    accessToken: z.string(),
+    refreshToken: z.string().optional()
+  }).optional()
+})
+
+
+/**
  * @brief Generic success response for logout, etc.
  */
 export const SuccessResponseSchema = z.object({
@@ -167,14 +244,22 @@ export type RegisterRequest = z.infer<typeof RegisterRequestSchema>
 export type RegisterForm = z.infer<typeof RegisterFormSchema>
 export type RefreshTokenRequest = z.infer<typeof RefreshTokenRequestSchema>
 export type VerifyEmailQuery = z.infer<typeof VerifyEmailQuerySchema>
+export type ResendVerificationEmailRequest = z.infer<typeof ResendVerificationEmailSchema>
+export type Setup2FARequest = z.infer<typeof Setup2FARequestSchema>
+export type Verify2FASetupRequest = z.infer<typeof Verify2FASetupRequestSchema>
+export type Verify2FARequest = z.infer<typeof Verify2FARequestSchema>
 
 // Response types
 export type LoginResponse = z.infer<typeof LoginResponseSchema>
 export type RegisterResponse = z.infer<typeof RegisterResponseSchema>
 export type VerifyEmailResponse = z.infer<typeof VerifyEmailResponseSchema>
 export type RefreshResponse = z.infer<typeof RefreshResponseSchema>
+export type PasswordResetEmailRequest = z.infer<typeof PasswordResetEmailSchema>
 export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
+export type Setup2FAResponse = z.infer<typeof Setup2FAResponseSchema>
+export type Verify2FASetupResponse = z.infer<typeof Verify2FASetupResponseSchema>
+export type Verify2FAResponse = z.infer<typeof Verify2FAResponseSchema>
 
 // =============================================================================
 // SCHEMA VALIDATION UTILITIES

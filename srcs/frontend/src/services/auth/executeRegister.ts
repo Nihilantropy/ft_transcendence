@@ -31,7 +31,7 @@ import { catchErrorTyped } from '../error'
  * @return Promise<RegisterResponse> - Validated response from backend
  */
 export async function executeRegister(
-  credentials: RegisterRequest,
+  credentials: RegisterForm,
   endpoint: string = '/auth/register'
 ): Promise<RegisterResponse> {
   // Validate input with Zod (includes confirmPassword validation)
