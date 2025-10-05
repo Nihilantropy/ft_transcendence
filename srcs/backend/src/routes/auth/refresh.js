@@ -9,6 +9,8 @@
 
 import { logger } from '../../logger.js'
 import { routeSchemas } from '../../schemas/index.js'
+import { generateRefreshToken } from '../../utils/jwt.js'
+import { REFRESH_TOKEN_CONFIG } from '../../utils/coockie.js'
 
 // Create route-specific logger
 const refreshLogger = logger.child({ module: 'routes/auth/refresh' })
@@ -19,7 +21,6 @@ const refreshLogger = logger.child({ module: 'routes/auth/refresh' })
 async function refreshRoute(fastify, options) {
   fastify.post('/refresh', {
     schema: routeSchemas.refresh
-    
   }, async (request, reply) => {
     try {
       // Get refresh token from body OR cookie
@@ -35,21 +36,14 @@ async function refreshRoute(fastify, options) {
       }
       
       // Verify refresh token and generate new access token
-      const { accessToken, refreshToken: newRefreshToken } = await refreshTokenPair(refreshToken)
-      
-      // ✅ SET NEW ACCESS TOKEN AS HTTP-ONLY COOKIE
-      reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
+      const newRefreshToken = generateRefreshToken(refreshToken)
       
       // ✅ OPTIONALLY ROTATE REFRESH TOKEN
       if (newRefreshToken) {
         reply.setCookie('refreshToken', newRefreshToken, REFRESH_TOKEN_CONFIG)
       }
       
-      return {
-        success: true,
-        message: 'Token refreshed successfully',
-        refreshToken: newRefreshToken // Only if not using cookie storage
-      }
+      return
       
     } catch (error) {
       reply.status(401)

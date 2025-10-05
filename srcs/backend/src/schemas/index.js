@@ -4,8 +4,8 @@
  * @description Central schema management with simple registration
  */
 
-import commonResponses from './common/responses.js'
-import authSchemas, { routeSchemas } from './routes/auth.js'
+import commonResponses from './common/responses.schema.js'
+import authSchemas, { routeSchemas } from './routes/auth.schema.js'
 
 /**
  * @brief Register all schemas with Fastify instance

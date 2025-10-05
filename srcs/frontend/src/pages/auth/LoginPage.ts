@@ -10,7 +10,7 @@ import { showPopup } from '../../components/ui/Popup'
 import { router } from '../../router/router'
 import { authService } from '../../services/auth/AuthService'
 import { type PasswordValidation, PasswordUtils } from '../../services/utils'
-import { type LoginRequest } from '../../services/auth/schemas/auth.schemas'
+import { type LoginRequest, type RegisterRequest } from '../../services/auth/schemas/auth.schemas'
 
 export interface LoginPageProps {
   /** Initial mode: 'login' or 'register' */
@@ -138,6 +138,22 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
       const response = await authService.login(credentials)
       
       if (response.success) {
+        // Check if 2FA is required
+        if (response.requiresTwoFactor && response.tempToken) {
+          this.setState({ 
+            isLoading: false
+          })
+          
+          // Store tempToken temporarily for 2FA verification page
+          sessionStorage.setItem('ft_2fa_temp_token', response.tempToken)
+          
+          // Navigate to 2FA verification page
+          console.log('🔐 2FA required, navigating to verification page')
+          router.navigate('/verify-2fa')
+          return
+        }
+
+        // Regular login success
         this.setState({ 
           success: 'Login successful! Redirecting...',
           isLoading: false

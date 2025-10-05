@@ -9,7 +9,6 @@ import healthRoutes from './health.js'
 import dbTestRoutes from './db-test.js'
 import authRoutes from './auth/index.js'
 import userRoutes from './users/index.js'
-import swaggerPlugin from '../plugins/swagger.js'
 
 // Create route-specific logger
 const routeLogger = logger.child({ module: 'routes' })
@@ -25,14 +24,6 @@ export async function registerRoutes(fastify) {
   
   // Register routes with base path prefix
   await fastify.register(async function(fastify) {
-    
-    // =============================================================================
-    // DOCUMENTATION ROUTES
-    // =============================================================================
-    
-    // Register Swagger documentation within API prefix
-    await fastify.register(swaggerPlugin)
-    routeLogger.info('📚 Swagger documentation routes registered')
     
     // =============================================================================
     // API ROUTES

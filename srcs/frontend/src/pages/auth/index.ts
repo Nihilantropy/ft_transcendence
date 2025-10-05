@@ -9,6 +9,5 @@ export { ForgotPasswordPage } from './ForgotPasswordPage'
 export { ResetPasswordPage } from './ResetPasswordPage'
 export { EmailVerificationPage } from './EmailVerificationPage'
 export { TwoFactorSetupPage } from './TwoFactorSetupPage'
-
-// Future auth pages
-// export { TwoFactorAuthPage } from './TwoFactorAuthPage'
+export { TwoFactorAuthPage } from './TwoFactorAuthPage'
+export { TwoFactorManagePage } from './TwoFactorManagePage'

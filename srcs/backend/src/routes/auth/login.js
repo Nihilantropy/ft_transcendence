@@ -9,7 +9,7 @@ import { verifyPassword } from '../../utils/auth_utils.js'
 import { generateTokenPair } from '../../utils/jwt.js'
 import { userService } from '../../services/user.service.js'
 import { routeSchemas } from '../../schemas/index.js'
-import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG } from '../../utils/coockie.js'
+import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
 
 const loginLogger = logger.child({ module: 'routes/auth/login' })
 
@@ -51,28 +51,53 @@ async function loginRoute(fastify, options) {
         }
       }
       
-      // 3. Handle 2FA
+      // 3. Handle 2FA - if enabled, require 2FA verification
       if (user.two_factor_enabled && !twoFactorToken) {
+        // Generate temporary token for 2FA verification
+        const tempTokenPayload = {
+          userId: user.id,
+          rememberMe: rememberMe, // Store rememberMe preference for 2FA completion
+          type: 'temp_2fa',
+          exp: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutes expiry
+        }
+        const tempToken = fastify.jwt.sign(tempTokenPayload)
+        
+        loginLogger.info('🔐 2FA required', { userId: user.id })
+        
         return {
-          success: false,
+          success: true,
           message: 'Two-factor authentication required',
           requiresTwoFactor: true,
-          tempToken: 'temp-2fa-token'
+          tempToken: tempToken
+        }
+      }
+      
+      // TODO: If twoFactorToken is provided, verify it here
+      if (user.two_factor_enabled && twoFactorToken) {
+        // This should be handled by a separate 2FA verification route
+        // For now, we'll reject it
+        reply.status(400)
+        return {
+          success: false,
+          message: 'Please use the 2FA verification endpoint',
+          error: { code: 'USE_2FA_ENDPOINT', details: 'Use /auth/2fa/verify for 2FA verification' }
         }
       }
       
       // 4. Generate tokens and update status
       const { accessToken, refreshToken } = generateTokenPair(user, {
         access: { expiresIn: '15m' },
-        refresh: { expiresIn: '1d' }
+        refresh: { expiresIn: rememberMe ? '7d' : '1d' }
       })
 
-      // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE
+      // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE (always)
       reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
 
-      // ✅ OPTIONALLY SET REFRESH TOKEN AS COOKIE TOO
+      // ✅ SET REFRESH TOKEN AS HTTP-ONLY COOKIE (always, but different maxAge)
       if (rememberMe) {
         reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_CONFIG)
+      } else {
+        reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_ROTATION_CONFIG)
       }
 
       userService.updateUserOnlineStatus(user.id, true)
@@ -86,9 +111,11 @@ async function loginRoute(fastify, options) {
           id: user.id,
           username: user.username,
           email: user.email,
-          is_online: true
-        },
-        refreshToken: rememberMe ? undefined : refreshToken
+          email_verified: user.email_verified || false,
+          avatar: user.avatar_url || undefined,
+          is_online: true,
+          twoFactorEnabled: user.two_factor_enabled || false
+        }
       }
       
     } catch (error) {

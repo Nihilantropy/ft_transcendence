@@ -17,6 +17,9 @@ const authLogger = logger.child({ module: 'middleware/auth' })
  * @brief Secure cookie-only authentication
  * @param {FastifyRequest} request - Fastify request object
  * @param {FastifyReply} reply - Fastify reply object
+ * 
+ * @description Fastify preHandler that throws errors to stop execution.
+ * When an error is thrown, Fastify's error handler catches it and sends the response.
  */
 export async function requireAuth(request, reply) {
   // ✅ ONLY extract from HTTP-only cookie
@@ -24,14 +27,13 @@ export async function requireAuth(request, reply) {
   
   if (!token) {
     authLogger.warn('Authentication required - no access token cookie')
-    reply.status(401)
-    throw new Error('Authentication required')
+    // Throw error to stop execution - Fastify error handler will catch it
+    throw { statusCode: 401, message: 'Authentication required' }
   }
 
   if (!isJwtConfigured()) {
     authLogger.error('JWT service not configured')
-    reply.status(500)
-    throw new Error('Authentication service unavailable')
+    throw { statusCode: 500, message: 'Authentication service unavailable' }
   }
 
   try {
@@ -40,16 +42,20 @@ export async function requireAuth(request, reply) {
     
     if (!user || !user.is_active) {
       authLogger.warn('User not found or inactive', { userId: decoded.userId })
-      reply.status(401)
-      throw new Error('User not found or inactive')
+      throw { statusCode: 401, message: 'User not found or inactive' }
     }
     
+    // ✅ Success: Attach user to request and continue to route handler
     request.user = user
     
   } catch (error) {
+    // Handle JWT verification errors
+    if (error.statusCode) {
+      throw error // Re-throw our custom errors
+    }
+    
     authLogger.warn('Token verification failed', { error: error.message })
-    reply.status(401)
-    throw new Error('Invalid or expired token')
+    throw { statusCode: 401, message: 'Invalid or expired token' }
   }
 }
 

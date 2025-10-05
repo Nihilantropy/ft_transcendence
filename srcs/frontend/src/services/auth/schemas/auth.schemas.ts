@@ -20,7 +20,9 @@ export const UserSchema = z.object({
   username: z.string(),
   email: z.string().email(),
   email_verified: z.boolean(),
-  is_online: z.boolean().optional()
+  avatar: z.string().optional(),
+  is_online: z.boolean().optional(),
+  twoFactorEnabled: z.boolean().default(false),
 })
 
 // =============================================================================
@@ -43,22 +45,24 @@ export const LoginRequestSchema = z.object({
 
 /**
  * @brief Register request schema (backend structure)
+ * Backend expects both password and confirmPassword for validation
  */
 export const RegisterRequestSchema = z.object({
   email: z.string()
     .email("Valid email required")
     .describe("Valid email address"),
   password: z.string()
-    .refine(PasswordUtils.validatePassword, {
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password too long")
+    .refine((password) => {
+      const validation = PasswordUtils.validatePassword(password)
+      return validation.isValid
+    }, {
       message: "Password does not meet complexity requirements"
     }),
-})
-
-/**
- * @brief Frontend-only registration with confirmation
- */
-export const RegisterFormSchema = RegisterRequestSchema.extend({
-  confirmPassword: z.string().min(1, "Please confirm password")
+  confirmPassword: z.string()
+    .min(8, "Confirm password must be at least 8 characters")
+    .max(128, "Confirm password too long")
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"]
@@ -68,7 +72,7 @@ export const RegisterFormSchema = RegisterRequestSchema.extend({
  * @brief Token refresh request schema
  */
 export const RefreshTokenRequestSchema = z.object({
-  refreshToken: z.string().describe("Refresh token to obtain new access token")
+
 })
 
 /**
@@ -81,32 +85,54 @@ export const VerifyEmailQuerySchema = z.object({
 })
 
 /**
- * @brief 2FA setup request schema
+ * @brief 2FA setup initiation request
+ * Used when user starts 2FA setup process
  */
 export const Setup2FARequestSchema = z.object({
-  userId: z.number().positive('Valid user ID required')
-})
+  // Usually no data needed for setup initiation, but keeping extensible
+});
+
 
 /**
- * @brief 2FA setup verification request schema
+ * @brief 2FA setup verification request
+ * Used specifically for verifying the 2FA setup process
  */
 export const Verify2FASetupRequestSchema = z.object({
-  userId: z.number().positive('Valid user ID required'),
-  token: z.string().min(6, 'TOTP token must be at least 6 digits').max(6, 'TOTP token must be exactly 6 digits'),
-  secret: z.string().min(16, 'Invalid secret key format')
-})
+  token: z.string().length(6).regex(/^\d{6}$/, "Must be 6 digits"),
+  secret: z.string().min(1, "Secret is required"),
+});
 
 /**
- * @brief 2FA verification request schema
+ * @brief 2FA verification request for login
+ * Used for verifying 2FA during login process
  */
 export const Verify2FARequestSchema = z.object({
-  userId: z.number().positive('Valid user ID required'),
-  token: z.string().length(6, 'TOTP token must be exactly 6 digits').optional(),
-  backupCode: z.string().min(8, 'Invalid backup code format').optional()
+  tempToken: z.string().min(1, "Temporary token is required"),
+  token: z.string().length(6).regex(/^\d{6}$/, "Must be 6 digits").optional(),
+  backupCode: z.string().optional(),
 }).refine(data => data.token || data.backupCode, {
-  message: 'Either TOTP token or backup code must be provided',
-  path: ['token']
-})
+  message: "Either TOTP token or backup code is required",
+});
+
+/**
+ * @brief 2FA disable request schema
+ * Used for disabling 2FA on user account
+ */
+export const Disable2FARequestSchema = z.object({
+  password: z.string().min(1, "Password is required for 2FA disable"),
+  token: z.string().length(6).regex(/^\d{6}$/, "Must be 6 digits").optional(),
+});
+
+/**
+ * @brief 2FA status response
+ * Current user's 2FA configuration status
+ */
+export const TwoFactorStatusSchema = z.object({
+  enabled: z.boolean(),
+  hasBackupCodes: z.boolean(),
+});
+
+
 
 
 // =============================================================================
@@ -115,49 +141,45 @@ export const Verify2FARequestSchema = z.object({
 
 /**
  * @brief Login response schema matching backend
+ * When 2FA is required: returns requiresTwoFactor=true + tempToken, NO user object
+ * When 2FA not required: returns user object
+ * Access token and refresh token are both set in httpOnly cookies by backend (not in response body)
  */
 export const LoginResponseSchema = z.object({
   success: z.boolean().nonoptional(),
   message: z.string().nonoptional(),
-  user: UserSchema.nonoptional(),
-  refreshToken: z.string()
-    .describe("Refresh token for memory storage")
-    .optional(),
-  requiresTwoFactor: z.boolean().optional(),
-  tempToken: z.string().optional()
+  user: UserSchema.optional(), // Only present when 2FA not required
+  requiresTwoFactor: z.boolean().optional(), // Only present when 2FA required
+  tempToken: z.string().optional() // Only present when 2FA required
 })
 
 /**
  * @brief Register response schema matching backend
+ * Access token and refresh token are set in httpOnly cookies (not in response body)
  */
 export const RegisterResponseSchema = z.object({
   success: z.boolean().nonoptional(),
   message: z.string().nonoptional(),
-  user: UserSchema.nonoptional(),
-  refreshToken: z.string()
-    .describe("Refresh token for memory storage")
-    .optional(),
+  user: UserSchema.nonoptional()
 })
 
 /**
  * @brief Email verification response schema
+ * Access token and refresh token are set in httpOnly cookies (not in response body)
  */
 export const VerifyEmailResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  user: UserSchema,
-  refreshToken: z.string().describe("Refresh token for memory storage")
+  user: UserSchema
 })
 
 /**
  * @brief Token refresh response schema
+ * New access token and refresh token (if rotated) are set in httpOnly cookies
  */
 export const RefreshResponseSchema = z.object({
   success: z.boolean(),
-  message: z.string(),
-  refreshToken: z.string()
-    .describe("New refresh token (optional rotation)")
-    .optional()
+  message: z.string()
 })
 
 /**
@@ -175,14 +197,6 @@ export const ResendVerificationEmailSchema = z.object({
 })
 
 /**
- * @brief 2FA setup verification response schema
- */
-export const Verify2FASetupResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string()
-})
-
-/**
  * @brief 2FA setup response schema
  */
 export const Setup2FAResponseSchema = z.object({
@@ -195,18 +209,34 @@ export const Setup2FAResponseSchema = z.object({
   }).optional()
 })
 
+
 /**
- * @brief 2FA verification response schema
+ * @brief 2FA setup verification response schema
+ */
+export const Verify2FASetupResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  user: UserSchema
+})
+
+/**
+ * @brief 2FA verification response schema for login
+ * Access token and refresh token are set in httpOnly cookies by backend (not in response body)
  */
 export const Verify2FAResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  tokens: z.object({
-    accessToken: z.string(),
-    refreshToken: z.string().optional()
-  }).optional()
+  user: UserSchema
 })
 
+/**
+ * @brief 2FA disable response schema
+ */
+export const Disable2FAResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  user: UserSchema
+})
 
 /**
  * @brief Generic success response for logout, etc.
@@ -241,13 +271,13 @@ export type User = z.infer<typeof UserSchema>
 // Request types
 export type LoginRequest = z.infer<typeof LoginRequestSchema>
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>
-export type RegisterForm = z.infer<typeof RegisterFormSchema>
 export type RefreshTokenRequest = z.infer<typeof RefreshTokenRequestSchema>
 export type VerifyEmailQuery = z.infer<typeof VerifyEmailQuerySchema>
 export type ResendVerificationEmailRequest = z.infer<typeof ResendVerificationEmailSchema>
 export type Setup2FARequest = z.infer<typeof Setup2FARequestSchema>
 export type Verify2FASetupRequest = z.infer<typeof Verify2FASetupRequestSchema>
 export type Verify2FARequest = z.infer<typeof Verify2FARequestSchema>
+export type Disable2FARequest = z.infer<typeof Disable2FARequestSchema>
 
 // Response types
 export type LoginResponse = z.infer<typeof LoginResponseSchema>
@@ -260,6 +290,8 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 export type Setup2FAResponse = z.infer<typeof Setup2FAResponseSchema>
 export type Verify2FASetupResponse = z.infer<typeof Verify2FASetupResponseSchema>
 export type Verify2FAResponse = z.infer<typeof Verify2FAResponseSchema>
+export type Disable2FAResponse = z.infer<typeof Disable2FAResponseSchema>
+
 
 // =============================================================================
 // SCHEMA VALIDATION UTILITIES

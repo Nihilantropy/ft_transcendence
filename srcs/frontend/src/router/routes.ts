@@ -10,7 +10,15 @@ import { HomePage } from '../pages/home/HomePage'
 import { GamePage } from '../pages/game/GamePage'
 import { ProfilePage } from '../pages/profile/ProfilePage'
 import { FriendsPage } from '../pages/friends/FriendsPage'
-import { LoginPage, ForgotPasswordPage, ResetPasswordPage, EmailVerificationPage, TwoFactorSetupPage } from '../pages/auth'
+import { 
+  LoginPage, 
+  ForgotPasswordPage, 
+  ResetPasswordPage, 
+  EmailVerificationPage, 
+  TwoFactorSetupPage,
+  TwoFactorAuthPage,
+  TwoFactorManagePage
+} from '../pages/auth'
 import { UsernameSelectionPage } from '../pages/auth/UsernameSelectionPage'
 
 // Global page container reference
@@ -139,6 +147,34 @@ export function configureRoutes(router: Router): void {
     console.log('🔐 Loading Two-Factor Authentication Setup page')
     loadPage(TwoFactorSetupPage)
     document.title = 'Setup 2FA - ft_transcendence'
+  }, { 
+    requiresAuth: true,
+    redirect: '/login'
+  })
+
+  router.register('/verify-2fa', async () => {
+    console.log('🔐 Loading Two-Factor Authentication Verification page')
+    // Get tempToken from sessionStorage (set during login)
+    const tempToken = sessionStorage.getItem('ft_2fa_temp_token')
+    
+    if (!tempToken) {
+      console.error('❌ No tempToken found for 2FA verification, redirecting to login')
+      router.navigate('/login')
+      return
+    }
+    
+    // Load page with tempToken
+    loadPage(TwoFactorAuthPage, { tempToken })
+    document.title = '2FA Verification - ft_transcendence'
+  }, {
+    requiresAuth: false, // User is not fully authenticated yet, so don't require auth
+    redirect: '/login'
+  })
+
+  router.register('/manage-2fa', async () => {
+    console.log('🔐 Loading Two-Factor Authentication Management page')
+    loadPage(TwoFactorManagePage)
+    document.title = 'Manage 2FA - ft_transcendence'
   }, { 
     requiresAuth: true,
     redirect: '/login'

@@ -279,7 +279,7 @@ export class UserService {
    * @param {string} verificationToken - Email verification token
    * @return {object|null} - User object if verification successful, null otherwise
    */
-  async verifyUserEmail(verificationToken) {
+  verifyUserEmail(verificationToken) {
     try {
       userServiceLogger.debug('Verifying user email with token')
       
@@ -397,6 +397,78 @@ export class UserService {
       userServiceLogger.debug('Updated user online status, rows changed:', result.changes)
     } catch (error) {
       userServiceLogger.error('Error updating user online status:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * @brief Regenerate verification token for user
+   * 
+   * @param {string} email - User email
+   * @return {Object|null} Object with user data and new token, or null if user not found/already verified
+   */
+  regenerateVerificationToken(email) {
+    try {
+      userServiceLogger.debug('Regenerating verification token for email:', email)
+      
+      // Find user by email
+      const user = databaseConnection.get(`
+        SELECT id, username, email, email_verified, updated_at
+        FROM users 
+        WHERE LOWER(email) = LOWER(?) AND is_active = 1
+        LIMIT 1
+      `, [email])
+      
+      if (!user) {
+        userServiceLogger.debug('No user found with email:', email)
+        return null
+      }
+      
+      if (user.email_verified) {
+        userServiceLogger.debug('Email already verified for user:', user.id)
+        return { alreadyVerified: true, user }
+      }
+      
+      // Check rate limiting: max 1 email per 5 minutes
+      const lastUpdate = new Date(user.updated_at)
+      const now = new Date()
+      const minutesSinceLastUpdate = (now - lastUpdate) / (1000 * 60)
+      
+      if (minutesSinceLastUpdate < 5) {
+        const waitMinutes = Math.ceil(5 - minutesSinceLastUpdate)
+        userServiceLogger.debug('Rate limit hit for user:', user.id)
+        return { 
+          rateLimited: true, 
+          waitMinutes,
+          message: `Please wait ${waitMinutes} minute(s) before requesting another verification email`
+        }
+      }
+      
+      // Generate new verification token
+      const newToken = generateVerificationToken()
+      
+      // Update user with new token
+      const updateResult = databaseConnection.run(`
+        UPDATE users 
+        SET email_verification_token = ?, 
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [newToken, user.id])
+      
+      userServiceLogger.debug('Verification token regenerated, rows changed:', updateResult.changes)
+      
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email
+        },
+        verificationToken: newToken
+      }
+      
+    } catch (error) {
+      userServiceLogger.error('Error regenerating verification token:', error.message)
       throw error
     }
   }

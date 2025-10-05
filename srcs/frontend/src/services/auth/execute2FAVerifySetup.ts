@@ -4,7 +4,6 @@
  * @description Pure function that handles 2FA setup verification request to backend.
  * Uses Zod schemas for validation and validates server response.
  * 
- * @param userId - Current user ID
  * @param token - TOTP token from authenticator app
  * @param secret - Secret key generated during setup
  * @param endpoint - API endpoint for 2FA setup verification
@@ -25,7 +24,6 @@ import {
 /**
  * @brief Execute 2FA setup verification request with validation
  * 
- * @param userId - Current user ID
  * @param token - TOTP token from authenticator app
  * @param secret - Secret key generated during setup
  * @param endpoint - 2FA setup verification endpoint
@@ -33,13 +31,12 @@ import {
  * @return Promise<Verify2FASetupResponse> - Validated response from backend
  */
 export async function executeVerify2FASetup(
-  userId: number,
   token: string,
   secret: string,
   endpoint: string = '/auth/2fa/verify-setup'
 ): Promise<Verify2FASetupResponse> {
   // Validate input with Zod
-  const requestData: Verify2FASetupRequest = { userId, token, secret }
+  const requestData: Verify2FASetupRequest = { token, secret }
   const validation = validateData(Verify2FASetupRequestSchema, requestData)
   if (!validation.success) {
     throw new Error(`Invalid 2FA verification data: ${validation.errors.join(', ')}`)

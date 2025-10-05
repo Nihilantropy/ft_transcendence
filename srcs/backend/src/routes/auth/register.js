@@ -6,8 +6,8 @@
 
 import { logger } from '../../logger.js'
 import { userService, emailService } from '../../services/index.js'
-import { routeSchemas } from '../../schemas/routes/auth.js'
-import { validatePasswordStrength } from '../../middleware/validation.js'
+import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { validatePassword } from '../../middleware/validation.js'
 
 const registerLogger = logger.child({ module: 'routes/auth/register' })
 
@@ -16,15 +16,25 @@ const registerLogger = logger.child({ module: 'routes/auth/register' })
  * @param {FastifyInstance} fastify - The Fastify instance
  */
 async function registerRoute(fastify, options) {
-  
   fastify.post('/register', {
-    schema: routeSchemas.register
+  schema: routeSchemas.register
   }, async (request, reply) => {
     try {
-      const { email, password } = request.body
-      
-      registerLogger.info('Registration attempt', { email })
-      
+      const { email, password, confirmPassword } = request.body
+
+      registerLogger.info('Registration attempt', { email, password: '****', confirmPassword: '****' })
+      if (password !== confirmPassword) {
+        reply.status(400)
+        return {
+          success: false,
+          message: "Passwords don't match",
+          error: {
+            code: 'PASSWORD_MISMATCH',
+            details: 'The provided passwords do not match'
+          }
+        }
+      }
+
       // 1. Check email availability
       if (userService.isEmailTaken(email)) {
         reply.status(409)
@@ -39,8 +49,9 @@ async function registerRoute(fastify, options) {
       }
 
       // 2. Validate password strength
-      const passwordResult = validatePasswordStrength(password)
-      if (!passwordResult.isValid) {
+      const passwordResult = validatePassword(password, confirmPassword)
+      registerLogger.info('Password validation result', { isValid: !!passwordResult })
+      if (!passwordResult) {
         reply.status(400)
         return {
           success: false,
@@ -64,27 +75,27 @@ async function registerRoute(fastify, options) {
         username: newUser.username,
         verificationToken: newUser.verificationToken
       })
-      
+
       if (!emailSent) {
         registerLogger.warn('Failed to send verification email', { 
           userId: newUser.id, 
           email: newUser.email 
         })
       }
-      
+
       registerLogger.info('User registered successfully', { 
         userId: newUser.id, 
         username: newUser.username, 
         email: newUser.email,
         emailSent
       })
-      
+
       reply.status(201)
       return {
         success: true,
         message: 'User registered successfully. Please check your email to verify your account.',
-        data: {
-          id: newUser.id,
+        user: {
+          id: parseInt(newUser.id), // Ensure integer type
           username: newUser.username,
           email: newUser.email,
           email_verified: newUser.email_verified

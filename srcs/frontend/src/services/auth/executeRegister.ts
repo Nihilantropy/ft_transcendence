@@ -13,9 +13,8 @@
 
 import { validateData } from '../utils/validation'
 import { 
-  RegisterFormSchema,
+  RegisterRequestSchema,
   RegisterResponseSchema,
-  type RegisterForm,
   type RegisterRequest,
   type RegisterResponse
 } from './schemas/auth.schemas'
@@ -31,21 +30,22 @@ import { catchErrorTyped } from '../error'
  * @return Promise<RegisterResponse> - Validated response from backend
  */
 export async function executeRegister(
-  credentials: RegisterForm,
+  credentials: RegisterRequest,
   endpoint: string = '/auth/register'
 ): Promise<RegisterResponse> {
   // Validate input with Zod (includes confirmPassword validation)
-  const validation = validateData(RegisterFormSchema, credentials)
+  const validation = validateData(RegisterRequestSchema, credentials)
   if (!validation.success) {
     throw new Error(`Invalid registration data: ${validation.errors.join(', ')}`)
   }
 
-  const validCredentials: RegisterForm = validation.data
+  const validCredentials: RegisterRequest = validation.data
 
   // Transform to backend request format (remove confirmPassword)
   const registerRequest: RegisterRequest = {
     email: validCredentials.email,
-    password: validCredentials.password
+    password: validCredentials.password,
+    confirmPassword: validCredentials.confirmPassword
   }
 
   // Make API request

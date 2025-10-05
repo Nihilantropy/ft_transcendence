@@ -3,33 +3,94 @@
  */
 
 import { logger } from '../../logger.js'
+import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { requireAuth } from '../../middleware/authentication.js'
+import speakeasy from 'speakeasy'
+import qrcode from 'qrcode'
+import crypto from 'crypto'
+import databaseConnection from '../../database.js'
 
-const twoFASetupLogger = logger.child({ module: 'routes/auth/2fa-setup' })
+const setup2FArouteLogger = logger.child({ module: 'routes/auth/2fa-setup' })
 
-async function twoFASetupRoute(fastify, options) {
-  fastify.post('/2fa/setup', async (request, reply) => {
+async function setup2FAroute(fastify, options) {
+  // Register the route with schema validation
+  fastify.post('/2fa/setup', {
+    schema: routeSchemas.setup2FA,
+    preHandler: requireAuth // Ensure user is authenticated
+  }, async (request, reply) => {
     try {
-      // TODO: Implement 2FA setup logic
-      // 1. Verify JWT token from Authorization header
-      // 2. Check if 2FA is already enabled for user
-      // 3. Generate TOTP secret for the user
-      // 4. Create QR code URL for authenticator app
-      // 5. Store temporary secret (not yet verified)
-      // 6. Return QR code and backup codes
+      const userId = request.user.id
+      setup2FArouteLogger.info('🔐 Starting 2FA setup', { userId })
+
+      // Check if 2FA is already enabled for user
+      const existingUser = databaseConnection.get(
+        'SELECT two_factor_enabled FROM users WHERE id = ?',
+        [userId]
+      )
+
+      if (existingUser?.two_factor_enabled) {
+        setup2FArouteLogger.warn('⚠️ 2FA already enabled', { userId })
+        reply.status(400)
+        return {
+          success: false,
+          message: '2FA is already enabled for this account'
+        }
+      }
+
+      // Generate TOTP secret
+      const secret = speakeasy.generateSecret({
+        name: `ft_transcendence:${request.user.email}`,
+        issuer: 'ft_transcendence',
+        length: 32
+      })
+
+      // Generate QR code as base64 image
+      const qrCodeDataURL = await qrcode.toDataURL(secret.otpauth_url)
+      setup2FArouteLogger.debug("generated QR code data URL", { qrCodeDataURL })
       
+      // Extract base64 data (remove data:image/png;base64, prefix)
+      const qrCodeBase64 = qrCodeDataURL.split(',')[1]
+      setup2FArouteLogger.debug("extracted QR code base64", { qrCodeBase64 })
+
+      // Generate backup codes (8 codes, 8 characters each)
+      const backupCodes = []
+      for (let i = 0; i < 8; i++) {
+        const code = crypto.randomBytes(4).toString('hex').toUpperCase()
+        backupCodes.push(code)
+      }
+
+      // Store temporary secret and backup codes (not yet verified)
+      databaseConnection.run(`
+        UPDATE users 
+        SET 
+          two_factor_secret = ?,
+          backup_codes = ?
+        WHERE id = ?
+      `, [secret.base32, JSON.stringify(backupCodes), userId])
+
+      setup2FArouteLogger.info('✅ 2FA setup data generated', { userId })
+
       return {
-        qrCodeUrl: '', // TODO: Generate QR code URL
-        secret: '', // TODO: Return secret for manual entry
-        backupCodes: [], // TODO: Generate backup codes
-        message: 'Scan QR code with authenticator app'
+        success: true,
+        message: 'Scan QR code with authenticator app',
+        setupData: {
+          secret: secret.base32,
+          qrCode: qrCodeBase64,
+          backupCodes: backupCodes
+        }
       }
     } catch (error) {
-      twoFASetupLogger.error('❌ 2FA setup failed', { error: error.message })
-      reply.status(400)
-      return { success: false, message: '2FA setup failed' }
+      setup2FArouteLogger.error('❌ 2FA setup failed', { 
+        error: error.message,
+        stack: error.stack 
+      })
+      reply.status(500)
+      return { 
+        success: false, 
+        message: 'Internal server error during 2FA setup' 
+      }
     }
   })
-  
 }
 
-export default twoFASetupRoute
+export default setup2FAroute

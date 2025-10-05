@@ -28,3 +28,8 @@ export const REFRESH_TOKEN_CONFIG = {
   ...COOKIE_CONFIG,
   maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 }
+
+export const REFRESH_TOKEN_ROTATION_CONFIG = {
+  ...REFRESH_TOKEN_CONFIG,
+  maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day for rotated tokens
+}

@@ -4,4 +4,4 @@
  * @description Exports all authentication-related components.
  */
 
-export { TwoFactorVerification } from './TwoFactorVerification'
+export { TwoFactorSettingsComponent } from './TwoFactorSettingsComponent'

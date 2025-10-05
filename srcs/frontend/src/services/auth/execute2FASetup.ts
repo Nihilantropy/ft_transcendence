@@ -14,9 +14,7 @@ import { validateData } from '../utils/validation'
 import { apiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 import { 
-  Setup2FARequestSchema,
   Setup2FAResponseSchema,
-  type Setup2FARequest,
   type Setup2FAResponse
 } from './schemas/auth.schemas'
 
@@ -29,21 +27,12 @@ import {
  * @return Promise<Setup2FAResponse> - Validated response from backend
  */
 export async function executeSetup2FA(
-  userId: number,
   endpoint: string = '/auth/2fa/setup'
 ): Promise<Setup2FAResponse> {
-  // Validate input with Zod
-  const requestData: Setup2FARequest = { userId }
-  const validation = validateData(Setup2FARequestSchema, requestData)
-  if (!validation.success) {
-    throw new Error(`Invalid user ID: ${validation.errors.join(', ')}`)
-  }
-
-  const validRequestData = validation.data
 
   // Make API request
   const [error, response] = await catchErrorTyped(
-    apiService.post(endpoint, validRequestData)
+    apiService.post(endpoint, {}) // Empty body matches Setup2FARequestSchema, userId from auth token
   )
 
   if (error || !response) {

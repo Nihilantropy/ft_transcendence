@@ -49,9 +49,6 @@ export async function executeLogin(
     throw new Error(error?.message || 'Login failed')
   }
 
-  console.log('✅ Login request successful:', response)
-  console.log('🔒 Tokens received - Access:', response.data)
-
   // Validate response with Zod
   const responseValidation = validateData(LoginResponseSchema, response.data)
   if (!responseValidation.success) {

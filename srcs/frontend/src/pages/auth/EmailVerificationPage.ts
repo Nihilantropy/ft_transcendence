@@ -1,8 +1,8 @@
 /**
  * @brief Email Verification Page component for ft_transcendence
  * 
- * @description Simple page for users to verify their email address with a token.
- * Essential functionality only - no complex features.
+ * @description Clean page for email verification with seamless backend integration.
+ * Features automatic verification, resend functionality, and proper error handling.
  */
 
 import { Component } from '../../components/base/Component'
@@ -19,17 +19,20 @@ export interface EmailVerificationPageProps {
 
 export interface EmailVerificationPageState {
   /** Current verification status */
-  status: 'loading' | 'success' | 'error' | 'invalid'
+  status: 'loading' | 'success' | 'error' | 'invalid' | 'resending'
   /** Loading state */
   isLoading: boolean
   /** Error message */
   errorMessage: string | null
+  /** User email for resend (stored after failed verification if available) */
+  userEmail: string | null
 }
 
 /**
  * @brief Email verification page component
  * 
- * @description Simple component to verify email address with token validation.
+ * @description Clean component to verify email address with automatic verification,
+ * proper error handling, and seamless backend integration.
  */
 export class EmailVerificationPage extends Component<EmailVerificationPageProps, EmailVerificationPageState> {
 
@@ -37,7 +40,8 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
     super(props, {
       status: 'loading',
       isLoading: true,
-      errorMessage: null
+      errorMessage: null,
+      userEmail: null
     })
     
     // Auto-verify when component is created
@@ -60,68 +64,110 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
     }
 
     try {
+      console.log('📧 Starting email verification...')
       const response = await authService.verifyEmail(token)
       
-      if (response.success) {
+      if (response.success && response.user) {
+        // Success - email verified and user auto-logged in
         this.setState({
           status: 'success',
           isLoading: false,
-          errorMessage: null
+          errorMessage: null,
+          userEmail: response.user.email
         })
         
-        // Show success message
+        console.log('✅ Email verified successfully for:', response.user.email)
         showPopup('Email verified successfully! You can now choose your username.')
         
-        // Check if user is now authenticated (backend provides tokens after verification)
-        if (authService.isAuthenticated()) {
-          // Redirect to username selection page after successful verification
-          setTimeout(() => {
-            router.navigate('/username-selection')
-          }, 2000)
-        } else {
-          // Fallback - redirect to login if not auto-authenticated
-          setTimeout(() => {
-            router.navigate('/login')
-          }, 2000)
-        }
+        // Backend automatically logs user in with httpOnly cookies
+        // Redirect to username selection page
+        setTimeout(() => {
+          router.navigate('/username-selection')
+        }, 2000)
       } else {
+        // This shouldn't happen if backend is working correctly
         this.setState({
           status: 'error',
           isLoading: false,
-          errorMessage: response.message || 'Email verification failed'
+          errorMessage: 'Email verification failed - please try again'
         })
-        showPopup(`Verification failed: ${response.message}`)
+        console.warn('⚠️ Unexpected response from verify email:', response)
       }
     } catch (error: any) {
+      console.error('❌ Email verification error:', error)
+      
+      // Parse error message for better UX
+      const errorMessage = error.message || 'Something went wrong. Please try again.'
+      const isExpired = errorMessage.toLowerCase().includes('expired') || 
+                        errorMessage.toLowerCase().includes('invalid')
+      
       this.setState({
-        status: 'error',
+        status: isExpired ? 'invalid' : 'error',
         isLoading: false,
-        errorMessage: 'Something went wrong. Please try again.'
+        errorMessage
       })
-      showPopup(error.message)
+      
+      showPopup(`Verification failed: ${errorMessage}`)
     }
   }
 
   /**
-   * @brief Resend verification email
+   * @brief Resend verification email with proper validation
    */
   private async handleResendVerification(): Promise<void> {
-    this.setState({ isLoading: true })
+    // Prevent multiple simultaneous requests
+    if (this.state.isLoading) {
+      return
+    }
+    
+    this.setState({ 
+      status: 'resending',
+      isLoading: true 
+    })
     
     try {
-      const email = prompt('Please enter your email address:')
-      if (email) {
-        const response = await authService.resendEmailVerification(email)
-        if (response.success) {
-          showPopup('Verification email sent! Please check your inbox.')
-        } else {
-          showPopup(`Failed to send email: ${response.message}`)
+      // Use stored email if available, otherwise prompt user
+      let email = this.state.userEmail
+      
+      if (!email) {
+        email = prompt('Please enter your email address:')
+        if (!email) {
+          // User cancelled prompt
+          this.setState({ 
+            isLoading: false,
+            status: this.state.errorMessage ? 'error' : 'invalid'
+          })
+          return
         }
       }
-      this.setState({ isLoading: false })
-    } catch (error) {
-      this.setState({ isLoading: false })
-      showPopup('Failed to resend verification email.')
+      
+      console.log('📤 Resending verification email to:', email)
+      const response = await authService.resendVerificationEmail(email)
+      
+      if (response.success) {
+        console.log('✅ Verification email resent successfully')
+        showPopup('Verification email sent! Please check your inbox.')
+        
+        // Store email for future resend attempts
+        this.setState({ 
+          isLoading: false,
+          userEmail: email,
+          status: 'error' // Keep showing resend option
+        })
+      } else {
+        console.warn('⚠️ Resend failed:', response.message)
+        showPopup(`Failed to send email: ${response.message}`)
+        this.setState({ isLoading: false })
+      }
+    } catch (error: any) {
+      console.error('❌ Resend verification error:', error)
+      const errorMessage = error.message || 'Failed to resend verification email'
+      showPopup(errorMessage)
+      
+      this.setState({ 
+        isLoading: false,
+        status: this.state.errorMessage ? 'error' : 'invalid'
+      })
     }
   }
 
@@ -149,7 +195,7 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
    * @brief Render success state
    */
   private renderSuccessState(): string {
-    const isAuthenticated = authService.isAuthenticated()
+    const { userEmail } = this.state
     
     return `
       <div class="text-center">
@@ -157,29 +203,27 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
         <h1 class="text-3xl font-bold mb-4 text-green-400">
           Email Verified!
         </h1>
-        <p class="text-green-500 mb-6">
-          Your email address has been successfully verified. 
-          ${isAuthenticated ? 'You can now choose your username!' : 'You can now log in to your account.'}
+        <p class="text-green-500 mb-2">
+          Your email address has been successfully verified.
+        </p>
+        ${userEmail ? `
+          <p class="text-sm text-green-300 mb-6">
+            📧 ${userEmail}
+          </p>
+        ` : ''}
+        <p class="text-green-400 mb-6">
+          You are now logged in and can choose your username!
         </p>
         <div class="space-y-3">
-          ${isAuthenticated ? `
-            <button
-              data-navigate="/username-selection"
-              class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors"
-            >
-              🏷️ Choose Username
-            </button>
-            <p class="text-sm text-green-300">
-              Redirecting automatically in 2 seconds...
-            </p>
-          ` : `
-            <button
-              data-navigate="/login"
-              class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors"
-            >
-              🔐 Go to Login
-            </button>
-          `}
+          <button
+            data-navigate="/username-selection"
+            class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-colors"
+          >
+            🏷️ Choose Username
+          </button>
+          <p class="text-sm text-green-300 animate-pulse">
+            Redirecting automatically in 2 seconds...
+          </p>
           <button
             data-navigate="/"
             class="w-full px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors"
@@ -195,7 +239,7 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
    * @brief Render error state
    */
   private renderErrorState(): string {
-    const { errorMessage } = this.state
+    const { errorMessage, userEmail, isLoading } = this.state
     
     return `
       <div class="text-center">
@@ -203,17 +247,29 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
         <h1 class="text-3xl font-bold mb-4 text-red-400">
           Verification Failed
         </h1>
-        <p class="text-red-300 mb-6">
+        <p class="text-red-300 mb-2">
           ${errorMessage || 'We could not verify your email address.'}
         </p>
+        ${userEmail ? `
+          <p class="text-sm text-gray-400 mb-6">
+            📧 ${userEmail}
+          </p>
+        ` : `
+          <p class="text-sm text-gray-400 mb-6">
+            Don't worry - you can request a new verification email.
+          </p>
+        `}
         <div class="space-y-3">
           <button
             data-resend="true"
-            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors ${this.state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}"
-            ${this.state.isLoading ? 'disabled' : ''}
+            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            ${isLoading ? 'disabled' : ''}
           >
-            ${this.state.isLoading ? '⏳ Sending...' : '📧 Resend Verification Email'}
+            ${isLoading ? '⏳ Sending...' : '📧 Resend Verification Email'}
           </button>
+          <p class="text-xs text-gray-500">
+            ${userEmail ? 'Click to resend to your registered email' : 'You will be asked to enter your email address'}
+          </p>
           <button
             data-navigate="/login"
             class="w-full px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors"
@@ -235,23 +291,41 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
    * @brief Render invalid token state
    */
   private renderInvalidState(): string {
+    const { errorMessage, userEmail, isLoading } = this.state
+    
     return `
       <div class="text-center">
         <div class="text-6xl mb-6">🚫</div>
         <h1 class="text-3xl font-bold mb-4 text-yellow-400">
           Invalid Verification Link
         </h1>
-        <p class="text-yellow-300 mb-6">
-          This verification link is invalid or has expired. 
-          Please request a new verification email.
+        <p class="text-yellow-300 mb-2">
+          ${errorMessage || 'This verification link is invalid or has expired.'}
         </p>
+        <p class="text-sm text-gray-400 mb-6">
+          Please request a new verification email to complete your registration.
+        </p>
+        ${userEmail ? `
+          <p class="text-sm text-gray-400 mb-4">
+            📧 Registered email: ${userEmail}
+          </p>
+        ` : ''}
         <div class="space-y-3">
           <button
             data-resend="true"
-            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors ${this.state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}"
-            ${this.state.isLoading ? 'disabled' : ''}
+            class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            ${isLoading ? 'disabled' : ''}
           >
-            ${this.state.isLoading ? '⏳ Sending...' : '📧 Request New Verification Email'}
+            ${isLoading ? '⏳ Sending...' : '📧 Request New Verification Email'}
+          </button>
+          <p class="text-xs text-gray-500">
+            ${userEmail ? 'Click to resend to your registered email' : 'You will be asked to enter your email address'}
+          </p>
+          <button
+            data-navigate="/register"
+            class="w-full px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors"
+          >
+            📝 Register New Account
           </button>
           <button
             data-navigate="/login"
@@ -281,6 +355,7 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
         content = this.renderSuccessState()
         break
       case 'error':
+      case 'resending':
         content = this.renderErrorState()
         break
       case 'invalid':
@@ -300,13 +375,6 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
   }
 
   /**
-   * @brief Handle navigation to username selection
-   */
-  private handleUsernameSelection(): void {
-    router.navigate('/username-selection')
-  }
-
-  /**
    * @brief Mount component and set up event listeners
    */
   public mount(container: HTMLElement): void {
@@ -315,7 +383,7 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
   }
 
   /**
-   * @brief Set up event listeners
+   * @brief Set up event listeners for buttons
    */
   private setupEventListeners(container: HTMLElement): void {
     // Resend verification button
@@ -332,11 +400,7 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
       button.addEventListener('click', () => {
         const path = button.getAttribute('data-navigate')
         if (path) {
-          if (path === '/username-selection') {
-            this.handleUsernameSelection()
-          } else {
-            router.navigate(path)
-          }
+          router.navigate(path)
         }
       })
     })

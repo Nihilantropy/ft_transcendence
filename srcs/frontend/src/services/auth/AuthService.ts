@@ -12,7 +12,7 @@ import {
   type User,
   type LoginRequest,
   type LoginResponse,
-  type RegisterForm,
+  type RegisterRequest,
   safeParseApiResponse
 } from './schemas/auth.schemas'
 import { executeLogin } from './executeLogin'
@@ -22,9 +22,10 @@ import { executeLogout } from './executeLogout'
 import { executeRefreshToken } from './executeRefreshToken'
 import { executeRequestPasswordReset } from './executeRequestPasswordReset'
 import { executeResendVerificationEmail } from './executeResendVerificationEmail'
-import { executeSetup2FA } from './executeSetup2FA'
-import { executeVerify2FASetup } from './executeVerify2FASetup'
-import { executeVerify2FA } from './executeVerify2FA'
+import { executeSetup2FA } from './execute2FASetup'
+import { executeVerify2FASetup } from './execute2FAVerifySetup'
+import { executeVerify2FA } from './execute2FAVerify'
+import { executeDisable2FA } from './execute2FADisable'
 
 /**
  * @brief Authentication service singleton
@@ -32,7 +33,7 @@ import { executeVerify2FA } from './executeVerify2FA'
 export class AuthService extends ApiService {
   private static instance: AuthService
   private currentUser: User | null = null
-  private refreshToken: string | null = null
+  // Note: refreshToken is now stored in httpOnly cookie, not accessible from JavaScript
 
   constructor() {
     super()
@@ -53,24 +54,25 @@ export class AuthService extends ApiService {
   /**
    * @brief Login using extracted business logic
    * @param credentials - Login credentials
-   * @return Promise<{ success: boolean; user?: User }>
+   * @return Promise<{ success: boolean; user?: User; requiresTwoFactor?: boolean; tempToken?: string }>
    * @throws Error on failure with descriptive message
    */
-  public async login(credentials: LoginRequest): Promise<{ success: boolean; user?: User }> {
+  public async login(credentials: LoginRequest): Promise<{ success: boolean; user?: User; requiresTwoFactor?: boolean; tempToken?: string }> {
     console.log('🔐 Attempting login for:', credentials.identifier)
     try {
       const loginData: LoginResponse = await executeLogin(credentials, '/auth/login')
 
-      // Handle refresh token storage
-      if (loginData.refreshToken) {
-        if (credentials.rememberMe) {
-          localStorage.setItem('ft_refresh_token', loginData.refreshToken)
-        } else {
-          this.refreshToken = loginData.refreshToken
+      // Check if 2FA is required
+      if (loginData.requiresTwoFactor && loginData.tempToken) {
+        console.log('🔐 2FA required for login')
+        return {
+          success: true,
+          requiresTwoFactor: true,
+          tempToken: loginData.tempToken
         }
       }
 
-      // Store user data
+      // Store user data (refresh token is now in httpOnly cookie, not in response)
       if (loginData.user) {
         this.storeUser(loginData.user)
         console.log('✅ Login successful for:', loginData.user.username)
@@ -96,7 +98,7 @@ export class AuthService extends ApiService {
    * @return Promise<{ success: boolean; message: string }>
    * @throws Error on failure with descriptive message
    */
-  public async register(credentials: RegisterForm): Promise<{ success: boolean; message: string }> {
+  public async register(credentials: RegisterRequest): Promise<{ success: boolean; message: string }> {
     console.log('📝 Attempting registration for:', credentials.email)
     try {
       const registerData = await executeRegister(credentials, '/auth/register')
@@ -128,11 +130,6 @@ export class AuthService extends ApiService {
     console.log('📧 Attempting email verification')
     try {
       const verificationData = await executeVerifyEmail(token, '/auth/verify-email')
-
-      // Handle refresh token storage (email verification uses memory storage)
-      if (verificationData.refreshToken) {
-        this.refreshToken = verificationData.refreshToken
-      }
 
       // Store user data
       if (verificationData.user) {
@@ -179,27 +176,20 @@ export class AuthService extends ApiService {
   }
 
   /**
-   * @brief Refresh access token using extracted business logic
+   * @brief Refresh access token using httpOnly cookie
    * @return Promise<boolean> - Success status
+   * 
+   * @description Refresh token is now in httpOnly cookie and automatically sent by browser.
+   * We just need to call the refresh endpoint, backend will read token from cookie.
    */
   public async refreshAuthToken(): Promise<boolean> {
-    const refreshToken = this.getRefreshToken()
-    if (!refreshToken) {
-      console.warn('❌ No refresh token available')
-      return false
-    }
-
     console.log('🔄 Attempting token refresh')
     try {
-      const refreshData = await executeRefreshToken(refreshToken, '/auth/refresh')
+      // Refresh token is in httpOnly cookie, automatically sent by browser
+      // Pass empty string as refreshToken parameter (backend reads from cookie)
+      await executeRefreshToken('', '/auth/refresh')
 
-      // Handle token rotation if new refresh token provided
-      if (refreshData.refreshToken) {
-        this.updateRefreshToken(refreshData.refreshToken)
-        console.log('🔄 Refresh token rotated')
-      }
-
-      console.log('✅ Access token refreshed successfully')
+      console.log('✅ Token refresh successful')
       return true
     } catch (error) {
       if (error instanceof Error) {
@@ -208,13 +198,12 @@ export class AuthService extends ApiService {
         console.error('❌ Token refresh failed:', error)
       }
       
-      // Clear stored auth on refresh failure (tokens likely expired)
+      // Clear auth data on refresh failure
       this.clearStoredAuth()
       return false
     }
   }
-
-
+  
   /**
    * @brief Request password reset using extracted business logic
    * @param email - User email address
@@ -285,7 +274,7 @@ export class AuthService extends ApiService {
 
     console.log('🔐 Setting up 2FA for current user')
     try {
-      const setup2FAData = await executeSetup2FA(this.currentUser.id, '/auth/2fa/setup')
+      const setup2FAData = await executeSetup2FA('/auth/2fa/setup')
 
       if (setup2FAData.setupData) {
         console.log('✅ 2FA setup data generated successfully')
@@ -323,7 +312,6 @@ export class AuthService extends ApiService {
     console.log('🔐 Verifying 2FA setup token')
     try {
       const verificationData = await executeVerify2FASetup(
-        this.currentUser.id,
         token,
         secret,
         '/auth/2fa/verify-setup'
@@ -331,14 +319,10 @@ export class AuthService extends ApiService {
 
       console.log('✅ 2FA setup verified and enabled')
       
-      // Update current user's 2FA status
-      if (this.currentUser) {
-        this.currentUser.twoFactorAuth = {
-          enabled: true,
-          setupComplete: true,
-          backupCodesGenerated: true
-        }
-        this.updateStoredUser()
+      // Update current user with data from backend (source of truth)
+      if (verificationData.user) {
+        this.storeUser(verificationData.user)
+        console.log('🔐 User 2FA status updated from backend')
       }
 
       return {
@@ -358,20 +342,17 @@ export class AuthService extends ApiService {
 
   /**
    * @brief Verify 2FA using extracted business logic
+   * @param tempToken - Temporary token from initial login
    * @param token - TOTP token from authenticator app (optional)
    * @param backupCode - Backup code (optional)
-   * @return Promise<{ success: boolean; message?: string; token?: string }>
+   * @return Promise<{ success: boolean; message?: string; user?: User }>
    * @throws Error on failure with descriptive message
    */
-  public async verify2FA(token?: string, backupCode?: string): Promise<{ success: boolean; message?: string; token?: string }> {
-    if (!this.currentUser?.id) {
-      throw new Error('User must be logged in to verify 2FA')
-    }
-
+  public async verify2FA(tempToken: string, token?: string, backupCode?: string): Promise<{ success: boolean; message?: string; user?: User }> {
     console.log('🔐 Verifying 2FA token for login')
     try {
       const verificationData = await executeVerify2FA(
-        this.currentUser.id,
+        tempToken,
         token,
         backupCode,
         '/auth/2fa/verify'
@@ -379,24 +360,15 @@ export class AuthService extends ApiService {
 
       console.log('✅ 2FA verification successful')
 
-      // TODO access token are saved in cookies by backend, refresh token could be in response body. Refactor logic accordingly
-      // Update authentication state with tokens
-      const accessToken = verificationData.tokens?.accessToken
-      if (accessToken) {
-        this.authToken = accessToken
-        localStorage.setItem('ft_auth_token', this.authToken)
-        
-        // Store refresh token if provided
-        const refreshToken = verificationData.tokens?.refreshToken
-        if (refreshToken) {
-          localStorage.setItem('ft_refresh_token', refreshToken)
-        }
+      // Store user data (refresh token is now in httpOnly cookie, not in response)
+      if (verificationData.user) {
+        this.storeUser(verificationData.user)
       }
 
       return {
         success: true,
         message: verificationData.message,
-        token: accessToken
+        user: verificationData.user
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -410,45 +382,41 @@ export class AuthService extends ApiService {
   }
 
   /**
-   * @brief Disable 2FA for user account
-   * 
+   * @brief Disable 2FA for user account using extracted business logic
    * @param password - User's current password for confirmation
    * @param token - Optional 2FA token for additional security
-   * @returns Promise resolving to disable response
+   * @return Promise<{ success: boolean; message?: string }>
+   * @throws Error on failure with descriptive message
    */
   public async disable2FA(password: string, token?: string): Promise<{ success: boolean; message?: string }> {
+    if (!this.currentUser?.id) {
+      throw new Error('User must be logged in to disable 2FA')
+    }
+
     console.log('🔐 Disabling 2FA for current user')
-    
-    const [error, apiResponse] = await catchErrorTyped(
-      this.post<AuthResponse>('/auth/2fa/disable', {
-        userId: this.currentUser?.id,
-        password,
-        token
-      })
-    )
+    try {
+      const disableData = await executeDisable2FA(password, token, '/auth/2fa/disable')
 
-    if (error) {
-      throw new Error(error.message || '2FA disable failed')
-    }
-
-    if (!apiResponse?.success || !apiResponse.data.success) {
-      throw new Error(apiResponse?.data.message || '2FA disable failed')
-    }
-
-    console.log('✅ 2FA disabled successfully')
-    // Update current user's 2FA status
-    if (this.currentUser) {
-      this.currentUser.twoFactorAuth = {
-        enabled: false,
-        setupComplete: false,
-        backupCodesGenerated: false
+      console.log('✅ 2FA disabled successfully')
+      
+      // Update current user with data from backend (source of truth)
+      if (disableData.user) {
+        this.storeUser(disableData.user)
+        console.log('🔐 User 2FA status updated from backend')
       }
-      this.updateStoredUser()
-    }
 
-    return {
-      success: true,
-      message: apiResponse.data.message
+      return {
+        success: true,
+        message: disableData.message
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ 2FA disable failed:', error.message)
+        throw new Error(error.message || '2FA disable failed')
+      } else {
+        console.error('❌ 2FA disable failed:', error)
+        throw new Error('2FA disable failed')
+      }
     }
   }
 
@@ -458,16 +426,7 @@ export class AuthService extends ApiService {
    * @returns boolean indicating 2FA status
    */
   public is2FAEnabled(): boolean {
-    return this.currentUser?.twoFactorAuth?.enabled || false
-  }
-
-  /**
-   * @brief Update stored user data in localStorage
-   */
-  private updateStoredUser(): void {
-    if (this.currentUser) {
-      localStorage.setItem('ft_user', JSON.stringify(this.currentUser))
-    }
+    return this.currentUser?.twoFactorEnabled || false
   }
 
   // ===========================================
@@ -554,36 +513,36 @@ export class AuthService extends ApiService {
     return btoa(String.fromCharCode(...array)).replace(/=/g, '');
   }
 
-  /**
-   * @brief Unlink OAuth provider from account
-   */
-  public async unlinkOAuthProvider(provider: string): Promise<{ success: boolean; message?: string; user?: any }> {
-    const [error, apiResponse] = await catchErrorTyped(
-      this.delete<AuthResponse>(`/auth/oauth/${provider}`)
-    )
+  // /**
+  //  * @brief Unlink OAuth provider from account
+  //  */
+  // public async unlinkOAuthProvider(provider: string): Promise<{ success: boolean; message?: string; user?: any }> {
+  //   const [error, apiResponse] = await catchErrorTyped(
+  //     this.delete<AuthResponse>(`/auth/oauth/${provider}`)
+  //   )
 
-    if (error) {
-      throw new Error(error.message || `Failed to unlink ${provider} account`)
-    }
+  //   if (error) {
+  //     throw new Error(error.message || `Failed to unlink ${provider} account`)
+  //   }
 
-    if (!apiResponse?.success || !apiResponse.data.success) {
-      throw new Error(apiResponse?.data.message || `Failed to unlink ${provider} account`)
-    }
+  //   if (!apiResponse?.success || !apiResponse.data.success) {
+  //     throw new Error(apiResponse?.data.message || `Failed to unlink ${provider} account`)
+  //   }
 
-    if (apiResponse.data.user) {
-      // Update stored user data
-      this.currentUser = apiResponse.data.user
-      this.updateStoredUser()
+  //   if (apiResponse.data.user) {
+  //     // Update stored user data
+  //     this.currentUser = apiResponse.data.user
+  //     this.updateStoredUser()
       
-      console.log('🔐 OAuth provider unlinked successfully')
-    }
+  //     console.log('🔐 OAuth provider unlinked successfully')
+  //   }
     
-    return {
-      success: true,
-      message: apiResponse.data.message,
-      user: apiResponse.data.user
-    }
-  }
+  //   return {
+  //     success: true,
+  //     message: apiResponse.data.message,
+  //     user: apiResponse.data.user
+  //   }
+  // }
 
   // ==========================================================================
   // UTILITY METHODS
@@ -622,24 +581,9 @@ export class AuthService extends ApiService {
    * @return Authentication status
    */
   public isAuthenticated(): boolean {
-    return !!this.getCurrentUser() && !!this.getRefreshToken()
-  }
-
-  /**
-   * @brief Check if 2FA is enabled for current user
-   * @return 2FA status
-   */
-  public is2FAEnabled(): boolean {
-    // Note: 2FA info should come from separate endpoint when needed
-    return false // Placeholder - implement when 2FA schema is defined
-  }
-
-  /**
-   * @brief Check if OAuth is available
-   * @return OAuth availability
-   */
-  public isOAuthAvailable(): boolean {
-    return import.meta.env.VITE_OAUTH_ENABLED === 'true'
+    // Since refresh token is now in httpOnly cookie, we can't check it from JS
+    // Just check if we have a user object
+    return !!this.getCurrentUser()
   }
 
   // ==========================================================================
@@ -664,31 +608,9 @@ export class AuthService extends ApiService {
    */
   private clearStoredAuth(): void {
     localStorage.removeItem('ft_user')
+    // Clean up old refresh tokens from localStorage (for backwards compatibility)
     localStorage.removeItem('ft_refresh_token')
     this.currentUser = null
-    this.refreshToken = null
-  }
-
-  /**
-   * @brief Get refresh token from memory or localStorage
-   * @return Refresh token or null
-   */
-  private getRefreshToken(): string | null {
-    return this.refreshToken || localStorage.getItem('ft_refresh_token')
-  }
-
-  /**
-   * @brief Update refresh token in current storage location
-   * @param newToken - New refresh token
-   */
-  private updateRefreshToken(newToken: string): void {
-    if (this.refreshToken) {
-      // Token was in memory, keep it in memory
-      this.refreshToken = newToken
-    } else {
-      // Token was in localStorage, update localStorage
-      localStorage.setItem('ft_refresh_token', newToken)
-    }
   }
 
   /**

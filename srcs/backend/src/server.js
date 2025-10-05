@@ -33,7 +33,19 @@ logger.initialize(environment, logLevel)
  * @brief Initialize Fastify with centralized logger configuration
  */
 const fastify = Fastify({
-  logger: createLoggerConfig(environment, logLevel)
+  logger: createLoggerConfig(environment, logLevel),
+  
+  // ✅ Enable response validation for type safety and consistency
+  ajv: {
+    customOptions: {
+      removeAdditional: 'all',      // Remove properties not in schema
+      coerceTypes: true,             // Convert types when possible (e.g., string to number)
+      useDefaults: true,             // Use default values from schema
+      allErrors: false,              // Stop on first error (better performance)
+      validateFormats: true          // Validate email, uri, date formats
+    },
+    plugins: []
+  }
 })
 
 // Set Fastify logger in centralized logger for consistency

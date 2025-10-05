@@ -10,7 +10,10 @@ export default [
             id: { type: 'integer' },
             username: { type: 'string' },
             email: { type: 'string', format: 'email' },
-            email_verified: { type: 'boolean' }
+            email_verified: { type: 'boolean' },
+            avatar: { type: 'string', description: 'User avatar URL' },
+            is_online: { type: 'boolean', description: 'User online status' },
+            twoFactorEnabled: { type: 'boolean', description: 'Two-factor authentication status' }
         },
         required: ['id', 'username', 'email', 'email_verified']
     }

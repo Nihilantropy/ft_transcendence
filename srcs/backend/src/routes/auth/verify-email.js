@@ -8,7 +8,7 @@ import { logger } from '../../logger.js'
 import { routeSchemas } from '../../schemas/routes/auth.schema.js'
 import { userService } from '../../services/index.js'
 import { generateTokenPair } from '../../utils/jwt.js'
-import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG } from '../../utils/coockie.js'
+import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
 
 const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
 
@@ -41,9 +41,7 @@ async function verifyEmailRoute(fastify) {
             details: 'Verification token is invalid or has already been used'
           }
         }
-      }
-      
-      // 2. Generate authentication tokens for auto-login
+      }      // 2. Generate authentication tokens for auto-login
       const { accessToken, refreshToken } = generateTokenPair(verifiedUser, {
         access: { expiresIn: '15m' },
         refresh: { expiresIn: '1d' }
@@ -52,23 +50,24 @@ async function verifyEmailRoute(fastify) {
       // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE
       reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
 
+      reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_ROTATION_CONFIG)
+
       verifyEmailLogger.info('✅ Email verified successfully', {
         userId: verifiedUser.id,
         username: verifiedUser.username,
         email: verifiedUser.email
       })
       
-      // 3. Return success response with tokens
+      // 3. Return success response
       return {
         success: true,
         message: 'Email verified successfully. You are now logged in.',
         user: {
-          id: verifiedUser.id,
+          id: parseInt(verifiedUser.id), // Ensure integer type
           username: verifiedUser.username,
           email: verifiedUser.email,
           email_verified: true
         },
-        refreshToken
       }
       
     } catch (error) {
