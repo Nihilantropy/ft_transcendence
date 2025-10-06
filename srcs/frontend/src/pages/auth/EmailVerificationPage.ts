@@ -322,7 +322,7 @@ export class EmailVerificationPage extends Component<EmailVerificationPageProps,
             ${userEmail ? 'Click to resend to your registered email' : 'You will be asked to enter your email address'}
           </p>
           <button
-            data-navigate="/register"
+            data-navigate="/login"
             class="w-full px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors"
           >
             📝 Register New Account

@@ -10,7 +10,6 @@
  */
 
 import { Component } from '../../components/base/Component'
-import type { UserProfile } from '../../types'
 
 /**
  * @brief ProfilePage component properties interface

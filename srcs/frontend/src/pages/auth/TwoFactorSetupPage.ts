@@ -14,17 +14,21 @@ interface TwoFactorSetupPageProps {
 }
 
 interface SetupState {
-  step: 'loading' | 'show-qr' | 'show-backup-codes' | 'error'
+  step: 'loading' | 'show-qr' | 'verify-totp' | 'show-backup-codes' | 'complete' | 'error'
   qrCode?: string
   secret?: string
   backupCodes?: string[]
+  verificationToken: string
   error?: string
+  isSubmitting: boolean
 }
 
 export class TwoFactorSetupPage {
   private props: TwoFactorSetupPageProps
   private state: SetupState = {
-    step: 'loading'
+    step: 'loading',
+    verificationToken: '',
+    isSubmitting: false
   }
 
   constructor(props: TwoFactorSetupPageProps = {}) {
@@ -53,11 +57,12 @@ export class TwoFactorSetupPage {
       
       if (response.success && response.setupData) {
         this.state = {
-          ...this.state,
           step: 'show-qr',
           qrCode: response.setupData.qrCode,
           secret: response.setupData.secret,
-          backupCodes: response.setupData.backupCodes
+          backupCodes: response.setupData.backupCodes,
+          verificationToken: '',
+          isSubmitting: false
         }
         this.updateView()
       } else {
@@ -71,49 +76,118 @@ export class TwoFactorSetupPage {
     } catch (error) {
       console.error('Failed to initiate 2FA setup:', error)
       this.state = {
-        ...this.state,
         step: 'error',
-        error: 'Network error. Please try again.'
+        error: 'Network error. Please try again.',
+        verificationToken: '',
+        isSubmitting: false
       }
       this.updateView()
     }
   }
 
   /**
-   * @brief Show backup codes after QR code is scanned
+   * @brief Proceed to TOTP verification step
    */
-  private showBackupCodes(): void {
-    this.state.step = 'show-backup-codes'
+  private proceedToVerification(): void {
+    this.state = {
+      ...this.state,
+      step: 'verify-totp'
+    }
     this.updateView()
   }
 
   /**
-   * @brief Redirect to verification page
+   * @brief Handle TOTP verification during setup
    */
-  private proceedToVerification(): void {
-    // Store secret in sessionStorage for verification
-    if (this.state.secret) {
-      sessionStorage.setItem('ft_2fa_setup_secret', this.state.secret)
+  private async handleVerifySetup(event: Event): Promise<void> {
+    event.preventDefault()
+    
+    if (this.state.isSubmitting) return
+    
+    const token = this.state.verificationToken.replace(/\s/g, '')
+    
+    if (!token || token.length !== 6) {
+      alert('⚠️ Please enter a valid 6-digit code')
+      return
     }
     
-    // Redirect to /verify-2fa route
-    router.navigate('/verify-2fa')
+    if (!this.state.secret) {
+      alert('❌ Setup error: Secret missing. Please restart setup.')
+      return
+    }
+    
+    this.state.isSubmitting = true
+    this.updateView()
+    
+    try {
+      console.log('🔐 Verifying 2FA setup token')
+      
+      const response = await authService.verify2FASetup(token, this.state.secret)
+      
+      if (response.success) {
+        console.log('✅ 2FA setup verified successfully!')
+        
+        // Update stored user
+        if (response.user) {
+          // User is already updated by authService
+        }
+        
+        // Move to backup codes confirmation
+        this.state = {
+          ...this.state,
+          step: 'show-backup-codes',
+          isSubmitting: false
+        }
+        this.updateView()
+      } else {
+        alert(`❌ ${response.message || 'Invalid verification code. Please try again.'}`)
+        this.state.isSubmitting = false
+        this.updateView()
+      }
+    } catch (error) {
+      console.error('Verification failed:', error)
+      alert('❌ Verification failed. Please try again.')
+      this.state.isSubmitting = false
+      this.updateView()
+    }
+  }
+
+  /**
+   * @brief Complete setup and redirect to profile
+   */
+  private completeSetup(): void {
+    console.log('✅ 2FA setup completed - redirecting to profile')
+    router.navigate('/profile')
   }
 
   /**
    * @brief Add event listeners
    */
   private addEventListeners(container: HTMLElement): void {
-    // Show backup codes button
-    const showBackupBtn = container.querySelector('#show-backup-codes-btn')
-    if (showBackupBtn) {
-      showBackupBtn.addEventListener('click', () => this.showBackupCodes())
-    }
-
-    // Proceed to verification button
+    // Proceed to verification button (after scanning QR)
     const proceedBtn = container.querySelector('#proceed-to-verify-btn')
     if (proceedBtn) {
       proceedBtn.addEventListener('click', () => this.proceedToVerification())
+    }
+
+    // TOTP verification form
+    const verifyForm = container.querySelector('#verify-setup-form')
+    if (verifyForm) {
+      verifyForm.addEventListener('submit', (e) => this.handleVerifySetup(e))
+    }
+
+    // TOTP input handler
+    const tokenInput = container.querySelector('#setup-token') as HTMLInputElement
+    if (tokenInput) {
+      tokenInput.addEventListener('input', (e) => {
+        this.state.verificationToken = (e.target as HTMLInputElement).value
+      })
+    }
+
+    // Complete setup button (after showing backup codes)
+    const completeBtn = container.querySelector('#complete-setup-btn')
+    if (completeBtn) {
+      completeBtn.addEventListener('click', () => this.completeSetup())
     }
 
     // Navigation buttons
@@ -136,7 +210,7 @@ export class TwoFactorSetupPage {
     }
   }
 
-  /**
+    /**
    * @brief Render current step content
    */
   private renderCurrentStep(): string {
@@ -145,6 +219,8 @@ export class TwoFactorSetupPage {
         return this.renderLoadingStep()
       case 'show-qr':
         return this.renderQRCodeStep()
+      case 'verify-totp':
+        return this.renderVerifyTOTPStep()
       case 'show-backup-codes':
         return this.renderBackupCodesStep()
       case 'error':
@@ -204,16 +280,16 @@ export class TwoFactorSetupPage {
         <!-- Info about next step -->
         <div class="bg-blue-900/30 border border-blue-500 rounded-lg p-4 mb-6">
           <p class="text-blue-200 text-sm">
-            <strong>ℹ️ Next:</strong> After scanning, you'll be prompted to verify your setup by entering a code from your authenticator app.
+            <strong>ℹ️ Next:</strong> After scanning, you'll need to verify your setup by entering a code from your authenticator app.
           </p>
         </div>
 
         <div class="space-y-4">
           <button 
-            id="show-backup-codes-btn"
+            id="proceed-to-verify-btn"
             class="w-full px-4 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-all"
           >
-            📱 I've Scanned the Code - Show Backup Codes
+            ✅ I've Scanned - Verify Now
           </button>
           
           <button 
@@ -228,6 +304,63 @@ export class TwoFactorSetupPage {
   }
 
   /**
+   * @brief Render TOTP verification step
+   */
+  private renderVerifyTOTPStep(): string {
+    return `
+      <div class="max-w-md mx-auto">
+        <div class="text-center mb-6">
+          <div class="text-6xl mb-4">🔐</div>
+          <h2 class="text-2xl font-bold mb-2">Verify Setup</h2>
+          <p class="text-green-500">Enter the 6-digit code from your authenticator app</p>
+        </div>
+
+        <form id="verify-setup-form" class="space-y-6">
+          <div>
+            <label for="setup-token" class="block text-green-400 font-bold mb-2">
+              Verification Code
+            </label>
+            <input
+              type="text"
+              id="setup-token"
+              placeholder="000 000"
+              maxlength="7"
+              class="w-full px-4 py-3 bg-gray-900 border border-green-600 rounded-lg text-center text-2xl font-mono tracking-wider text-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
+              autocomplete="off"
+              inputmode="numeric"
+              ${this.state.isSubmitting ? 'disabled' : ''}
+              required
+            />
+            <p class="text-xs text-gray-400 mt-2 text-center">Enter the code without spaces</p>
+          </div>
+
+          <div class="bg-yellow-900/30 border border-yellow-500 rounded-lg p-4">
+            <p class="text-yellow-200 text-sm">
+              <strong>⚠️ Important:</strong> This verification proves your authenticator app is working correctly before we enable 2FA.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-all transform hover:scale-105 ${this.state.isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}"
+            ${this.state.isSubmitting ? 'disabled' : ''}
+          >
+            ${this.state.isSubmitting ? '⏳ Verifying...' : '✅ Verify and Enable 2FA'}
+          </button>
+
+          <button
+            type="button"
+            id="cancel-setup"
+            class="w-full px-4 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-all"
+          >
+            ❌ Cancel Setup
+          </button>
+        </form>
+      </div>
+    `
+  }
+
+  /**
    * @brief Render backup codes step
    */
   private renderBackupCodesStep(): string {
@@ -235,12 +368,19 @@ export class TwoFactorSetupPage {
     return `
       <div class="max-w-md mx-auto">
         <div class="text-center mb-6">
-          <div class="text-6xl mb-4">🔑</div>
-          <h2 class="text-2xl font-bold mb-2">Save Your Backup Codes</h2>
-          <p class="text-green-500">Store these codes safely. You can use them if you lose access to your authenticator app.</p>
+          <div class="text-6xl mb-4">🎉</div>
+          <h2 class="text-2xl font-bold mb-2 text-green-400">2FA Enabled Successfully!</h2>
+          <p class="text-green-500">Save your backup codes safely</p>
+        </div>
+
+        <div class="bg-green-900/30 border border-green-500 rounded-lg p-4 mb-6">
+          <p class="text-green-200 text-sm">
+            <strong>✅ Success:</strong> Two-factor authentication is now active on your account. Store these backup codes in a secure location.
+          </p>
         </div>
 
         <div class="bg-gray-800 p-4 rounded-lg border border-green-400 mb-6">
+          <h3 class="text-green-400 font-bold mb-3 text-center">Backup Recovery Codes</h3>
           <div class="grid grid-cols-2 gap-2 text-center">
             ${codes.map(code => 
               `<code class="bg-gray-900 px-2 py-1 rounded text-green-400 font-mono text-sm">${code}</code>`
@@ -250,7 +390,7 @@ export class TwoFactorSetupPage {
 
         <div class="bg-yellow-900/50 border border-yellow-500 rounded-lg p-4 mb-6">
           <p class="text-yellow-200 text-sm">
-            <strong>⚠️ Important:</strong> Save these codes in a secure location. Each code can only be used once.
+            <strong>⚠️ Important:</strong> Save these codes in a secure location. Each code can only be used once. You'll need them if you lose access to your authenticator app.
           </p>
         </div>
 
@@ -259,19 +399,19 @@ export class TwoFactorSetupPage {
             onclick="navigator.clipboard?.writeText('${codes.join('\\n')}').then(() => alert('Backup codes copied to clipboard!'))"
             class="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all"
           >
-            📋 Copy Codes
+            📋 Copy Codes to Clipboard
           </button>
           
           <button 
-            id="proceed-to-verify-btn"
+            id="complete-setup-btn"
             class="w-full px-4 py-3 bg-green-600 hover:bg-green-500 text-black font-bold rounded-lg transition-all"
           >
-            ✅ Continue to Verification
+            ✅ Complete Setup
           </button>
         </div>
 
         <div class="mt-4 text-center text-sm text-gray-400">
-          <p>Next: You'll verify your setup by entering a code from your authenticator app</p>
+          <p>You can now use your authenticator app to log in with 2FA</p>
         </div>
       </div>
     `

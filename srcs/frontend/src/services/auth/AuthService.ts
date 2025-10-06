@@ -203,7 +203,7 @@ export class AuthService extends ApiService {
       return false
     }
   }
-  
+
   /**
    * @brief Request password reset using extracted business logic
    * @param email - User email address
@@ -301,10 +301,10 @@ export class AuthService extends ApiService {
    * @brief Verify 2FA setup using extracted business logic
    * @param token - TOTP token from authenticator app
    * @param secret - Secret key generated during setup
-   * @return Promise<{ success: boolean; message?: string }>
+   * @return Promise<{ success: boolean; message?: string; user?: User }>
    * @throws Error on failure with descriptive message
    */
-  public async verify2FASetup(token: string, secret: string): Promise<{ success: boolean; message?: string }> {
+  public async verify2FASetup(token: string, secret: string): Promise<{ success: boolean; message?: string; user?: User }> {
     if (!this.currentUser?.id) {
       throw new Error('User must be logged in to verify 2FA setup')
     }
@@ -327,7 +327,8 @@ export class AuthService extends ApiService {
 
       return {
         success: true,
-        message: verificationData.message
+        message: verificationData.message,
+        user: verificationData.user
       }
     } catch (error) {
       if (error instanceof Error) {

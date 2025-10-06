@@ -6,6 +6,7 @@ import { logger } from '../../logger.js'
 import { routeSchemas } from '../../schemas/routes/auth.schema.js'
 import { requireAuth } from '../../middleware/authentication.js'
 import speakeasy from 'speakeasy'
+import databaseConnection from '../../database.js'
 
 const verify2FASetupLogger = logger.child({ module: 'routes/auth/2fa-verify-setup' })
 
@@ -39,21 +40,20 @@ async function verify2FASetupRoute(fastify, options) {
       }
 
       // Permanently enable 2FA for user
-      await fastify.db.query(`
+      databaseConnection.run(`
         UPDATE users 
         SET 
-          two_factor_enabled = true,
-          two_factor_secret = $1
-        WHERE id = $2
-      `, [secret, userId])
+          two_factor_enabled = ?,
+          two_factor_secret = ?
+        WHERE id = ?
+      `, [1, secret, userId])
 
       // Get updated user data to return
-      const updatedUserResult = await fastify.db.query(
-        'SELECT id, username, email, email_verified, avatar_url as avatar, is_online, two_factor_enabled as twoFactorEnabled FROM users WHERE id = $1',
+      const updatedUser = databaseConnection.get(
+        'SELECT id, username, email, email_verified, avatar_url as avatar, is_online, two_factor_enabled as twoFactorEnabled FROM users WHERE id = ?',
         [userId]
       )
 
-      const updatedUser = updatedUserResult.rows[0]
       if (!updatedUser) {
         throw new Error('Failed to retrieve updated user data')
       }

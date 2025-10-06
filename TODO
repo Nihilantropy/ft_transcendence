@@ -1,8 +1,14 @@
-fix auth
-Add scroll to the pages
-fix All button in game page (all buttons have this error: Uncaught TypeError: this.handleExitGame is not a function
-    at HTMLButtonElement.onclick)
-create test for the frontend (test uses mock data instead of real api calls, to simulate the data flow, route changing, button interaction etc..)
-create backend
-create usermanagement system
-make database run
+After verify the 2fa setup, login response is:
+{
+    "success": true,
+    "message": "Login successful",
+    "user": {
+        "id": 1,
+        "username": "claudiorea",
+        "email": "claudio.rea@cliccaqui.org",
+        "email_verified": true,
+        "is_online": true,
+        "twoFactorEnabled": false // should be true
+    }
+}
+this is preventing double 2fa login

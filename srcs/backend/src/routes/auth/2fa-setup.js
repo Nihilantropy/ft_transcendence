@@ -46,11 +46,9 @@ async function setup2FAroute(fastify, options) {
 
       // Generate QR code as base64 image
       const qrCodeDataURL = await qrcode.toDataURL(secret.otpauth_url)
-      setup2FArouteLogger.debug("generated QR code data URL", { qrCodeDataURL })
       
       // Extract base64 data (remove data:image/png;base64, prefix)
       const qrCodeBase64 = qrCodeDataURL.split(',')[1]
-      setup2FArouteLogger.debug("extracted QR code base64", { qrCodeBase64 })
 
       // Generate backup codes (8 codes, 8 characters each)
       const backupCodes = []
