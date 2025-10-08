@@ -27,6 +27,7 @@ export class ApiService {
    * 
    * @description Includes credentials: 'include' to ensure cookies are sent with requests.
    * This is critical for cookie-based authentication (httpOnly accessToken & refreshToken).
+   * Also handles 401 errors globally by clearing stale authentication data.
    */
   private async makeRequest<T>(
     endpoint: string, 
@@ -59,6 +60,22 @@ export class ApiService {
       responseData = text ? JSON.parse(text) : {}
     } catch {
       responseData = {}
+    }
+    
+    // ✅ CRITICAL: Handle 401 Unauthorized (stale token or deleted user)
+    if (response.status === 401) {
+      console.warn('🔐 401 Unauthorized - Clearing stale authentication data')
+      
+      // Clear localStorage (user data)
+      localStorage.removeItem('ft_user')
+      
+      // Dispatch custom event for router to handle
+      window.dispatchEvent(new CustomEvent('auth:unauthorized', {
+        detail: { endpoint, message: responseData?.message }
+      }))
+      
+      const message = responseData?.error?.message || responseData?.message || 'Authentication required'
+      throw new Error(message)
     }
     
     // Handle HTTP errors (4xx, 5xx) 

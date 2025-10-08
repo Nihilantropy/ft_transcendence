@@ -3,19 +3,19 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 import { requireAuth } from '../../middleware/authentication.js'
+import { userService } from '../../services/user.service.js'
 import speakeasy from 'speakeasy'
 import qrcode from 'qrcode'
 import crypto from 'crypto'
-import databaseConnection from '../../database.js'
 
 const setup2FArouteLogger = logger.child({ module: 'routes/auth/2fa-setup' })
 
 async function setup2FAroute(fastify, options) {
   // Register the route with schema validation
   fastify.post('/2fa/setup', {
-    schema: routeSchemas.setup2FA,
+    schema: routeAuthSchemas.setup2FA,
     preHandler: requireAuth // Ensure user is authenticated
   }, async (request, reply) => {
     try {
@@ -23,12 +23,9 @@ async function setup2FAroute(fastify, options) {
       setup2FArouteLogger.info('🔐 Starting 2FA setup', { userId })
 
       // Check if 2FA is already enabled for user
-      const existingUser = databaseConnection.get(
-        'SELECT two_factor_enabled FROM users WHERE id = ?',
-        [userId]
-      )
+      const status = userService.get2FAStatus(userId)
 
-      if (existingUser?.two_factor_enabled) {
+      if (status?.two_factor_enabled) {
         setup2FArouteLogger.warn('⚠️ 2FA already enabled', { userId })
         reply.status(400)
         return {
@@ -58,13 +55,7 @@ async function setup2FAroute(fastify, options) {
       }
 
       // Store temporary secret and backup codes (not yet verified)
-      databaseConnection.run(`
-        UPDATE users 
-        SET 
-          two_factor_secret_tmp = ?,
-          backup_codes_tmp = ?
-        WHERE id = ?
-      `, [secret.base32, JSON.stringify(backupCodes), userId])
+      userService.store2FASetupData(userId, secret.base32, backupCodes)
 
       setup2FArouteLogger.info('✅ 2FA setup data generated', { userId })
 

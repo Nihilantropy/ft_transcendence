@@ -9,7 +9,7 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/index.js'
+import { routeAuthSchemas } from '../../schemas/index.js'
 
 // Create route-specific logger
 const resetPasswordLogger = logger.child({ module: 'routes/auth/reset-password' })
@@ -25,7 +25,7 @@ async function resetPasswordRoute(fastify, options) {
    * @description Reset user password with token
    */
   fastify.post('/reset-password', {
-    schema: routeSchemas.resetPassword,
+    schema: routeAuthSchemas.resetPassword,
     handler: async (request, reply) => {
       try {
         const { token, newPassword, confirmPassword } = request.body

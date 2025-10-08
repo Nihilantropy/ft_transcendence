@@ -5,7 +5,9 @@
  */
 
 import commonResponses from './common/responses.schema.js'
-import authSchemas, { routeSchemas } from './routes/auth.schema.js'
+import authSchemas, { routeAuthSchemas } from './routes/auth.schema.js'
+import userSchemas, { routeUserSchemas } from './routes/user.schema.js'
+import oauthSchemas, { routeOAuthSchemas } from './routes/oauth.schema.js'
 
 /**
  * @brief Register all schemas with Fastify instance
@@ -29,12 +31,18 @@ export async function registerSchemas(fastify) {
   
   // Register auth route schemas
   authSchemas.forEach(safeAddSchema)
+  
+  // Register user route schemas
+  userSchemas.forEach(safeAddSchema)
+  
+  // Register oauth route schemas
+  oauthSchemas.forEach(safeAddSchema)
 }
 
 /**
  * @brief Export route schemas for direct use
  */
-export { routeSchemas }
+export { routeAuthSchemas, routeUserSchemas, routeOAuthSchemas }
 
 /**
  * @brief Get schema reference for route usage

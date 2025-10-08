@@ -87,7 +87,7 @@ const schemas = [
 ### Map Schemas to Routes
 
 ```javascript
-export const routeSchemas = {
+export const routeAuthSchemas = {
   verifyEmail: {
     tags: ['auth'],
     operationId: 'verifyEmail',
@@ -109,7 +109,7 @@ export const routeSchemas = {
 ```javascript
 async function verifyEmailRoute(fastify) {
   fastify.get('/verify-email', {
-    schema: routeSchemas.verifyEmail  // ✅ Includes response validation
+    schema: routeAuthSchemas.verifyEmail  // ✅ Includes response validation
   }, async (request, reply) => {
     try {
       const { token } = request.query

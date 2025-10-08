@@ -8,4 +8,6 @@
 export { default as userService, UserService } from './user.service.js'
 
 // Email service
-export { emailService } from './email.service.js'
+export { emailService } from './email.service.js'// OAuth state service
+export { oauthStateManager } from './oauth-state.service.js'
+

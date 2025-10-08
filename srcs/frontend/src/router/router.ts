@@ -44,6 +44,7 @@ export class Router {
    * @param options - Router configuration options
    * 
    * @description Creates router instance with specified configuration.
+   * Also sets up global authentication error handling for stale tokens.
    */
   constructor(options: RouterOptions = {}) {
     this.basePath = options.basePath || ''
@@ -51,6 +52,20 @@ export class Router {
     
     // Listen for browser navigation
     window.addEventListener('popstate', this.handlePopState.bind(this))
+    
+    // ✅ CRITICAL: Listen for authentication errors (401)
+    // When user's token is invalid or user is deleted from DB,
+    // the API service will dispatch this event to trigger logout
+    window.addEventListener('auth:unauthorized', (event: Event) => {
+      const customEvent = event as CustomEvent
+      console.warn('🔐 Authentication lost:', customEvent.detail?.message || 'Session expired')
+      
+      // Clear any stale data
+      localStorage.removeItem('ft_user')
+      
+      // Redirect to login
+      this.navigate('/login', { replace: true })
+    })
     
     console.log('🧭 Simplified Router created')
   }

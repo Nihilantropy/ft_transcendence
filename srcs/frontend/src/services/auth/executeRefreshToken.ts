@@ -4,7 +4,10 @@
  * @description Pure function that handles refresh token request to backend.
  * Uses Zod schemas for validation and validates server response.
  * 
- * @param refreshToken - Current refresh token
+ * NOTE: refreshToken is now stored in httpOnly cookie and automatically sent by browser.
+ * The refreshToken parameter is kept for backward compatibility but is ignored (empty string).
+ * 
+ * @param _refreshToken - Deprecated parameter (refresh token now in httpOnly cookie)
  * @param endpoint - API endpoint for token refresh
  * 
  * @return Promise<RefreshResponse> - Validated refresh response
@@ -12,9 +15,7 @@
 
 import { validateData } from '../utils/validation'
 import { 
-  RefreshTokenRequestSchema,
   RefreshResponseSchema,
-  type RefreshTokenRequest,
   type RefreshResponse
 } from './schemas/auth.schemas'
 import { apiService } from '../api/BaseApiService'
@@ -23,27 +24,26 @@ import { catchErrorTyped } from '../error'
 /**
  * @brief Execute token refresh request with validation
  * 
- * @param refreshToken - Current refresh token string
+ * NOTE: The refreshToken parameter is deprecated. The actual refresh token
+ * is stored in an httpOnly cookie and automatically sent by the browser
+ * with the request. We keep this parameter for backward compatibility.
+ * 
+ * @param _refreshToken - Deprecated (pass empty string), token is in httpOnly cookie
  * @param endpoint - Token refresh endpoint
  * 
  * @return Promise<RefreshResponse> - Validated response from backend
  */
 export async function executeRefreshToken(
-  refreshToken: string,
+  _refreshToken: string,
   endpoint: string = '/auth/refresh'
 ): Promise<RefreshResponse> {
-  // Validate input with Zod
-  const requestData: RefreshTokenRequest = { refreshToken }
-  const validation = validateData(RefreshTokenRequestSchema, requestData)
-  if (!validation.success) {
-    throw new Error(`Invalid refresh token: ${validation.errors.join(', ')}`)
-  }
-
-  const validRequestData = validation.data
-
-  // Make API request
+  // NOTE: _refreshToken parameter is ignored - actual token is in httpOnly cookie
+  // No need to validate empty request body
+  
+  // Make API request - browser automatically sends refreshToken cookie
+  // No need to include refreshToken in request body
   const [error, response] = await catchErrorTyped(
-    apiService.post(endpoint, validRequestData)
+    apiService.post(endpoint, {}) // Empty body - token is in cookie
   )
 
   if (error || !response) {

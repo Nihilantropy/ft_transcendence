@@ -118,9 +118,9 @@ export class TwoFactorManagePage {
    */
   private navigateToSetup(): void {
     if (this.props.onNavigate) {
-      this.props.onNavigate('/auth/2fa-setup')
+      this.props.onNavigate('/setup-2fa')
     } else {
-      router.navigate('/auth/2fa-setup')
+      router.navigate('/setup-2fa')
     }
   }
 

@@ -8,8 +8,9 @@ import { logger } from '../../logger.js'
 import { verifyPassword } from '../../utils/auth_utils.js'
 import { generateTokenPair } from '../../utils/jwt.js'
 import { userService } from '../../services/user.service.js'
-import { routeSchemas } from '../../schemas/index.js'
+import { routeAuthSchemas } from '../../schemas/index.js'
 import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
+import { formatAuthUser } from '../../utils/user-formatters.js'
 
 const loginLogger = logger.child({ module: 'routes/auth/login' })
 
@@ -20,7 +21,7 @@ const loginLogger = logger.child({ module: 'routes/auth/login' })
 async function loginRoute(fastify, options) {
   
   fastify.post('/login', {
-    schema: routeSchemas.login
+    schema: routeAuthSchemas.login
   }, async (request, reply) => {
     try {
       const { identifier, password, rememberMe = false, twoFactorToken } = request.body
@@ -107,15 +108,7 @@ async function loginRoute(fastify, options) {
       return {
         success: true,
         message: 'Login successful',
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          email_verified: user.email_verified || false,
-          avatar: user.avatar_url || undefined,
-          is_online: true,
-          twoFactorEnabled: user.two_factor_enabled || false
-        }
+        user: formatAuthUser({ ...user, is_online: true })
       }
       
     } catch (error) {

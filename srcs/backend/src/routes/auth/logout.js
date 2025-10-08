@@ -7,7 +7,7 @@
 import { logger } from '../../logger.js'
 import { userService } from '../../services/user.service.js'
 import { requireAuth } from '../../middleware/authentication.js'
-import { routeSchemas } from '../../schemas/index.js'
+import { routeAuthSchemas } from '../../schemas/index.js'
 
 const logoutLogger = logger.child({ module: 'routes/auth/logout' })
 
@@ -18,7 +18,7 @@ const logoutLogger = logger.child({ module: 'routes/auth/logout' })
 async function logoutRoute(fastify, options) {
   
   fastify.post('/logout', {
-    schema: routeSchemas.logout,
+    schema: routeAuthSchemas.logout,
     preValidation: requireAuth
   }, async (request, reply) => {
     try {

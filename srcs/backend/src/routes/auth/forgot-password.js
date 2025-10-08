@@ -8,7 +8,7 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/index.js'
+import { routeAuthSchemas } from '../../schemas/index.js'
 import { emailService } from '../../services/email.service.js'
 import { userService } from '../../services/user.service.js'
 import crypto from 'crypto'
@@ -27,7 +27,7 @@ async function forgotPasswordRoute(fastify, options) {
    * @description Send password reset email
    */
   fastify.post('/forgot-password', {
-    schema: routeSchemas.forgotPassword,
+    schema: routeAuthSchemas.forgotPassword,
     handler: async (request, reply) => {
       try {
         const { email } = request.body

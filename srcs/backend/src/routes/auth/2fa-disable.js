@@ -3,18 +3,18 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 import { requireAuth } from '../../middleware/authentication.js'
 import { userService } from '../../services/user.service.js'
 import { verifyPassword } from '../../utils/auth_utils.js'
-import databaseConnection from '../../database.js'
+import { formatAuthUser } from '../../utils/user-formatters.js'
 import speakeasy from 'speakeasy'
 
 const disable2FALogger = logger.child({ module: 'routes/auth/2fa-disable' })
 
 async function disable2FAroute(fastify, options) {
   fastify.post('/2fa/disable', {
-    schema: routeSchemas.disable2FA,
+    schema: routeAuthSchemas.disable2FA,
     preHandler: requireAuth
   }, async (request, reply) => {
     try {
@@ -28,16 +28,9 @@ async function disable2FAroute(fastify, options) {
       })
       
       // 1. Get current user with full authentication details
-      const user = databaseConnection.get(`
-        SELECT id, username, email, password_hash, email_verified,
-               two_factor_enabled, two_factor_secret, backup_codes,
-               is_active, is_online
-        FROM users 
-        WHERE id = ? AND is_active = 1
-        LIMIT 1
-      `, [userId])
+      const user = userService.getUserWith2FAData(userId)
       
-      if (!user) {
+      if (!user || !user.is_active) {
         disable2FALogger.warn('User not found for 2FA disable', { userId })
         reply.status(404)
         return {
@@ -72,15 +65,7 @@ async function disable2FAroute(fastify, options) {
         return {
           success: true,
           message: '2FA is already disabled',
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            email_verified: !!user.email_verified,
-            twoFactorEnabled: false,
-            avatar: null,
-            is_online: !!user.is_online
-          }
+          user: formatAuthUser(user)
         }
       }
       
@@ -115,33 +100,7 @@ async function disable2FAroute(fastify, options) {
       }
       
       // 5. Disable 2FA for the user in database and clear secrets
-      const result = databaseConnection.transaction(() => {
-        const updateResult = databaseConnection.run(`
-          UPDATE users 
-          SET two_factor_enabled = 0,
-              two_factor_secret = NULL,
-              two_factor_secret_tmp = NULL,
-              backup_codes = NULL,
-              backup_codes_tmp = NULL,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `, [userId])
-        
-        if (updateResult.changes === 0) {
-          throw new Error('Failed to update user 2FA settings')
-        }
-        
-        // Get updated user data
-        const updatedUser = databaseConnection.get(`
-          SELECT id, username, email, email_verified, 
-                 two_factor_enabled, avatar_url, is_online
-          FROM users 
-          WHERE id = ?
-          LIMIT 1
-        `, [userId])
-        
-        return updatedUser
-      })
+      const result = userService.disable2FA(userId)
       
       // 6. Log security event
       disable2FALogger.info('✅ 2FA successfully disabled', { 
@@ -154,15 +113,7 @@ async function disable2FAroute(fastify, options) {
       return {
         success: true,
         message: '2FA successfully disabled',
-        user: {
-          id: result.id,
-          username: result.username,
-          email: result.email,
-          email_verified: !!result.email_verified,
-          twoFactorEnabled: false, // Now disabled
-          avatar: result.avatar_url,
-          is_online: !!result.is_online
-        }
+        user: formatAuthUser(result)
       }
       
     } catch (error) {

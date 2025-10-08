@@ -6,7 +6,7 @@
 
 import { logger } from '../../logger.js'
 import { userService, emailService } from '../../services/index.js'
-import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 
 const resendVerificationLogger = logger.child({ module: 'routes/auth/resend-verification' })
 
@@ -16,7 +16,7 @@ const resendVerificationLogger = logger.child({ module: 'routes/auth/resend-veri
  */
 async function resendVerificationRoute(fastify, options) {
   fastify.post('/resend-verification', {
-    schema: routeSchemas.resendVerification
+    schema: routeAuthSchemas.resendVerification
   }, async (request, reply) => {
     try {
       const { email } = request.body

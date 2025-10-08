@@ -5,10 +5,11 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 import { userService } from '../../services/index.js'
 import { generateTokenPair } from '../../utils/jwt.js'
 import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
+import { formatAuthUser } from '../../utils/user-formatters.js'
 
 const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
 
@@ -19,7 +20,7 @@ const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
 async function verifyEmailRoute(fastify) {
   
   fastify.get('/verify-email', {
-    schema: routeSchemas.verifyEmail
+    schema: routeAuthSchemas.verifyEmail
   }, async (request, reply) => {
     try {
       const { token } = request.query
@@ -62,12 +63,7 @@ async function verifyEmailRoute(fastify) {
       return {
         success: true,
         message: 'Email verified successfully. You are now logged in.',
-        user: {
-          id: parseInt(verifiedUser.id), // Ensure integer type
-          username: verifiedUser.username,
-          email: verifiedUser.email,
-          email_verified: true
-        },
+        user: formatAuthUser({ ...verifiedUser, email_verified: true })
       }
       
     } catch (error) {

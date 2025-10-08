@@ -291,10 +291,10 @@ const schemas = [
 ]
 
 // =============================================================================
-// COMPLETE ROUTE SCHEMAS
+// COMPLETE ROUTE AUTH SCHEMAS
 // =============================================================================
 
-export const routeSchemas = {
+export const routeAuthSchemas = {
   // Register route
   register: {
     tags: ['auth'],

@@ -15,6 +15,6 @@ export default [
             is_online: { type: 'boolean', description: 'User online status' },
             twoFactorEnabled: { type: 'boolean', description: 'Two-factor authentication status' }
         },
-        required: ['id', 'username', 'email', 'email_verified']
+        required: ['id']
     }
 ]

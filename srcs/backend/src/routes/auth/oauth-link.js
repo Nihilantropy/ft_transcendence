@@ -3,11 +3,14 @@
  */
 
 import { logger } from '../../logger.js'
+import { routeOAuthSchemas } from '../../schemas/index.js'
 
 const oauthLinkLogger = logger.child({ module: 'routes/auth/oauth-link' })
 
 async function oauthLinkRoute(fastify, options) {
-  fastify.post('/oauth/link', async (request, reply) => {
+  fastify.post('/oauth/link', {
+    schema: routeOAuthSchemas.link
+  }, async (request, reply) => {
     try {
       const { provider, code, state } = request.body
       
@@ -29,7 +32,9 @@ async function oauthLinkRoute(fastify, options) {
     }
   })
 
-  fastify.delete('/oauth/unlink/:provider', async (request, reply) => {
+  fastify.delete('/oauth/unlink/:provider', {
+    schema: routeOAuthSchemas.unlink
+  }, async (request, reply) => {
     try {
       const { provider } = request.params
       

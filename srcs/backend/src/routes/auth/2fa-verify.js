@@ -3,19 +3,19 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 import { generateTokenPair } from '../../utils/jwt.js'
 import { userService } from '../../services/user.service.js'
 import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
+import { formatAuthUser } from '../../utils/user-formatters.js'
 import speakeasy from 'speakeasy'
-import databaseConnection from '../../database.js'
 
 const verify2FALogger = logger.child({ module: 'routes/auth/2fa-verify' })
 
 async function verify2FARoute(fastify, options) {
   // Register the route with schema validation
   fastify.post('/2fa/verify', {
-    schema: routeSchemas.verify2FA
+    schema: routeAuthSchemas.verify2FA
   }, async (request, reply) => {
     try {
       const { tempToken, token, backupCode } = request.body
@@ -69,11 +69,7 @@ async function verify2FARoute(fastify, options) {
         
         if (verified) {
           // Remove used backup code
-          const updatedCodes = backupCodes.filter(code => code !== backupCode.toUpperCase())
-          databaseConnection.run(
-            'UPDATE users SET backup_codes = ? WHERE id = ?',
-            [JSON.stringify(updatedCodes), userId]
-          )
+          userService.useBackupCode(userId, backupCode)
         }
       }
 
@@ -113,15 +109,7 @@ async function verify2FARoute(fastify, options) {
       return {
         success: true,
         message: 'Login successful',
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          email_verified: user.email_verified || false,
-          avatar: user.avatar_url || undefined,
-          is_online: true,
-          twoFactorEnabled: user.two_factor_enabled || false
-        }
+        user: formatAuthUser({ ...user, is_online: true })
       }
 
     } catch (error) {

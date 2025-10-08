@@ -21,6 +21,7 @@ import { logger, createLoggerConfig } from './logger.js'
 import { registerRoutes } from './routes/index.js'
 import swaggerPlugin from './plugins/swagger.js'
 import errorHandlerPlugin from './plugins/error-handler.js'
+import { validateOAuthConfig, isOAuthConfigured } from './config/oauth.config.js'
 
 /**
  * @brief Initialize centralized logger
@@ -62,8 +63,17 @@ await fastify.register(cors, {
 })
 
 await fastify.register(rateLimit, {
+  global: false, // Apply per-route instead of globally
   max: 100,
-  timeWindow: '1 minute'
+  timeWindow: '1 minute',
+  errorResponseBuilder: () => ({
+    success: false,
+    message: 'Too many requests. Please try again later.',
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      details: 'Rate limit exceeded'
+    }
+  })
 })
 
 await fastify.register(cookie, {
@@ -211,12 +221,23 @@ const start = async () => {
     await database.connect()
     logger.info('✅ Database connection established')
     
+    // Validate OAuth configuration (non-blocking)
+    try {
+      validateOAuthConfig()
+      logger.info('✅ OAuth configuration validated')
+    } catch (error) {
+      logger.warn('⚠️ OAuth configuration invalid - OAuth routes will be disabled')
+      logger.warn(error.message)
+      // Continue without OAuth (don't crash server)
+    }
+    
     const HOST = '0.0.0.0'
     const PORT = process.env.PORT || 8000
     
     // Start Fastify server
     await fastify.listen({ host: HOST, port: parseInt(PORT) })
     logger.info(`🚀 Backend server ready at http://${HOST}:${PORT}`)
+    logger.info(`📊 OAuth Status: ${isOAuthConfigured() ? '✅ Enabled' : '❌ Disabled'}`)
     initializeSocketIO(fastify)
 
   } catch (err) {

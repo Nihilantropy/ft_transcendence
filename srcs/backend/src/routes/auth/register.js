@@ -6,8 +6,9 @@
 
 import { logger } from '../../logger.js'
 import { userService, emailService } from '../../services/index.js'
-import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 import { validatePassword } from '../../middleware/validation.js'
+import { formatAuthUser } from '../../utils/user-formatters.js'
 
 const registerLogger = logger.child({ module: 'routes/auth/register' })
 
@@ -17,7 +18,7 @@ const registerLogger = logger.child({ module: 'routes/auth/register' })
  */
 async function registerRoute(fastify, options) {
   fastify.post('/register', {
-  schema: routeSchemas.register
+  schema: routeAuthSchemas.register
   }, async (request, reply) => {
     try {
       const { email, password, confirmPassword } = request.body
@@ -94,12 +95,7 @@ async function registerRoute(fastify, options) {
       return {
         success: true,
         message: 'User registered successfully. Please check your email to verify your account.',
-        user: {
-          id: parseInt(newUser.id), // Ensure integer type
-          username: newUser.username,
-          email: newUser.email,
-          email_verified: newUser.email_verified
-        }
+        user: formatAuthUser(newUser)
       }
       
     } catch (error) {

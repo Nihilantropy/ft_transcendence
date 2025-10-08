@@ -28,6 +28,7 @@ import resendVerificationRoute from './resend-verification.js'
 
 // OAuth 2.0 routes
 import oauthProvidersRoute from './oauth-providers.js'
+import oauthInitiateRoute from './oauth-initiate.js'
 import oauthCallbackRoute from './oauth-callback.js'
 import oauthLinkRoute from './oauth-link.js'
 
@@ -90,6 +91,9 @@ async function authRoutes(fastify, options) {
   
   await fastify.register(oauthProvidersRoute)
   authLogger.info('✅ OAuth providers route registered')
+  
+  await fastify.register(oauthInitiateRoute)
+  authLogger.info('✅ OAuth initiate route registered')
   
   await fastify.register(oauthCallbackRoute)
   authLogger.info('✅ OAuth callback route registered')

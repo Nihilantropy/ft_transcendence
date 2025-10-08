@@ -3,17 +3,18 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/routes/auth.schema.js'
+import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 import { requireAuth } from '../../middleware/authentication.js'
+import { userService } from '../../services/user.service.js'
+import { formatAuthUser } from '../../utils/user-formatters.js'
 import speakeasy from 'speakeasy'
-import databaseConnection from '../../database.js'
 
 const verify2FASetupLogger = logger.child({ module: 'routes/auth/2fa-verify-setup' })
 
 async function verify2FASetupRoute(fastify, options) {
   // Register the route with schema validation
   fastify.post('/2fa/verify-setup', {
-    schema: routeSchemas.verify2FASetup,
+    schema: routeAuthSchemas.verify2FASetup,
     preHandler: requireAuth // Ensure user is authenticated
   }, async (request, reply) => {
     try {
@@ -23,12 +24,9 @@ async function verify2FASetupRoute(fastify, options) {
       verify2FASetupLogger.info('🔐 Verifying 2FA setup', { userId })
 
       // Get temporary secret from database (more secure than trusting frontend)
-      const user = databaseConnection.get(
-        'SELECT two_factor_secret_tmp, backup_codes_tmp, two_factor_enabled FROM users WHERE id = ?',
-        [userId]
-      )
+      const setupData = userService.get2FASetupData(userId)
 
-      if (!user) {
+      if (!setupData) {
         verify2FASetupLogger.error('❌ User not found', { userId })
         reply.status(404)
         return {
@@ -37,7 +35,7 @@ async function verify2FASetupRoute(fastify, options) {
         }
       }
 
-      if (user.two_factor_enabled) {
+      if (setupData.two_factor_enabled) {
         verify2FASetupLogger.warn('⚠️ 2FA already enabled', { userId })
         reply.status(400)
         return {
@@ -46,7 +44,7 @@ async function verify2FASetupRoute(fastify, options) {
         }
       }
 
-      if (!user.two_factor_secret_tmp) {
+      if (!setupData.two_factor_secret_tmp) {
         verify2FASetupLogger.warn('⚠️ No 2FA setup in progress', { userId })
         reply.status(400)
         return {
@@ -56,7 +54,7 @@ async function verify2FASetupRoute(fastify, options) {
       }
 
       // Verify that frontend secret matches database secret (integrity check)
-      if (user.two_factor_secret_tmp !== secret) {
+      if (setupData.two_factor_secret_tmp !== secret) {
         verify2FASetupLogger.warn('⚠️ Secret mismatch', { userId })
         reply.status(400)
         return {
@@ -67,7 +65,7 @@ async function verify2FASetupRoute(fastify, options) {
 
       // Verify TOTP token against secret from database
       const verified = speakeasy.totp.verify({
-        secret: user.two_factor_secret_tmp,
+        secret: setupData.two_factor_secret_tmp,
         encoding: 'base32',
         token: token,
         window: 2 // Allow some time drift
@@ -83,34 +81,14 @@ async function verify2FASetupRoute(fastify, options) {
       }
 
       // Move temporary data to permanent columns and enable 2FA
-      databaseConnection.run(`
-        UPDATE users 
-        SET 
-          two_factor_enabled = ?,
-          two_factor_secret = two_factor_secret_tmp,
-          backup_codes = backup_codes_tmp,
-          two_factor_secret_tmp = NULL,
-          backup_codes_tmp = NULL,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [1, userId])
-
-      // Get updated user data to return
-      const updatedUser = databaseConnection.get(
-        'SELECT id, username, email, email_verified, avatar_url as avatar, is_online, two_factor_enabled as twoFactorEnabled FROM users WHERE id = ?',
-        [userId]
-      )
-
-      if (!updatedUser) {
-        throw new Error('Failed to retrieve updated user data')
-      }
+      const updatedUser = userService.enable2FA(userId)
 
       verify2FASetupLogger.info('✅ 2FA setup completed successfully', { userId })
 
       return {
         success: true,
         message: '2FA has been successfully enabled for your account',
-        user: updatedUser
+        user: formatAuthUser(updatedUser)
       }
     } catch (error) {
       verify2FASetupLogger.error('❌ 2FA verify setup failed', { 

@@ -8,7 +8,7 @@
  */
 
 import { logger } from '../../logger.js'
-import { routeSchemas } from '../../schemas/index.js'
+import { routeAuthSchemas } from '../../schemas/index.js'
 import { generateRefreshToken } from '../../utils/jwt.js'
 import { REFRESH_TOKEN_CONFIG } from '../../utils/coockie.js'
 
@@ -20,7 +20,7 @@ const refreshLogger = logger.child({ module: 'routes/auth/refresh' })
  */
 async function refreshRoute(fastify, options) {
   fastify.post('/refresh', {
-    schema: routeSchemas.refresh
+    schema: routeAuthSchemas.refresh
   }, async (request, reply) => {
     try {
       // Get refresh token from body OR cookie
