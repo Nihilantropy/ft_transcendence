@@ -331,11 +331,6 @@ export class GameService extends ApiService {
       throw new Error('Authentication required')
     }
 
-    const token = authService.getAuthToken()
-    if (!token) {
-      throw new Error('Authentication required - no token available')
-    }
-
     const [error, response] = await catchErrorTyped(
       (async () => {
         // Make authenticated request using fetch directly since we need to add auth headers
@@ -345,8 +340,7 @@ export class GameService extends ApiService {
         const options: RequestInit = {
           method,
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           }
         }
 

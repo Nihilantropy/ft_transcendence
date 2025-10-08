@@ -22,9 +22,52 @@ async function verify2FASetupRoute(fastify, options) {
       
       verify2FASetupLogger.info('🔐 Verifying 2FA setup', { userId })
 
-      // Verify TOTP token against secret
+      // Get temporary secret from database (more secure than trusting frontend)
+      const user = databaseConnection.get(
+        'SELECT two_factor_secret_tmp, backup_codes_tmp, two_factor_enabled FROM users WHERE id = ?',
+        [userId]
+      )
+
+      if (!user) {
+        verify2FASetupLogger.error('❌ User not found', { userId })
+        reply.status(404)
+        return {
+          success: false,
+          message: 'User not found'
+        }
+      }
+
+      if (user.two_factor_enabled) {
+        verify2FASetupLogger.warn('⚠️ 2FA already enabled', { userId })
+        reply.status(400)
+        return {
+          success: false,
+          message: '2FA is already enabled for this account'
+        }
+      }
+
+      if (!user.two_factor_secret_tmp) {
+        verify2FASetupLogger.warn('⚠️ No 2FA setup in progress', { userId })
+        reply.status(400)
+        return {
+          success: false,
+          message: 'No 2FA setup in progress. Please start setup first.'
+        }
+      }
+
+      // Verify that frontend secret matches database secret (integrity check)
+      if (user.two_factor_secret_tmp !== secret) {
+        verify2FASetupLogger.warn('⚠️ Secret mismatch', { userId })
+        reply.status(400)
+        return {
+          success: false,
+          message: 'Invalid setup data. Please restart 2FA setup.'
+        }
+      }
+
+      // Verify TOTP token against secret from database
       const verified = speakeasy.totp.verify({
-        secret: secret,
+        secret: user.two_factor_secret_tmp,
         encoding: 'base32',
         token: token,
         window: 2 // Allow some time drift
@@ -39,14 +82,18 @@ async function verify2FASetupRoute(fastify, options) {
         }
       }
 
-      // Permanently enable 2FA for user
+      // Move temporary data to permanent columns and enable 2FA
       databaseConnection.run(`
         UPDATE users 
         SET 
           two_factor_enabled = ?,
-          two_factor_secret = ?
+          two_factor_secret = two_factor_secret_tmp,
+          backup_codes = backup_codes_tmp,
+          two_factor_secret_tmp = NULL,
+          backup_codes_tmp = NULL,
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [1, secret, userId])
+      `, [1, userId])
 
       // Get updated user data to return
       const updatedUser = databaseConnection.get(

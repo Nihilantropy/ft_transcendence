@@ -24,6 +24,9 @@ export class ApiService {
 
   /**
    * @brief Make HTTP request with simple linear error handling
+   * 
+   * @description Includes credentials: 'include' to ensure cookies are sent with requests.
+   * This is critical for cookie-based authentication (httpOnly accessToken & refreshToken).
    */
   private async makeRequest<T>(
     endpoint: string, 
@@ -37,6 +40,7 @@ export class ApiService {
       // Make the fetch request
       response = await fetch(url, {
         ...options,
+        credentials: 'include', // ✅ Send cookies with request (required for httpOnly auth)
         headers: {
           'Content-Type': 'application/json',
           ...options.headers,

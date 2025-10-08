@@ -10,7 +10,7 @@
 // Export Router class and singleton instance
 export { Router, router } from './router'
 
-// Export simplified router types
+// Export router types and schemas
 export type {
   RouteHandler,
   RouteConfig,
@@ -18,7 +18,20 @@ export type {
   RouteChangeEvent,
   RouteChangeListener,
   RouterOptions
-} from '../types/router.types'
+} from './schemas/router.schemas'
+
+export {
+  RouteConfigSchema,
+  NavigationOptionsSchema,
+  RouteChangeEventSchema,
+  RouterOptionsSchema,
+  validateRouteConfig,
+  validateNavigationOptions,
+  validateRouterOptions,
+  safeParseRouteConfig,
+  safeParseNavigationOptions,
+  safeParseRouterOptions
+} from './schemas/router.schemas'
 
 // Route configuration function
 export { configureRoutes } from './routes'
@@ -26,3 +39,4 @@ export { configureRoutes } from './routes'
 // Usage examples:
 // import { Router, router, configureRoutes } from '@/router'
 // import type { RouteHandler, RouteConfig } from '@/router'
+// import { RouteConfigSchema, validateRouteConfig } from '@/router'

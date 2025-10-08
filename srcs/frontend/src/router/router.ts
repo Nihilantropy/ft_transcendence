@@ -14,7 +14,7 @@ import type {
   RouteChangeEvent,
   RouteChangeListener,
   RouterOptions
-} from '../types/router.types'
+} from './schemas/router.schemas'
 
 /**
  * @brief Simplified Router class for SPA navigation
@@ -133,20 +133,36 @@ export class Router {
   }
 
   /**
-   * @brief Check if user is authenticated using AuthService
+   * @brief Check if user is authenticated
+   * 
+   * @description Uses cookie-based authentication where tokens are stored in httpOnly cookies
+   * and NOT accessible from JavaScript. We check for user data in localStorage which is set
+   * during login. The actual token validation happens on the backend for each API request.
    */
   private isUserAuthenticated(): boolean {
     try {
-      // Import AuthService synchronously (should be available)
-      const authToken = localStorage.getItem('ft_auth_token')
+      // Note: Access tokens are in httpOnly cookies (not accessible from JS)
+      // We can only check if user data exists in localStorage
       const userJson = localStorage.getItem('ft_user')
       
-      // Simple check: if we have both token and user data, consider authenticated
-      // This matches the AuthService.isAuthenticated() logic
-      const isAuthenticated = !!(authToken && userJson)
+      if (!userJson) {
+        console.log('🔐 Auth check result: NOT_AUTHENTICATED (no user data)')
+        return false
+      }
       
-      console.log('🔐 Auth check result:', isAuthenticated ? 'AUTHENTICATED' : 'NOT_AUTHENTICATED')
-      return isAuthenticated
+      // Validate user data structure
+      try {
+        const user = JSON.parse(userJson)
+        const isAuthenticated = !!(user && user.id && user.username)
+        
+        console.log('🔐 Auth check result:', isAuthenticated ? 'AUTHENTICATED' : 'NOT_AUTHENTICATED (invalid user data)')
+        return isAuthenticated
+      } catch (parseError) {
+        console.warn('🔐 Auth check result: NOT_AUTHENTICATED (corrupted user data)')
+        // Clear corrupted data
+        localStorage.removeItem('ft_user')
+        return false
+      }
     } catch (error) {
       console.error('Failed to check auth status:', error)
       return false

@@ -9,6 +9,9 @@
 
 import { logger } from '../../logger.js'
 import { routeSchemas } from '../../schemas/index.js'
+import { emailService } from '../../services/email.service.js'
+import { userService } from '../../services/user.service.js'
+import crypto from 'crypto'
 
 // Create route-specific logger
 const forgotPasswordLogger = logger.child({ module: 'routes/auth/forgot-password' })
@@ -33,11 +36,11 @@ async function forgotPasswordRoute(fastify, options) {
         
         // TODO: Implement forgot password logic
         // 1. Validate email format
-        // 2. Find user by email
+        // 2. Find user by email using userService
         // 3. Generate secure reset token (crypto.randomBytes)
         // 4. Set token expiration (1 hour)
         // 5. Save token to database
-        // 6. Send password reset email
+        // 6. Send password reset email using emailService
         // 7. Return success (don't reveal if email exists)
         
         return {

@@ -52,7 +52,9 @@ CREATE TABLE users (
     
     -- Two-Factor Auth
     two_factor_enabled BOOLEAN DEFAULT FALSE,
-    two_factor_secret TEXT,
+    two_factor_secret_tmp TEXT, -- Temporary secret during setup
+    two_factor_secret TEXT, -- Permanent secret
+    backup_codes_tmp TEXT, -- Temporary backup codes during setup
     backup_codes TEXT, -- JSON array of backup codes
     
     -- Timestamps

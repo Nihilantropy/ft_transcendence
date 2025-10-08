@@ -120,7 +120,9 @@ async function disable2FAroute(fastify, options) {
           UPDATE users 
           SET two_factor_enabled = 0,
               two_factor_secret = NULL,
+              two_factor_secret_tmp = NULL,
               backup_codes = NULL,
+              backup_codes_tmp = NULL,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `, [userId])

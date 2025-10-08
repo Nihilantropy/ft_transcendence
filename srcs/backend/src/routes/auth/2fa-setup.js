@@ -61,8 +61,8 @@ async function setup2FAroute(fastify, options) {
       databaseConnection.run(`
         UPDATE users 
         SET 
-          two_factor_secret = ?,
-          backup_codes = ?
+          two_factor_secret_tmp = ?,
+          backup_codes_tmp = ?
         WHERE id = ?
       `, [secret.base32, JSON.stringify(backupCodes), userId])
 
