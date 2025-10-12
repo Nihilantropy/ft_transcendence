@@ -54,21 +54,22 @@ export class ForgotPasswordPage extends Component<ForgotPasswordPageProps, Forgo
     this.setState({ isLoading: true })
 
     try {
-      const response = await authService.requestPasswordReset(email)
+      const response = await authService.forgotPassword(email)
       
       if (response.success) {
         this.setState({ 
           emailSent: true,
           isLoading: false
         })
-        showPopup('Password reset email sent! Check your inbox.')
+        showPopup('✅ Password reset email sent! Check your inbox.')
       } else {
         this.setState({ isLoading: false })
-        showPopup(response.message || 'Failed to send reset email')
+        showPopup('❌ ' + (response.message || 'Failed to send reset email'))
       }
     } catch (error) {
       this.setState({ isLoading: false })
-      showPopup('Something went wrong. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+      showPopup('❌ ' + errorMessage)
     }
   }
 

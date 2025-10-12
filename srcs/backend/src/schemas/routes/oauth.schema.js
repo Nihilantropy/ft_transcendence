@@ -1,13 +1,13 @@
 /**
  * @file OAuth route schemas
- * @description Request/response validation for OAuth routes
+ * @description Request/response validation for Google OAuth routes only
  */
 
 import userSchemas from '../common/user.schema.js'
 import responseSchemas from '../common/responses.schema.js'
 
 // =============================================================================
-// REQUEST/RESPONSE SCHEMAS
+// REQUEST/RESPONSE SCHEMAS (Google OAuth Only)
 // =============================================================================
 
 const schemas = [
@@ -17,7 +17,7 @@ const schemas = [
 
   /**
    * @schema OAuthCallbackQuery
-   * @description Query parameters for OAuth callback
+   * @description Query parameters for Google OAuth callback
    */
   {
     $id: 'OAuthCallbackQuery',
@@ -27,7 +27,7 @@ const schemas = [
         type: 'string',
         minLength: 1,
         maxLength: 2000,
-        description: 'Authorization code from OAuth provider'
+        description: 'Authorization code from Google'
       },
       state: {
         type: 'string',
@@ -37,11 +37,11 @@ const schemas = [
       },
       error: {
         type: 'string',
-        description: 'Error code from OAuth provider'
+        description: 'Error code from Google OAuth'
       },
       error_description: {
         type: 'string',
-        description: 'Error description from OAuth provider'
+        description: 'Error description from Google OAuth'
       }
     },
     // Note: Don't require code/state to allow error responses from OAuth provider
@@ -49,82 +49,6 @@ const schemas = [
       { required: ['code', 'state'] },
       { required: ['error'] }
     ]
-  },
-
-  /**
-   * @schema OAuthLinkRequest
-   * @description Request body for linking OAuth account
-   */
-  {
-    $id: 'OAuthLinkRequest',
-    type: 'object',
-    properties: {
-      provider: {
-        type: 'string',
-        enum: ['google'],
-        description: 'OAuth provider name'
-      },
-      code: {
-        type: 'string',
-        minLength: 1,
-        maxLength: 2000,
-        description: 'Authorization code'
-      },
-      state: {
-        type: 'string',
-        minLength: 1,
-        maxLength: 500,
-        description: 'CSRF token'
-      }
-    },
-    required: ['provider', 'code', 'state']
-  },
-
-  /**
-   * @schema OAuthLinkResponse
-   * @description Response for OAuth account linking
-   */
-  {
-    $id: 'OAuthLinkResponse',
-    type: 'object',
-    properties: {
-      success: { type: 'boolean' },
-      message: { type: 'string' },
-      user: { $ref: 'User#' }
-    },
-    required: ['success', 'message']
-  },
-
-  /**
-   * @schema OAuthUnlinkParams
-   * @description Path parameters for OAuth unlinking
-   */
-  {
-    $id: 'OAuthUnlinkParams',
-    type: 'object',
-    properties: {
-      provider: {
-        type: 'string',
-        enum: ['google'],
-        description: 'OAuth provider to unlink'
-      }
-    },
-    required: ['provider']
-  },
-
-  /**
-   * @schema OAuthUnlinkResponse
-   * @description Response for OAuth account unlinking
-   */
-  {
-    $id: 'OAuthUnlinkResponse',
-    type: 'object',
-    properties: {
-      success: { type: 'boolean' },
-      message: { type: 'string' },
-      user: { $ref: 'User#' }
-    },
-    required: ['success', 'message']
   }
 ]
 
@@ -133,47 +57,15 @@ const schemas = [
 // =============================================================================
 
 export const routeOAuthSchemas = {
-  // OAuth callback
+  // Google OAuth callback
   callback: {
     tags: ['oauth'],
     operationId: 'oauthCallback',
-    summary: 'OAuth callback handler',
-    description: 'Handle OAuth provider callback with code and state',
+    summary: 'Google OAuth callback handler',
+    description: 'Handle Google OAuth callback with code and state. Auto-links accounts with matching email.',
     querystring: { $ref: 'OAuthCallbackQuery#' },
     response: {
       // OAuth redirects don't have typed responses
-    }
-  },
-
-  // OAuth link account
-  link: {
-    tags: ['oauth'],
-    operationId: 'oauthLink',
-    summary: 'Link OAuth account',
-    description: 'Link OAuth provider account to existing user account',
-    body: { $ref: 'OAuthLinkRequest#' },
-    response: {
-      200: { $ref: 'OAuthLinkResponse#' },
-      400: { $ref: 'ErrorResponse#' },
-      401: { $ref: 'ErrorResponse#' },
-      409: { $ref: 'ErrorResponse#' },
-      500: { $ref: 'ErrorResponse#' }
-    }
-  },
-
-  // OAuth unlink account
-  unlink: {
-    tags: ['oauth'],
-    operationId: 'oauthUnlink',
-    summary: 'Unlink OAuth account',
-    description: 'Unlink OAuth provider from user account',
-    params: { $ref: 'OAuthUnlinkParams#' },
-    response: {
-      200: { $ref: 'OAuthUnlinkResponse#' },
-      400: { $ref: 'ErrorResponse#' },
-      401: { $ref: 'ErrorResponse#' },
-      404: { $ref: 'ErrorResponse#' },
-      500: { $ref: 'ErrorResponse#' }
     }
   }
 }

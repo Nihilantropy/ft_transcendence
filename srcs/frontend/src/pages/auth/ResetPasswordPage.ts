@@ -77,21 +77,27 @@ export class ResetPasswordPage extends Component<ResetPasswordPageProps, ResetPa
     this.setState({ isLoading: true })
 
     try {
-      const response = await authService.resetPassword(token, password)
+      const response = await authService.resetPassword(token, password, confirmPassword)
       
       if (response.success) {
         this.setState({ 
           resetComplete: true,
           isLoading: false
         })
-        showPopup('Password reset successful! You can now log in.')
+        showPopup('✅ Password reset successful! You can now log in.')
+        
+        // Redirect to login after 2 seconds
+        setTimeout(() => {
+          router.navigate('/login')
+        }, 2000)
       } else {
         this.setState({ isLoading: false })
-        showPopup(response.message || 'Failed to reset password')
+        showPopup('❌ ' + (response.message || 'Failed to reset password'))
       }
     } catch (error) {
       this.setState({ isLoading: false })
-      showPopup('Something went wrong. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+      showPopup('❌ ' + errorMessage)
     }
   }
 

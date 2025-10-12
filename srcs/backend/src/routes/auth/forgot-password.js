@@ -12,6 +12,7 @@ import { routeAuthSchemas } from '../../schemas/index.js'
 import { emailService } from '../../services/email.service.js'
 import userService from '../../services/user.service.js'
 import crypto from 'crypto'
+import { validateEmail } from '../../middleware/validation.js'
 
 // Create route-specific logger
 const forgotPasswordLogger = logger.child({ module: 'routes/auth/forgot-password' })
@@ -39,7 +40,17 @@ async function forgotPasswordRoute(fastify, options) {
         const { email } = request.body
         
         forgotPasswordLogger.info('🔑 Password reset requested', { email })
-        
+
+        // Validate email format
+        if (!validateEmail(email)) {
+          forgotPasswordLogger.debug('Invalid email format', { email })
+          reply.status(400)
+          return {
+            success: false,
+            message: 'Invalid email format'
+          }
+        }
+
         // Generate secure reset token (32 bytes = 64 hex chars)
         const resetToken = crypto.randomBytes(32).toString('hex')
         

@@ -48,7 +48,7 @@ CREATE TABLE users (
     
     -- OAuth
     google_id TEXT UNIQUE,
-    oauth_providers TEXT, -- "google"
+    oauth_providers TEXT, -- JSON array of provider names, e.g. ["google", "github"]
     
     -- Two-Factor Auth
     two_factor_enabled BOOLEAN DEFAULT FALSE,

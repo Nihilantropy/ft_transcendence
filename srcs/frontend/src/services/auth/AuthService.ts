@@ -20,7 +20,8 @@ import { executeRegister } from './executeRegister'
 import { executeVerifyEmail } from './executeVerifyEmail'
 import { executeLogout } from './executeLogout'
 import { executeRefreshToken } from './executeRefreshToken'
-import { executeRequestPasswordReset } from './executeRequestPasswordReset'
+import { executeForgotPassword } from './executeForgotPassword'
+import { executeResetPassword } from './executeResetPassword'
 import { executeResendVerificationEmail } from './executeResendVerificationEmail'
 import { executeSetup2FA } from './execute2FASetup'
 import { executeVerify2FASetup } from './execute2FAVerifySetup'
@@ -205,20 +206,20 @@ export class AuthService extends ApiService {
   }
 
   /**
-   * @brief Request password reset using extracted business logic
+   * @brief Request password reset (forgot password) using extracted business logic
    * @param email - User email address
    * @return Promise<{ success: boolean; message: string }>
    * @throws Error on failure with descriptive message
    */
-  public async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+  public async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
     console.log('🔑 Requesting password reset for:', email)
     try {
-      const resetData = await executeRequestPasswordReset(email, '/auth/forgot-password')
+      const resetData = await executeForgotPassword(email, '/auth/forgot-password')
 
       console.log('✅ Password reset email sent')
       return { 
         success: true, 
-        message: resetData.message || 'Password reset email sent successfully'
+        message: resetData.message || 'If an account with that email exists, a password reset link has been sent.'
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -229,6 +230,52 @@ export class AuthService extends ApiService {
         throw new Error('Failed to request password reset')
       }
     }
+  }
+
+  /**
+   * @brief Reset password with token using extracted business logic
+   * @param token - Password reset token from email
+   * @param newPassword - New password
+   * @param confirmPassword - Password confirmation
+   * @return Promise<{ success: boolean; message: string }>
+   * @throws Error on failure with descriptive message
+   */
+  public async resetPassword(
+    token: string, 
+    newPassword: string, 
+    confirmPassword: string
+  ): Promise<{ success: boolean; message: string }> {
+    console.log('🔄 Resetting password with token')
+    try {
+      const resetData = await executeResetPassword(
+        token, 
+        newPassword, 
+        confirmPassword, 
+        '/auth/reset-password'
+      )
+
+      console.log('✅ Password reset successful')
+      return { 
+        success: true, 
+        message: resetData.message || 'Password reset successful. You can now login with your new password.'
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.warn('❌ Password reset failed:', error.message)
+        throw new Error(error.message || 'Failed to reset password')
+      } else {
+        console.error('❌ Password reset failed:', error)
+        throw new Error('Failed to reset password')
+      }
+    }
+  }
+
+  /**
+   * @brief Backward compatibility alias for forgotPassword
+   * @deprecated Use forgotPassword() instead
+   */
+  public async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    return this.forgotPassword(email)
   }
 
   /**
@@ -447,48 +494,18 @@ export class AuthService extends ApiService {
    * 1. Generates and stores a secure state token (CSRF protection)
    * 2. Redirects to Google OAuth with the state
    * 3. Google redirects back to /oauth/google/callback with code & state
+   * 4. Backend automatically links accounts with matching email addresses
    */
   async startGoogleOAuth(): Promise<void> {
     const oauthAvailable = this.isOAuthAvailable()
     if (!oauthAvailable) {
-      throw new Error('Google OAuth is not available or not properly configured')
+      throw new Error('OAuth is not configured')
     }
 
     // Redirect to backend OAuth initiation endpoint
     // Backend will generate state token and redirect to Google
     window.location.href = '/api/auth/oauth/google/login';
   }
-
-  // /**
-  //  * @brief Unlink OAuth provider from account
-  //  */
-  // public async unlinkOAuthProvider(provider: string): Promise<{ success: boolean; message?: string; user?: any }> {
-  //   const [error, apiResponse] = await catchErrorTyped(
-  //     this.delete<AuthResponse>(`/auth/oauth/${provider}`)
-  //   )
-
-  //   if (error) {
-  //     throw new Error(error.message || `Failed to unlink ${provider} account`)
-  //   }
-
-  //   if (!apiResponse?.success || !apiResponse.data.success) {
-  //     throw new Error(apiResponse?.data.message || `Failed to unlink ${provider} account`)
-  //   }
-
-  //   if (apiResponse.data.user) {
-  //     // Update stored user data
-  //     this.currentUser = apiResponse.data.user
-  //     this.updateStoredUser()
-      
-  //     console.log('🔐 OAuth provider unlinked successfully')
-  //   }
-    
-  //   return {
-  //     success: true,
-  //     message: apiResponse.data.message,
-  //     user: apiResponse.data.user
-  //   }
-  // }
 
   // ==========================================================================
   // UTILITY METHODS

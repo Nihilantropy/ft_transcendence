@@ -46,3 +46,13 @@ function validatePasswordStrength(password) {
     message: score < 4 ? 'Password must contain uppercase, lowercase, number, and special character' : 'Strong password'
   }
 }
+
+/**
+ * @brief Validate email format
+ * @param {string} email - Email to validate
+ * @return {boolean} - True if email format is valid, false otherwise
+ */
+export function validateEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}

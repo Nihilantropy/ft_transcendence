@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod'
-import { PasswordUtils } from '../../utils'
+import { PasswordUtils } from '@/services/utils'
 
 // =============================================================================
 // BASE USER SCHEMA
@@ -85,6 +85,40 @@ export const VerifyEmailQuerySchema = z.object({
 })
 
 /**
+ * @brief Password reset request schema (with token)
+ * Used when user submits new password with reset token
+ */
+export const ResetPasswordRequestSchema = z.object({
+  token: z.string()
+    .min(32, "Invalid reset token")
+    .max(64, "Invalid reset token")
+    .describe("Password reset token from email"),
+  newPassword: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password too long")
+    .refine((newPassword) => {
+      const validation = PasswordUtils.validatePassword(newPassword)
+      return validation.isValid
+    }, {
+      message: "Password does not meet complexity requirements"
+    }),
+  confirmPassword: z.string()
+    .min(8, "Confirm password must be at least 8 characters")
+    .max(128, "Confirm password too long")
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"]
+})
+
+/**
+ * @brief Password reset response schema
+ */
+export const ResetPasswordResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string()
+})
+
+/**
  * @brief 2FA setup initiation request
  * Used when user starts 2FA setup process
  */
@@ -131,8 +165,6 @@ export const TwoFactorStatusSchema = z.object({
   enabled: z.boolean(),
   hasBackupCodes: z.boolean(),
 });
-
-
 
 
 // =============================================================================
@@ -274,6 +306,8 @@ export type RegisterRequest = z.infer<typeof RegisterRequestSchema>
 export type RefreshTokenRequest = z.infer<typeof RefreshTokenRequestSchema>
 export type VerifyEmailQuery = z.infer<typeof VerifyEmailQuerySchema>
 export type ResendVerificationEmailRequest = z.infer<typeof ResendVerificationEmailSchema>
+export type PasswordResetEmailRequest = z.infer<typeof PasswordResetEmailSchema>
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>
 export type Setup2FARequest = z.infer<typeof Setup2FARequestSchema>
 export type Verify2FASetupRequest = z.infer<typeof Verify2FASetupRequestSchema>
 export type Verify2FARequest = z.infer<typeof Verify2FARequestSchema>
@@ -284,7 +318,7 @@ export type LoginResponse = z.infer<typeof LoginResponseSchema>
 export type RegisterResponse = z.infer<typeof RegisterResponseSchema>
 export type VerifyEmailResponse = z.infer<typeof VerifyEmailResponseSchema>
 export type RefreshResponse = z.infer<typeof RefreshResponseSchema>
-export type PasswordResetEmailRequest = z.infer<typeof PasswordResetEmailSchema>
+export type ResetPasswordResponse = z.infer<typeof ResetPasswordResponseSchema>
 export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 export type Setup2FAResponse = z.infer<typeof Setup2FAResponseSchema>

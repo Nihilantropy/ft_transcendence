@@ -655,9 +655,12 @@ export class UserService {
   }
 
   /**
-   * @brief Update user's OAuth provider data
+   * @brief Link Google OAuth account to existing user
+   * @description Updates user with Google ID and marks email as verified
+   * @param {number} userId - User ID
+   * @param {string} googleId - Google user identifier
    */
-  updateUserOAuthData(userId, provider, providerId) {
+  linkGoogleAccount(userId, googleId) {
     try {
       // Get current OAuth providers
       const user = databaseConnection.get(
@@ -670,14 +673,14 @@ export class UserService {
         oauthProviders = JSON.parse(user.oauth_providers)
       }
       
-      // Add/update provider data
-      oauthProviders[provider] = {
-        id: providerId,
+      // Add/update Google provider data
+      oauthProviders.google = {
+        id: googleId,
         connected_at: new Date().toISOString()
       }
       
       // Update database
-      // Also set email_verified = TRUE since OAuth providers verify emails
+      // Also set email_verified = TRUE since Google verifies emails
       databaseConnection.run(`
         UPDATE users 
         SET oauth_providers = ?, 
@@ -686,11 +689,11 @@ export class UserService {
         WHERE id = ?
       `, [JSON.stringify(oauthProviders), userId])
       
-      userServiceLogger.debug('✅ OAuth data updated and email verified', { userId, provider })
+      userServiceLogger.debug('✅ Google account linked and email verified', { userId })
       
     } catch (error) {
-      userServiceLogger.error('❌ Failed to update OAuth data', { error: error.message })
-      throw new Error('Failed to update OAuth data')
+      userServiceLogger.error('❌ Failed to link Google account', { error: error.message })
+      throw new Error('Failed to link Google account')
     }
   }
 

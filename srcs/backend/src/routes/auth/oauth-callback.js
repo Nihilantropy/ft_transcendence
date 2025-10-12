@@ -170,7 +170,7 @@ async function findOrCreateOAuthUser(googleProfile) {
       userId: user.id,
       email: googleProfile.email 
     })
-    userService.updateUserOAuthData(user.id, 'google', googleProfile.id)
+    userService.linkGoogleAccount(user.id, googleProfile.id)
     return { user, isNewUser: false }
   }
 

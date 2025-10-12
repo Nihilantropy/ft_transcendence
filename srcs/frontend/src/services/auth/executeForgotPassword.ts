@@ -1,13 +1,14 @@
 /**
- * @brief Simple password reset request business logic
+ * @brief Forgot password business logic
  * 
- * @description Pure function that handles password reset request to backend.
+ * @description Pure function that handles forgot password request to backend.
  * Uses Zod schemas for validation and validates server response.
+ * This is the same as executeRequestPasswordReset but with clearer naming.
  * 
  * @param email - User email address
- * @param endpoint - API endpoint for password reset request
+ * @param endpoint - API endpoint for forgot password
  * 
- * @return Promise<SuccessResponse> - Validated password reset response
+ * @return Promise<SuccessResponse> - Validated forgot password response
  */
 
 import { validateData } from '../utils/validation'
@@ -21,20 +22,22 @@ import { apiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 
 /**
- * @brief Execute password reset request with validation
+ * @brief Execute forgot password request with validation
  * 
  * @param email - User email address
- * @param endpoint - Password reset endpoint
+ * @param endpoint - Forgot password endpoint (default: /auth/forgot-password)
  * 
  * @return Promise<SuccessResponse> - Validated response from backend
+ * @throws Error if validation fails or request fails
  */
-export async function executeRequestPasswordReset(
+export async function executeForgotPassword(
   email: string,
   endpoint: string = '/auth/forgot-password'
 ): Promise<SuccessResponse> {
   // Validate input email with Zod
   const requestData: PasswordResetEmailRequest = { email }
   const validation = validateData(PasswordResetEmailSchema, requestData)
+  
   if (!validation.success) {
     throw new Error(`Invalid email: ${validation.errors.join(', ')}`)
   }
@@ -50,7 +53,7 @@ export async function executeRequestPasswordReset(
     throw new Error(error?.message || 'Failed to request password reset')
   }
 
-  console.log('✅ Password reset request successful:', response)
+  console.log('✅ Forgot password request successful:', response.data)
 
   // Validate response with Zod
   const responseValidation = validateData(SuccessResponseSchema, response.data)

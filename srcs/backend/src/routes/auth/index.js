@@ -5,8 +5,7 @@
  * - Basic authentication (login, register, logout, refresh)
  * - Password management (forgot, reset)
  * - Email verification (verify, resend)
- * - Username management (check, set)
- * - OAuth 2.0 integration (providers, callbacks, linking)
+ * - Google OAuth 2.0 (initiate, callback with auto-linking)
  * - Two-Factor Authentication (setup, verify, disable)
  */
 
@@ -26,11 +25,9 @@ import resetPasswordRoute from './reset-password.js'
 import verifyEmailRoute from './verify-email.js'
 import resendVerificationRoute from './resend-verification.js'
 
-// OAuth 2.0 routes
-import oauthProvidersRoute from './oauth-providers.js'
+// OAuth 2.0 routes (Google only)
 import oauthInitiateRoute from './oauth-initiate.js'
 import oauthCallbackRoute from './oauth-callback.js'
-import oauthLinkRoute from './oauth-link.js'
 
 // Two-Factor Authentication routes
 import twoFactorSetupRoute from './2fa-setup.js'
@@ -86,20 +83,14 @@ async function authRoutes(fastify, options) {
   authLogger.info('✅ Resend verification route registered')
   
   // =============================================================================
-  // OAUTH 2.0 ROUTES
+  // OAUTH 2.0 ROUTES (Google only - auto-linking enabled)
   // =============================================================================
   
-  await fastify.register(oauthProvidersRoute)
-  authLogger.info('✅ OAuth providers route registered')
-  
   await fastify.register(oauthInitiateRoute)
-  authLogger.info('✅ OAuth initiate route registered')
+  authLogger.info('✅ Google OAuth initiate route registered')
   
   await fastify.register(oauthCallbackRoute)
-  authLogger.info('✅ OAuth callback route registered')
-  
-  await fastify.register(oauthLinkRoute)
-  authLogger.info('✅ OAuth link/unlink routes registered')
+  authLogger.info('✅ Google OAuth callback route registered')
   
   // =============================================================================
   // TWO-FACTOR AUTHENTICATION ROUTES
