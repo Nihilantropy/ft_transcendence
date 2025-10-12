@@ -76,6 +76,51 @@ class EmailService {
       return false;
     }
   }
+
+  /**
+   * @brief Send password reset email to user
+   */
+  async sendPasswordResetEmail({ email, username, resetToken }) {
+    try {
+      // Email links directly to frontend reset password page with token
+      const resetUrl = `${this.frontendUrl}/reset-password?token=${resetToken}`;
+      
+      const mailOptions = {
+        from: process.env.EMAIL_USER || 'noreply@ft-transcendence.local',
+        to: email,
+        subject: 'Reset your ft_transcendence password',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Password Reset Request</h2>
+            <p>Hello <strong>${username}</strong>,</p>
+            <p>We received a request to reset your password. Click the button below to proceed:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" 
+                 style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+                Reset Password
+              </a>
+            </div>
+            <p><small>Link expires in 1 hour. If you didn't request this, please ignore this email.</small></p>
+          </div>
+        `
+      };
+
+      if (this.transporter) {
+        await this.transporter.sendMail(mailOptions);
+        logger.info(`Password reset email sent to ${email}`);
+        return true;
+      } else {
+        // Console mode for development
+        logger.info(`📧 PASSWORD RESET EMAIL (Console Mode):`);
+        logger.info(`To: ${email}`);
+        logger.info(`URL: ${resetUrl}`);
+        return true;
+      }
+    } catch (error) {
+      logger.error('Failed to send password reset email:', error);
+      return false;
+    }
+  }
 }
 
 export const emailService = new EmailService()

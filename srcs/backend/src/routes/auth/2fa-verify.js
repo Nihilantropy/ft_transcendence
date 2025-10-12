@@ -1,10 +1,15 @@
 /**
  * @brief 2FA verification route for login process
+ * 
+ * @description Completes login after 2FA verification
+ * - Verifies temporary 2FA token from login
+ * - Validates TOTP code or backup code
+ * - Generates access/refresh tokens on success
  */
 
 import { logger } from '../../logger.js'
 import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
-import { generateTokenPair } from '../../utils/jwt.js'
+import { generateTokenPair, verifyTemp2FAToken } from '../../utils/jwt.js'
 import { userService } from '../../services/user.service.js'
 import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
 import { formatAuthUser } from '../../utils/user-formatters.js'
@@ -20,61 +25,114 @@ async function verify2FARoute(fastify, options) {
     try {
       const { tempToken, token, backupCode } = request.body
       
-      verify2FALogger.info('🔐 Verifying 2FA for login')
+      verify2FALogger.info('🔐 2FA verification attempt')
 
-      // Verify and decode temp token
+      // =========================================================================
+      // STEP 1: VERIFY TEMPORARY TOKEN
+      // =========================================================================
+      
       let tempPayload
       try {
-        tempPayload = fastify.jwt.verify(tempToken)
+        tempPayload = verifyTemp2FAToken(tempToken)
         
-        if (tempPayload.type !== 'temp_2fa') {
-          throw new Error('Invalid token type')
-        }
+        verify2FALogger.debug('✅ Temp token verified', { 
+          userId: tempPayload.userId,
+          rememberMe: tempPayload.rememberMe 
+        })
+        
       } catch (error) {
         verify2FALogger.warn('⚠️ Invalid temp token', { error: error.message })
         reply.status(401)
         return {
           success: false,
-          message: 'Invalid or expired temporary token'
+          message: 'Invalid or expired temporary token. Please log in again.'
         }
       }
 
+      // =========================================================================
+      // STEP 2: GET USER AND VALIDATE 2FA STATUS
+      // =========================================================================
+      
       const userId = tempPayload.userId
       const user = userService.getUserById(userId)
       
-      if (!user || !user.is_active || !user.two_factor_enabled) {
-        verify2FALogger.warn('⚠️ Invalid user for 2FA', { userId })
+      if (!user || !user.is_active) {
+        verify2FALogger.warn('⚠️ User not found or inactive', { userId })
         reply.status(401)
         return {
           success: false,
-          message: 'Invalid user or 2FA not enabled'
+          message: 'Invalid user'
         }
       }
 
-      // Verify TOTP token or backup code
+      if (!user.two_factor_enabled) {
+        verify2FALogger.warn('⚠️ 2FA not enabled for user', { userId })
+        reply.status(400)
+        return {
+          success: false,
+          message: '2FA is not enabled for this account'
+        }
+      }
+
+      if (!user.two_factor_secret) {
+        verify2FALogger.error('❌ 2FA secret missing', { userId })
+        reply.status(500)
+        return {
+          success: false,
+          message: 'Invalid 2FA configuration'
+        }
+      }
+
+      // =========================================================================
+      // STEP 3: VERIFY TOTP TOKEN OR BACKUP CODE
+      // =========================================================================
+      
       let verified = false
+      let usedBackupCode = false
       
       if (token) {
-        // Verify TOTP token
+        // Verify TOTP token from authenticator app
+        verify2FALogger.debug('Verifying TOTP token', { userId })
+        
         verified = speakeasy.totp.verify({
           secret: user.two_factor_secret,
           encoding: 'base32',
           token: token,
-          window: 2 // Allow some time drift
+          window: 2 // Allow ±2 time steps (±60 seconds) for clock drift
         })
-      } else if (backupCode) {
-        // Verify backup code
-        const backupCodes = JSON.parse(user.backup_codes || '[]')
-        verified = backupCodes.includes(backupCode.toUpperCase())
         
         if (verified) {
-          // Remove used backup code
-          userService.useBackupCode(userId, backupCode)
+          verify2FALogger.debug('✅ TOTP token verified', { userId })
+        }
+        
+      } else if (backupCode) {
+        // Verify backup code
+        verify2FALogger.debug('Verifying backup code', { userId })
+        
+        const backupCodes = user.backup_codes ? JSON.parse(user.backup_codes) : []
+        const normalizedBackupCode = backupCode.trim().toUpperCase()
+        
+        verified = backupCodes.includes(normalizedBackupCode)
+        
+        if (verified) {
+          verify2FALogger.debug('✅ Backup code verified', { userId })
+          usedBackupCode = true
+          
+          // Remove used backup code from database
+          try {
+            userService.useBackupCode(userId, normalizedBackupCode)
+            verify2FALogger.info('Backup code removed', { userId })
+          } catch (error) {
+            verify2FALogger.error('Failed to remove backup code', { 
+              userId, 
+              error: error.message 
+            })
+          }
         }
       }
 
       if (!verified) {
-        verify2FALogger.warn('⚠️ Invalid 2FA token/code', { userId })
+        verify2FALogger.warn('⚠️ 2FA verification failed - invalid token/code', { userId })
         reply.status(400)
         return {
           success: false,
@@ -82,19 +140,24 @@ async function verify2FARoute(fastify, options) {
         }
       }
 
-      // Get rememberMe from temp token payload
+      // =========================================================================
+      // STEP 4: GENERATE TOKENS AND COMPLETE LOGIN
+      // =========================================================================
+      
       const rememberMe = tempPayload.rememberMe || false
+      
+      verify2FALogger.debug('Generating tokens', { userId, rememberMe })
 
-      // Generate tokens and complete login
+      // Generate access and refresh tokens
       const { accessToken, refreshToken } = generateTokenPair(user, {
         access: { expiresIn: '15m' },
         refresh: { expiresIn: rememberMe ? '7d' : '1d' }
       })
 
-      // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE (always)
+      // Set access token as HTTP-only cookie
       reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
 
-      // ✅ SET REFRESH TOKEN AS HTTP-ONLY COOKIE (always, but different maxAge)
+      // Set refresh token as HTTP-only cookie (different expiry based on rememberMe)
       if (rememberMe) {
         reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_CONFIG)
       } else {
@@ -104,7 +167,12 @@ async function verify2FARoute(fastify, options) {
       // Update user online status
       userService.updateUserOnlineStatus(user.id, true)
 
-      verify2FALogger.info('✅ 2FA verification successful', { userId, rememberMe })
+      verify2FALogger.info('✅ 2FA verification successful - login complete', { 
+        userId,
+        username: user.username,
+        rememberMe,
+        usedBackupCode
+      })
 
       return {
         success: true,

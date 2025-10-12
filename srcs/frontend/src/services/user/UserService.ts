@@ -5,7 +5,7 @@
  * Integrates with backend user service.
  */
 
-import { ApiService } from './BaseApiService'
+import { ApiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 import type { UserProfile, GameHistory, UserStats } from '../../types/user.types'
 

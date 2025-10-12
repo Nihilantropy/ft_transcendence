@@ -287,6 +287,69 @@ const schemas = [
       message: { type: 'string' }
     },
     required: ['success', 'message']
+  },
+
+  // Forgot password request schema
+  {
+    $id: 'ForgotPasswordRequest',
+    type: 'object',
+    properties: {
+      email: { 
+        type: 'string',
+        format: 'email',
+        description: 'Email address for password reset'
+      }
+    },
+    required: ['email']
+  },
+
+  // Forgot password response schema
+  {
+    $id: 'ForgotPasswordResponse',
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' }
+    },
+    required: ['success', 'message']
+  },
+
+  // Reset password request schema
+  {
+    $id: 'ResetPasswordRequest',
+    type: 'object',
+    properties: {
+      token: { 
+        type: 'string',
+        minLength: 32,
+        maxLength: 64,
+        description: 'Password reset token from email'
+      },
+      newPassword: { 
+        type: 'string',
+        minLength: 8,
+        maxLength: 128,
+        description: 'New password'
+      },
+      confirmPassword: {
+        type: 'string',
+        minLength: 8,
+        maxLength: 128,
+        description: 'Confirm new password'
+      }
+    },
+    required: ['token', 'newPassword', 'confirmPassword']
+  },
+
+  // Reset password response schema
+  {
+    $id: 'ResetPasswordResponse',
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' }
+    },
+    required: ['success', 'message']
   }
 ]
 
@@ -434,6 +497,36 @@ export const routeAuthSchemas = {
       200: { $ref: 'ResendVerificationResponse#' },
       400: { $ref: 'ErrorResponse#' },
       429: { $ref: 'ErrorResponse#' },
+      500: { $ref: 'ErrorResponse#' }
+    }
+  },
+
+  // Forgot password route
+  forgotPassword: {
+    tags: ['auth'],
+    operationId: 'forgotPassword',
+    summary: 'Request password reset',
+    description: 'Send password reset email with token (rate limited)',
+    body: { $ref: 'ForgotPasswordRequest#' },
+    response: {
+      200: { $ref: 'ForgotPasswordResponse#' },
+      400: { $ref: 'ErrorResponse#' },
+      429: { $ref: 'ErrorResponse#' },
+      500: { $ref: 'ErrorResponse#' }
+    }
+  },
+
+  // Reset password route
+  resetPassword: {
+    tags: ['auth'],
+    operationId: 'resetPassword',
+    summary: 'Reset password with token',
+    description: 'Reset user password using token from email',
+    body: { $ref: 'ResetPasswordRequest#' },
+    response: {
+      200: { $ref: 'ResetPasswordResponse#' },
+      400: { $ref: 'ErrorResponse#' },
+      401: { $ref: 'ErrorResponse#' },
       500: { $ref: 'ErrorResponse#' }
     }
   }

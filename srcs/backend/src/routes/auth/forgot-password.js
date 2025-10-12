@@ -10,7 +10,7 @@
 import { logger } from '../../logger.js'
 import { routeAuthSchemas } from '../../schemas/index.js'
 import { emailService } from '../../services/email.service.js'
-import { userService } from '../../services/user.service.js'
+import userService from '../../services/user.service.js'
 import crypto from 'crypto'
 
 // Create route-specific logger
@@ -28,29 +28,50 @@ async function forgotPasswordRoute(fastify, options) {
    */
   fastify.post('/forgot-password', {
     schema: routeAuthSchemas.forgotPassword,
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: '15 minutes'
+      }
+    },
     handler: async (request, reply) => {
       try {
         const { email } = request.body
         
         forgotPasswordLogger.info('🔑 Password reset requested', { email })
         
-        // TODO: Implement forgot password logic
-        // 1. Validate email format
-        // 2. Find user by email using userService
-        // 3. Generate secure reset token (crypto.randomBytes)
-        // 4. Set token expiration (1 hour)
-        // 5. Save token to database
-        // 6. Send password reset email using emailService
-        // 7. Return success (don't reveal if email exists)
+        // Generate secure reset token (32 bytes = 64 hex chars)
+        const resetToken = crypto.randomBytes(32).toString('hex')
         
+        // Set reset token in database (returns user if exists)
+        const user = userService.setPasswordResetToken(email, resetToken)
+        
+        // If user exists, send email
+        if (user) {
+          await emailService.sendPasswordResetEmail({
+            email: user.email,
+            username: user.username,
+            resetToken
+          })
+          forgotPasswordLogger.info('✅ Password reset email sent', { email })
+        } else {
+          // Don't reveal if user exists (security best practice)
+          forgotPasswordLogger.debug('No user found for email, but returning success anyway', { email })
+        }
+        
+        // Always return success to prevent email enumeration
         return {
           success: true,
           message: 'If an account with that email exists, a password reset link has been sent.'
         }
+        
       } catch (error) {
         forgotPasswordLogger.error('❌ Forgot password failed', { error: error.message })
-        reply.status(400)
-        return { success: false, message: 'Password reset request failed' }
+        reply.status(500)
+        return { 
+          success: false, 
+          message: 'An error occurred while processing your request. Please try again later.' 
+        }
       }
     }
   })

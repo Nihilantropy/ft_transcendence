@@ -31,10 +31,9 @@ const schemas = [
       },
       state: {
         type: 'string',
-        minLength: 64,
-        maxLength: 64,
-        pattern: '^[a-f0-9]{64}$',
-        description: 'CSRF protection state token (hex)'
+        minLength: 1,
+        maxLength: 500,
+        description: 'CSRF protection state token'
       },
       error: {
         type: 'string',
@@ -73,9 +72,8 @@ const schemas = [
       },
       state: {
         type: 'string',
-        minLength: 64,
-        maxLength: 64,
-        pattern: '^[a-f0-9]{64}$',
+        minLength: 1,
+        maxLength: 500,
         description: 'CSRF token'
       }
     },

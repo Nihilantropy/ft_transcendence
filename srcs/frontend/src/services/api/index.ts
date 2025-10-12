@@ -9,7 +9,7 @@
 export * from './BaseApiService'
 
 // Specific API Services
-export * from './UserService'
+export * from '../user/UserService'
 export * from './FriendsService'
 
 // API Configuration (to be implemented in Phase B3)

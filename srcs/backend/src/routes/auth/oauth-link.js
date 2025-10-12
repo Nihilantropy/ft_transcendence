@@ -15,7 +15,7 @@ async function oauthLinkRoute(fastify, options) {
       const { provider, code, state } = request.body
       
       // TODO: Implement OAuth linking logic
-      // 1. Verify JWT token from Authorization header
+      // 1. Verify JWT token from cookies
       // 2. Exchange OAuth code for user profile
       // 3. Check if OAuth account is already linked to another user
       // 4. Link OAuth account to current user

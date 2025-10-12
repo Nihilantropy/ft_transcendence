@@ -357,6 +357,106 @@ export class UserService {
   }
 
   /**
+   * @brief Set password reset token for user
+   * 
+   * @param {string} email - User email
+   * @param {string} resetToken - Password reset token
+   * @return {Object|null} User object with username if found, null otherwise
+   */
+  setPasswordResetToken(email, resetToken) {
+    try {
+      userServiceLogger.debug('Setting password reset token for email:', email)
+      
+      // Token expires in 1 hour
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      
+      const user = databaseConnection.get(`
+        SELECT id, username, email
+        FROM users 
+        WHERE LOWER(email) = LOWER(?) AND is_active = 1
+        LIMIT 1
+      `, [email])
+      
+      if (!user) {
+        userServiceLogger.debug('No user found with email:', email)
+        return null
+      }
+      
+      databaseConnection.run(`
+        UPDATE users 
+        SET password_reset_token = ?,
+            password_reset_expires = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [resetToken, expiresAt, user.id])
+      
+      userServiceLogger.debug('Password reset token set for user:', user.id)
+      return user
+      
+    } catch (error) {
+      userServiceLogger.error('Error setting password reset token:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * @brief Reset user password with token
+   * 
+   * @param {string} resetToken - Password reset token
+   * @param {string} newPassword - New password (plain text)
+   * @return {Object|null} User object if reset successful, null otherwise
+   */
+  resetPasswordWithToken(resetToken, newPassword) {
+    try {
+      userServiceLogger.debug('Resetting password with token')
+      
+      const result = databaseConnection.transaction(() => {
+        // Find user by reset token
+        const user = databaseConnection.get(`
+          SELECT id, username, email, password_reset_expires
+          FROM users 
+          WHERE password_reset_token = ? AND is_active = 1
+          LIMIT 1
+        `, [resetToken])
+        
+        if (!user) {
+          userServiceLogger.debug('No user found with reset token')
+          return null
+        }
+        
+        // Check if token is expired
+        const now = new Date().toISOString()
+        if (user.password_reset_expires < now) {
+          userServiceLogger.debug('Password reset token expired for user:', user.id)
+          return null
+        }
+        
+        // Hash new password
+        const newPasswordHash = hashPassword(newPassword)
+        
+        // Update password and clear reset token
+        databaseConnection.run(`
+          UPDATE users 
+          SET password_hash = ?,
+              password_reset_token = NULL,
+              password_reset_expires = NULL,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [newPasswordHash, user.id])
+        
+        userServiceLogger.info('Password reset successful for user:', user.id)
+        return { id: user.id, username: user.username, email: user.email }
+      })
+      
+      return result
+      
+    } catch (error) {
+      userServiceLogger.error('Error resetting password:', error.message)
+      throw error
+    }
+  }
+
+  /**
    * @brief Get role ID by name
    * 
    * @param {string} roleName - Role name (e.g., 'user')
@@ -577,13 +677,16 @@ export class UserService {
       }
       
       // Update database
+      // Also set email_verified = TRUE since OAuth providers verify emails
       databaseConnection.run(`
         UPDATE users 
-        SET oauth_providers = ?, updated_at = CURRENT_TIMESTAMP
+        SET oauth_providers = ?, 
+            email_verified = TRUE,
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [JSON.stringify(oauthProviders), userId])
       
-      userServiceLogger.debug('✅ OAuth data updated', { userId, provider })
+      userServiceLogger.debug('✅ OAuth data updated and email verified', { userId, provider })
       
     } catch (error) {
       userServiceLogger.error('❌ Failed to update OAuth data', { error: error.message })

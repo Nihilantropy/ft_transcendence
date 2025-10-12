@@ -2,11 +2,14 @@
  * @brief User login route for ft_transcendence backend
  * 
  * @description Handles user authentication with centralized schema management
+ * - Step 1: Validates credentials (username/email + password)
+ * - Step 2: If 2FA enabled, returns temp token for 2FA verification
+ * - Step 3: If 2FA disabled, completes login with access/refresh tokens
  */
 
 import { logger } from '../../logger.js'
 import { verifyPassword } from '../../utils/auth_utils.js'
-import { generateTokenPair } from '../../utils/jwt.js'
+import { generateTokenPair, generateTemp2FAToken } from '../../utils/jwt.js'
 import { userService } from '../../services/user.service.js'
 import { routeAuthSchemas } from '../../schemas/index.js'
 import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
@@ -24,14 +27,18 @@ async function loginRoute(fastify, options) {
     schema: routeAuthSchemas.login
   }, async (request, reply) => {
     try {
-      const { identifier, password, rememberMe = false, twoFactorToken } = request.body
+      const { identifier, password, rememberMe = false } = request.body
       
-      loginLogger.info('🔐 Login attempt', { identifier, has2FA: !!twoFactorToken })
+      loginLogger.info('🔐 Login attempt', { identifier })
       
-      // 1. Find user by username or email
+      // =========================================================================
+      // STEP 1: FIND USER BY USERNAME OR EMAIL
+      // =========================================================================
+      
       const user = userService.getUserByUsername(identifier) || userService.getUserByEmail(identifier)
       
       if (!user || !user.is_active) {
+        loginLogger.warn('⚠️ Login failed - user not found or inactive', { identifier })
         reply.status(401)
         return {
           success: false,
@@ -40,10 +47,14 @@ async function loginRoute(fastify, options) {
         }
       }
       
-      // 2. Verify password
+      // =========================================================================
+      // STEP 2: VERIFY PASSWORD
+      // =========================================================================
+      
       const isPasswordValid = await verifyPassword(password, user.password_hash)
       
       if (!isPasswordValid) {
+        loginLogger.warn('⚠️ Login failed - invalid password', { userId: user.id, username: user.username })
         reply.status(401)
         return {
           success: false,
@@ -52,18 +63,20 @@ async function loginRoute(fastify, options) {
         }
       }
       
-      // 3. Handle 2FA - if enabled, require 2FA verification
-      if (user.two_factor_enabled && !twoFactorToken) {
-        // Generate temporary token for 2FA verification
-        const tempTokenPayload = {
-          userId: user.id,
-          rememberMe: rememberMe, // Store rememberMe preference for 2FA completion
-          type: 'temp_2fa',
-          exp: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutes expiry
-        }
-        const tempToken = fastify.jwt.sign(tempTokenPayload)
+      loginLogger.debug('✅ Password verified', { userId: user.id })
+      
+      // =========================================================================
+      // STEP 3: CHECK IF 2FA IS ENABLED
+      // =========================================================================
+      
+      if (user.two_factor_enabled) {
+        // User has 2FA enabled - generate temporary token and require 2FA verification
+        const tempToken = generateTemp2FAToken(user.id, rememberMe)
         
-        loginLogger.info('🔐 2FA required', { userId: user.id })
+        loginLogger.info('🔐 2FA required - temp token generated', { 
+          userId: user.id, 
+          username: user.username 
+        })
         
         return {
           success: true,
@@ -73,37 +86,36 @@ async function loginRoute(fastify, options) {
         }
       }
       
-      // TODO: If twoFactorToken is provided, verify it here
-      if (user.two_factor_enabled && twoFactorToken) {
-        // This should be handled by a separate 2FA verification route
-        // For now, we'll reject it
-        reply.status(400)
-        return {
-          success: false,
-          message: 'Please use the 2FA verification endpoint',
-          error: { code: 'USE_2FA_ENDPOINT', details: 'Use /auth/2fa/verify for 2FA verification' }
-        }
-      }
+      // =========================================================================
+      // STEP 4: NO 2FA - COMPLETE LOGIN
+      // =========================================================================
       
-      // 4. Generate tokens and update status
+      loginLogger.debug('✅ No 2FA required - generating tokens', { userId: user.id })
+      
+      // Generate access and refresh tokens
       const { accessToken, refreshToken } = generateTokenPair(user, {
         access: { expiresIn: '15m' },
         refresh: { expiresIn: rememberMe ? '7d' : '1d' }
       })
 
-      // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE (always)
+      // Set access token as HTTP-only cookie
       reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
 
-      // ✅ SET REFRESH TOKEN AS HTTP-ONLY COOKIE (always, but different maxAge)
+      // Set refresh token as HTTP-only cookie (different expiry based on rememberMe)
       if (rememberMe) {
         reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_CONFIG)
       } else {
         reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_ROTATION_CONFIG)
       }
 
+      // Update user online status
       userService.updateUserOnlineStatus(user.id, true)
       
-      loginLogger.info('✅ Login successful', { userId: user.id, username: user.username })
+      loginLogger.info('✅ Login successful (no 2FA)', { 
+        userId: user.id, 
+        username: user.username,
+        rememberMe 
+      })
       
       return {
         success: true,
@@ -112,7 +124,10 @@ async function loginRoute(fastify, options) {
       }
       
     } catch (error) {
-      loginLogger.error('❌ Login failed', { error: error.message })
+      loginLogger.error('❌ Login failed', { 
+        error: error.message,
+        stack: error.stack 
+      })
       reply.status(500)
       return {
         success: false,

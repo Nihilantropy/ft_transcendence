@@ -168,6 +168,7 @@ export class Router {
       // Validate user data structure
       try {
         const user = JSON.parse(userJson)
+        console.debug('🔐 Parsed user data for auth check:', user)
         const isAuthenticated = !!(user && user.id && user.username)
         
         console.log('🔐 Auth check result:', isAuthenticated ? 'AUTHENTICATED' : 'NOT_AUTHENTICATED (invalid user data)')

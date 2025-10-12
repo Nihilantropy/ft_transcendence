@@ -19,7 +19,7 @@ export const UserSchema = z.object({
   id: z.number(),
   username: z.string(),
   email: z.string().email(),
-  email_verified: z.boolean(),
+  email_verified: z.boolean().optional(),
   avatar: z.string().optional(),
   is_online: z.boolean().optional(),
   twoFactorEnabled: z.boolean().default(false),

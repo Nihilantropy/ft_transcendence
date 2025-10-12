@@ -227,6 +227,78 @@ export function verifyRefreshToken(token) {
 // =============================================================================
 
 /**
+ * @brief Generate temporary 2FA token for login verification
+ * @param {number} userId - User ID
+ * @param {boolean} rememberMe - Remember me preference
+ * @returns {string} - Temporary JWT token (5 min expiry)
+ */
+export function generateTemp2FAToken(userId, rememberMe = false) {
+  try {
+    const secret = getJwtSecret()
+    
+    const payload = {
+      userId,
+      rememberMe,
+      type: 'temp_2fa',
+      iat: Math.floor(Date.now() / 1000)
+    }
+    
+    const token = jwt.sign(payload, secret, {
+      expiresIn: '5m', // 5 minutes for 2FA verification
+      issuer: 'ft-transcendence',
+      audience: 'ft-transcendence-2fa'
+    })
+    
+    jwtLogger.debug('✅ Temporary 2FA token generated', { 
+      userId,
+      rememberMe 
+    })
+    
+    return token
+    
+  } catch (error) {
+    jwtLogger.error('❌ Failed to generate temp 2FA token', { 
+      error: error.message,
+      userId 
+    })
+    throw new Error('Failed to generate 2FA token')
+  }
+}
+
+/**
+ * @brief Verify temporary 2FA token
+ * @param {string} token - Temporary 2FA token
+ * @returns {object} - Decoded token payload with userId and rememberMe
+ */
+export function verifyTemp2FAToken(token) {
+  try {
+    const secret = getJwtSecret()
+    
+    const decoded = jwt.verify(token, secret, {
+      issuer: 'ft-transcendence',
+      audience: 'ft-transcendence-2fa'
+    })
+    
+    if (decoded.type !== 'temp_2fa') {
+      throw new Error('Invalid token type: expected temp_2fa token')
+    }
+    
+    jwtLogger.debug('✅ Temp 2FA token verified', { 
+      userId: decoded.userId 
+    })
+    
+    return decoded
+    
+  } catch (error) {
+    jwtLogger.warn('❌ Temp 2FA token verification failed', { 
+      error: error.message,
+      tokenType: error.name 
+    })
+    throw error
+  }
+}
+
+/**
  * @brief Generate token pair for cookie architecture
  * @param {object} user - User object
  * @param {object} options - Token options
