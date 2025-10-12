@@ -116,7 +116,7 @@ export class UserService {
             
             -- Timestamps
             created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `, [
           // Core Identity
           username,
@@ -210,8 +210,8 @@ export class UserService {
     try {
       const user = databaseConnection.get(`
         SELECT id, username, email, password_hash, email_verified, 
-               two_factor_enabled, two_factor_secret, backup_codes,
-               is_active, is_online, created_at, updated_at
+               avatar_base64, two_factor_enabled, two_factor_secret, backup_codes,
+               is_active, is_online, last_seen, created_at, updated_at
         FROM users 
         WHERE LOWER(email) = LOWER(?) AND is_active = 1
         LIMIT 1
@@ -234,8 +234,8 @@ export class UserService {
   getUserById(userId) {
     try {
       const user = databaseConnection.get(`
-        SELECT id, username, email, email_verified, avatar_base64,
-               two_factor_enabled, two_factor_secret, backup_codes,
+        SELECT id, username, email, password_hash, email_verified, 
+               avatar_base64, two_factor_enabled, two_factor_secret, backup_codes,
                is_active, is_online, last_seen, created_at, updated_at
         FROM users 
         WHERE id = ? AND is_active = 1
@@ -259,9 +259,9 @@ export class UserService {
   getUserByUsername(username) {
     try {
       const user = databaseConnection.get(`
-        SELECT id, username, email, password_hash, email_verified,
-               two_factor_enabled, two_factor_secret, backup_codes,
-               is_active, is_online, created_at, updated_at
+        SELECT id, username, email, password_hash, email_verified, 
+               avatar_base64, two_factor_enabled, two_factor_secret, backup_codes,
+               is_active, is_online, last_seen, created_at, updated_at
         FROM users 
         WHERE LOWER(username) = LOWER(?) AND is_active = 1
         LIMIT 1

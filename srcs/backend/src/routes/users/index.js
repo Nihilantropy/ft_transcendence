@@ -63,7 +63,6 @@ async function userRoutes(fastify, options) {
   // =============================================================================
 
   await fastify.register(deleteMeRoute)
-  userLogger.info('✅ /users/me route registered')
 
   userLogger.info('✅ All user routes registered successfully')
 }

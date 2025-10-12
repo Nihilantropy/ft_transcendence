@@ -276,7 +276,7 @@ export class UserService extends ApiService {
       
       // Use fetch directly for FormData (BaseApiService stringifies body)
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/me/avatar`, {
-        method: 'PATCH',
+        method: 'POST',
         credentials: 'include', // Important for JWT cookie
         body: formData // Don't set Content-Type - browser sets it with boundary
       })

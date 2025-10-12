@@ -397,7 +397,7 @@ export const routeUserSchemas = {
     tags: ['users'],
     operationId: 'deleteAccount',
     summary: 'Delete user account',
-    description: 'Permanently delete user account (soft delete - deactivates account)',
+    description: 'Permanently delete user account',
     body: { $ref: 'DeleteUserRequest#' },
     response: {
       200: { $ref: 'DeleteUserResponse#' },

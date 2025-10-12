@@ -88,9 +88,6 @@ export async function meRoute(fastify) {
  * - Clears 2FA secrets
  * - Invalidates session
  */
-
-const routeLogger = logger.child({ module: 'routes/users/delete-user' })
-
 export async function deleteMeRoute(fastify) {
   /**
    * @route DELETE /users/me
@@ -108,7 +105,7 @@ export async function deleteMeRoute(fastify) {
     async (request, reply) => {
       const userId = request.user.id
 
-      routeLogger.info('User account deletion request', {
+      meLogger.info('User account deletion request', {
         userId,
         username: request.user.username,
       })
@@ -118,11 +115,12 @@ export async function deleteMeRoute(fastify) {
 
         // Step 1: Validate confirmation (required for all users)
         if (!confirmation || confirmation !== 'DELETE') {
-          routeLogger.debug('Delete account failed - invalid confirmation', { 
+          meLogger.debug('Delete account failed - invalid confirmation', { 
             userId,
             confirmation 
           })
           return reply.code(400).send({
+            success: false,
             error: 'Bad Request',
             message: 'Confirmation must be "DELETE"',
             statusCode: 400,
@@ -132,8 +130,9 @@ export async function deleteMeRoute(fastify) {
         // Step 2: Check if user has password (to determine account type)
         const user = userService.getUserById(userId)
         if (!user) {
-          routeLogger.debug('Delete account failed - user not found', { userId })
+          meLogger.debug('Delete account failed - user not found', { userId })
           return reply.code(404).send({
+            success: false,
             error: 'Not Found',
             message: 'User not found',
             statusCode: 404,
@@ -142,11 +141,11 @@ export async function deleteMeRoute(fastify) {
 
         const isPasswordUser = !!user.password_hash
         const isOAuthUser = !user.password_hash
-
         // Step 3: For password users, validate password is provided
-        if (isPasswordUser && (!password || typeof password !== 'string' || password.trim().length === 0)) {
-          routeLogger.debug('Delete account failed - password required for password-based account', { userId })
+        if (isPasswordUser && (!password || password.trim() === '')) {
+          meLogger.debug('Delete account failed - password required for password-based account', { userId })
           return reply.code(400).send({
+            success: false,
             error: 'Bad Request',
             message: 'Password is required for password-based accounts',
             statusCode: 400,
@@ -167,7 +166,7 @@ export async function deleteMeRoute(fastify) {
             sameSite: 'strict',
           })
 
-          routeLogger.info('✅ User account deleted successfully', {
+          meLogger.info('✅ User account deleted successfully', {
             userId,
             username: request.user.username,
           })
@@ -180,8 +179,9 @@ export async function deleteMeRoute(fastify) {
         } catch (serviceError) {
           // Handle specific service errors
           if (serviceError.message === 'User not found') {
-            routeLogger.debug('Delete account failed - user not found', { userId })
+            meLogger.debug('Delete account failed - user not found', { userId })
             return reply.code(404).send({
+              success: false,
               error: 'Not Found',
               message: 'User not found',
               statusCode: 404,
@@ -189,8 +189,9 @@ export async function deleteMeRoute(fastify) {
           }
 
           if (serviceError.message === 'Invalid password') {
-            routeLogger.debug('Delete account failed - incorrect password', { userId })
+            meLogger.debug('Delete account failed - incorrect password', { userId })
             return reply.code(403).send({
+              success: false,
               error: 'Forbidden',
               message: 'Incorrect password',
               statusCode: 403,
@@ -198,8 +199,9 @@ export async function deleteMeRoute(fastify) {
           }
 
           if (serviceError.message === 'Password is required for this account') {
-            routeLogger.debug('Delete account failed - password required', { userId })
+            meLogger.debug('Delete account failed - password required', { userId })
             return reply.code(400).send({
+              success: false,
               error: 'Bad Request',
               message: 'Password is required for password-based accounts',
               statusCode: 400,
@@ -211,13 +213,14 @@ export async function deleteMeRoute(fastify) {
         }
 
       } catch (error) {
-        routeLogger.error('❌ Delete account failed', {
+        meLogger.error('❌ Delete account failed', {
           userId,
           error: error.message,
           stack: error.stack,
         })
 
         return reply.code(500).send({
+          success: false,
           error: 'Internal Server Error',
           message: 'Failed to delete account',
           statusCode: 500,

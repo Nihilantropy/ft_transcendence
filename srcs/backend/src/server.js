@@ -13,6 +13,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
+import multipart from '@fastify/multipart'
 import { Server as SocketIOServer } from 'socket.io'
 import cookie from '@fastify/cookie'
 import 'dotenv/config'
@@ -79,6 +80,18 @@ await fastify.register(rateLimit, {
 await fastify.register(cookie, {
   secret: process.env.COOKIE_SECRET || 'your-32-character-secret-key-here!',
   parseOptions: {}
+})
+
+// Register multipart/form-data support for file uploads
+await fastify.register(multipart, {
+  limits: {
+    fieldNameSize: 100,      // Max field name size in bytes
+    fieldSize: 100,          // Max field value size in bytes
+    fields: 10,              // Max number of non-file fields
+    fileSize: 5 * 1024 * 1024, // Max file size (5MB)
+    files: 1,                // Max number of files
+    headerPairs: 2000        // Max number of header key-value pairs
+  }
 })
 
 // Register Swagger plugin (must be before routes registration)

@@ -1,9 +1,8 @@
 /**
- * @file Avatar upload route - /users/upload-avatar
+ * @file Avatar upload route - /users/me/avatar
  * @description Route for uploading and processing avatar images (multipart/form-data)
  */
 
-import multer from 'multer'
 import sharp from 'sharp'
 import { fileTypeFromBuffer } from 'file-type'
 import { logger } from '../../logger.js'
@@ -12,23 +11,6 @@ import { userService } from '../../services/user.service.js'
 import { formatOwnProfile } from '../../utils/user-formatters.js'
 
 const uploadAvatarLogger = logger.child({ module: 'routes/users/upload-avatar' })
-
-// Configure multer for memory storage (process before saving)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max
-    files: 1
-  },
-  fileFilter: (req, file, cb) => {
-    // Accept only image mime types
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true)
-    } else {
-      cb(new Error('Only image files are allowed'), false)
-    }
-  }
-})
 
 /**
  * @brief Process uploaded image (validate, resize, optimize, convert to base64)
@@ -98,76 +80,72 @@ async function processAvatarImage(buffer) {
 }
 
 /**
- * @brief Register /users/upload-avatar route
+ * @brief Register /users/me/avatar route
  * @param {FastifyInstance} fastify - Fastify instance
  */
 async function uploadAvatarRoute(fastify) {
 
   /**
-   * @route PATCH /users/upload-avatar
+   * @route POST /users/me/avatar
    * @description Upload and process avatar image (multipart/form-data)
    * @authentication Required (JWT cookie)
    * @body avatar - Image file (multipart, max 5MB, JPEG/PNG/GIF/WebP)
    */
-  fastify.patch('/me/avatar', {
-    preHandler: [
-      requireAuth,
-      async (request, reply) => {
-        // Wrap multer in a promise
-        return new Promise((resolve, reject) => {
-          upload.single('avatar')(request.raw, reply.raw, (err) => {
-            if (err) {
-              if (err instanceof multer.MulterError) {
-                if (err.code === 'LIMIT_FILE_SIZE') {
-                  return reply.code(400).send({
-                    success: false,
-                    message: 'File too large (max 5MB)',
-                    error: { code: 'FILE_TOO_LARGE', details: err.message }
-                  })
-                }
-                return reply.code(400).send({
-                  success: false,
-                  message: 'File upload error',
-                  error: { code: 'UPLOAD_ERROR', details: err.message }
-                })
-              }
-              return reply.code(400).send({
-                success: false,
-                message: err.message || 'Invalid file',
-                error: { code: 'INVALID_FILE', details: err.message }
-              })
-            }
-            
-            // Check if file was uploaded
-            if (!request.raw.file) {
-              return reply.code(400).send({
-                success: false,
-                message: 'No file uploaded',
-                error: { code: 'NO_FILE', details: 'Avatar file is required' }
-              })
-            }
-            
-            // Attach file to request for handler access
-            request.file = request.raw.file
-            resolve()
-          })
-        })
-      }
-    ]
+  fastify.post('/me/avatar', {
+    preHandler: requireAuth
   }, async (request, reply) => {
     try {
       const userId = request.user.id
-      const file = request.file
+      
+      // Get the uploaded file using Fastify's multipart
+      const data = await request.file()
+      
+      if (!data) {
+        uploadAvatarLogger.warn('No file uploaded', { userId })
+        return reply.code(400).send({
+          success: false,
+          message: 'No file uploaded',
+          error: { code: 'NO_FILE', details: 'Avatar file is required' }
+        })
+      }
+      
+      // Validate file type
+      if (!data.mimetype.startsWith('image/')) {
+        uploadAvatarLogger.warn('Invalid file type', { 
+          userId, 
+          mimetype: data.mimetype 
+        })
+        return reply.code(400).send({
+          success: false,
+          message: 'Only image files are allowed',
+          error: { code: 'INVALID_FILE_TYPE', details: `Received: ${data.mimetype}` }
+        })
+      }
       
       uploadAvatarLogger.info('Avatar upload started', {
         userId,
-        filename: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size
+        filename: data.filename,
+        mimetype: data.mimetype
       })
       
+      // Read file buffer
+      const buffer = await data.toBuffer()
+      
+      // Check file size (5MB max)
+      if (buffer.length > 5 * 1024 * 1024) {
+        uploadAvatarLogger.warn('File too large', { 
+          userId, 
+          size: buffer.length 
+        })
+        return reply.code(400).send({
+          success: false,
+          message: 'File too large (max 5MB)',
+          error: { code: 'FILE_TOO_LARGE', details: `Size: ${buffer.length} bytes` }
+        })
+      }
+      
       // Process image (validate, resize, optimize, convert to base64)
-      const avatarBase64 = await processAvatarImage(file.buffer)
+      const avatarBase64 = await processAvatarImage(buffer)
       
       // Update user avatar in database
       const updatedUser = userService.updateAvatar(userId, avatarBase64)

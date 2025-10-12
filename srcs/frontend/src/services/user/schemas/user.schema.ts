@@ -11,14 +11,15 @@ import { z } from 'zod'
 
 /**
  * @brief Base user schema with core properties
+ * Backend uses camelCase for formatted responses (formatAuthUser)
  */
 export const UserSchema = z.object({
   id: z.number(),
   username: z.string(),
   email: z.string().email(),
-  email_verified: z.boolean().optional(),
-  avatar: z.string().optional(),
-  is_online: z.boolean().optional(),
+  emailVerified: z.boolean().optional(),
+  avatar: z.string().nullable().optional(),
+  isOnline: z.boolean().optional(),
   twoFactorEnabled: z.boolean().default(false),
 })
 
