@@ -16,7 +16,7 @@ import { catchErrorTyped } from '../error'
 import { 
   Setup2FAResponseSchema,
   type Setup2FAResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 
 /**
  * @brief Execute 2FA setup request with validation

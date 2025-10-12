@@ -20,7 +20,7 @@ import {
   Verify2FAResponseSchema,
   type Verify2FARequest,
   type Verify2FAResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 
 /**
  * @brief Execute 2FA verification request with validation

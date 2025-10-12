@@ -93,7 +93,7 @@ Cookie: accessToken=...
 **Features**:
 - Validates username format before update
 - Checks for username conflicts
-- Updates both username and display_name fields
+- Updates both username
 - Returns complete formatted user profile
 - Detailed error handling with specific codes
 

@@ -12,17 +12,14 @@
 import { logger } from '../../logger.js'
 
 // Profile routes
-import meRoute from './me.js'
+import { meRoute, deleteMeRoute } from './me.js'
 import publicProfileRoute from './public-profile.js'
 import searchUsersRoute from './search.js'
 
 // Profile update routes
 import checkUsernameRoute from './check-username.js'
-import setUsernameRoute from './set-username.js'
-import setAvatarRoute from './set-avatar.js'
-
-// Account management routes
-import deleteUserRoute from './delete-user.js'
+import setUsernameRoute from './username.js'
+import uploadAvatarRoute from './avatar.js'
 
 // Create route-specific logger
 const userLogger = logger.child({ module: 'routes/users' })
@@ -56,17 +53,17 @@ async function userRoutes(fastify, options) {
   userLogger.info('✅ /users/check-username route registered')
   
   await fastify.register(setUsernameRoute)
-  userLogger.info('✅ /users/set-username route registered')
+  userLogger.info('✅ /users/me/username route registered')
   
-  await fastify.register(setAvatarRoute)
-  userLogger.info('✅ /users/set-avatar route registered')
+  await fastify.register(uploadAvatarRoute)
+  userLogger.info('✅ /users/me/avatar route registered')
 
   // =============================================================================
   // ACCOUNT MANAGEMENT ROUTES
   // =============================================================================
-  
-  await fastify.register(deleteUserRoute)
-  userLogger.info('✅ Delete user route registered')
+
+  await fastify.register(deleteMeRoute)
+  userLogger.info('✅ /users/me route registered')
 
   userLogger.info('✅ All user routes registered successfully')
 }

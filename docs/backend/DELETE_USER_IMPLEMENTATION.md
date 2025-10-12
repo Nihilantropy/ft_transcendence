@@ -104,11 +104,6 @@ deleteUser(userId, password) {
 ```
 
 #### 4. Route Registration (`/routes/users/index.js`)
-```javascript
-// Account management routes section
-import deleteUserRoute from './delete-user.js'
-await fastify.register(deleteUserRoute)
-```
 
 ## Security Features
 

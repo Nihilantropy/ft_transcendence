@@ -17,7 +17,7 @@ import { validateData } from '../utils/validation'
 import { 
   RefreshResponseSchema,
   type RefreshResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 import { apiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 

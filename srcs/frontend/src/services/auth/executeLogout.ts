@@ -13,7 +13,7 @@ import { validateData } from '../utils/validation'
 import { 
   SuccessResponseSchema,
   type SuccessResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 import { apiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 

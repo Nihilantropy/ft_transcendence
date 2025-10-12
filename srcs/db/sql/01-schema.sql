@@ -38,8 +38,7 @@ CREATE TABLE users (
     password_reset_expires DATETIME,
     
     -- Profile
-    display_name TEXT,
-    avatar_url TEXT,
+    avatar_base64 TEXT, -- Base64 encoded image data (max ~5MB recommended)
     
     -- Status
     is_active BOOLEAN DEFAULT TRUE,

@@ -14,7 +14,7 @@ import {
   type LoginResponse,
   type RegisterRequest,
   safeParseApiResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 import { executeLogin } from './executeLogin'
 import { executeRegister } from './executeRegister'
 import { executeVerifyEmail } from './executeVerifyEmail'

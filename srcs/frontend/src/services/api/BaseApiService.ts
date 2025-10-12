@@ -121,10 +121,23 @@ export class ApiService {
   }
 
   /**
+   * @brief PATCH request
+   */
+  async patch<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    })
+  }
+
+  /**
    * @brief DELETE request
    */
-  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.makeRequest<T>(endpoint, { method: 'DELETE' })
+  async delete<T>(endpoint: string, data?: unknown): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>(endpoint, {
+      method: 'DELETE',
+      body: data ? JSON.stringify(data) : undefined
+    })
   }
 }
 

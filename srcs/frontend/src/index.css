@@ -926,4 +926,100 @@
     animation: success-glow 0.8s ease-in-out;
   }
 
+  /* =============================================================================
+     FILEPOND CUSTOM STYLING - Retro Terminal Theme
+     ============================================================================= */
+
+  /**
+   * @brief FilePond customization for gaming aesthetic
+   * 
+   * @description Override FilePond default styles to match our matrix green theme.
+   */
+
+  /* Main FilePond container */
+  .filepond--root {
+    font-family: 'Courier New', monospace;
+  }
+
+  /* Drop area styling */
+  .filepond--drop-label {
+    color: #00ff41 !important;
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    border: 2px dashed #00ff41 !important;
+  }
+
+  .filepond--drop-label label {
+    color: #00ff41 !important;
+  }
+
+  /* Panel background */
+  .filepond--panel-root {
+    background-color: #000000 !important;
+    border: 2px solid #00ff41 !important;
+  }
+
+  /* Drag over state */
+  .filepond--panel[data-scalable='true'] {
+    background-color: rgba(0, 255, 65, 0.1) !important;
+  }
+
+  /* File item styling */
+  .filepond--item-panel {
+    background-color: #1a1a1a !important;
+    border: 1px solid #00ff41 !important;
+  }
+
+  /* File name text */
+  .filepond--file-info-main {
+    color: #00ff41 !important;
+  }
+
+  .filepond--file-info-sub {
+    color: #00cc33 !important;
+  }
+
+  /* Progress indicator */
+  .filepond--file-status-main {
+    color: #00ff41 !important;
+  }
+
+  /* Image preview */
+  .filepond--image-preview-wrapper {
+    background-color: #000000 !important;
+  }
+
+  .filepond--image-preview {
+    background-color: #000000 !important;
+  }
+
+  /* Buttons */
+  .filepond--action-remove-item {
+    background-color: #ff0080 !important;
+    border-radius: 4px !important;
+  }
+
+  .filepond--action-remove-item:hover {
+    background-color: #cc0066 !important;
+  }
+
+  /* Loading indicator */
+  .filepond--loading-indicator {
+    color: #00ff41 !important;
+  }
+
+  /* Process button */
+  .filepond--action-process-item {
+    background-color: #00ff41 !important;
+    color: #000000 !important;
+  }
+
+  .filepond--action-process-item:hover {
+    background-color: #00cc33 !important;
+  }
+
+  /* Credits - hide */
+  .filepond--credits {
+    display: none !important;
+  }
+
 }

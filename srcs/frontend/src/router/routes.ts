@@ -8,7 +8,7 @@
 import { Router } from './router'
 import { HomePage } from '../pages/home/HomePage'
 import { GamePage } from '../pages/game/GamePage'
-import { ProfilePage } from '../pages/profile/ProfilePage'
+import { ProfilePage } from '../pages/users/ProfilePage'
 import { FriendsPage } from '../pages/friends/FriendsPage'
 import { 
   LoginPage, 
@@ -17,9 +17,10 @@ import {
   EmailVerificationPage, 
   TwoFactorSetupPage,
   TwoFactorAuthPage,
-  TwoFactorManagePage
+  TwoFactorManagePage,
+  OAuthCallbackPage
 } from '../pages/auth'
-import { UsernameSelectionPage } from '../pages/auth/UsernameSelectionPage'
+import { UsernameSelectionPage } from '../pages/users/UsernameSelectionPage'
 
 // Global page container reference
 let currentPageComponent: any = null
@@ -132,6 +133,12 @@ export function configureRoutes(router: Router): void {
     const token = urlParams.get('token')
     loadPage(EmailVerificationPage, { token })
     document.title = 'Verify Email - ft_transcendence'
+  })
+
+  router.register('/oauth/callback', async () => {
+    console.log('🔐 Loading OAuth Callback handler')
+    loadPage(OAuthCallbackPage)
+    document.title = 'Completing Sign In - ft_transcendence'
   })
 
   router.register('/username-selection', async () => {

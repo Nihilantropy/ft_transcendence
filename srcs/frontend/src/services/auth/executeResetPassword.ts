@@ -18,7 +18,7 @@ import {
   ResetPasswordResponseSchema,
   type ResetPasswordRequest,
   type ResetPasswordResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 import { apiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 

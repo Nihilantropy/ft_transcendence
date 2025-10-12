@@ -17,7 +17,7 @@ import {
   ResendVerificationEmailSchema,
   type ResendVerificationEmailRequest,
   type SuccessResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 import { apiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 

@@ -19,7 +19,7 @@ import {
   Disable2FAResponseSchema,
   type Disable2FARequest,
   type Disable2FAResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 
 /**
  * @brief Execute 2FA disable request with validation

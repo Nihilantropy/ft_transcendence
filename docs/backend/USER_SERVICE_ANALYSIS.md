@@ -91,16 +91,6 @@ updateUsername(userId, newUsername) {
 }
 
 /**
- * @brief Update display name for authenticated user
- * @param {number} userId - User ID
- * @param {string} displayName - New display name
- * @return {Object} Updated user object
- */
-updateDisplayName(userId, displayName) {
-  // Update display_name field
-}
-
-/**
  * @brief Update user avatar URL
  * @param {number} userId - User ID
  * @param {string} avatarUrl - New avatar URL
@@ -174,7 +164,7 @@ validateDisplayNameFormat(displayName) {
  * @return {Object|null} Public user data (no sensitive fields)
  */
 getPublicProfile(userId) {
-  // Return only: id, username, display_name, avatar_url, is_online
+  // Return only: id, username, avatar_url, is_online
   // Exclude: email, password_hash, tokens, 2FA data, etc.
 }
 
@@ -678,7 +668,6 @@ fastify.post('/set-username', {
 
 5. **Update User Schema**
    - Ensure `user.schema.js` includes all necessary fields
-   - Add `display_name` if missing
 
 ---
 

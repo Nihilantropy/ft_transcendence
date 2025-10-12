@@ -51,7 +51,6 @@ Store essential user data required for authentication, profile management, and g
 - **`password_hash`** - Secure password storage
 
 #### Profile Information  
-- **`display_name`** - username
 - **`avatar_url`** - Profile picture URL
 - **`is_online`** - Current online status
 - **`last_seen`** - Last activity timestamp
@@ -92,7 +91,6 @@ CREATE TABLE users (
     password_reset_expires DATETIME,
     
     -- Profile
-    display_name TEXT, -- same as username
     avatar_url TEXT,
     
     -- Status

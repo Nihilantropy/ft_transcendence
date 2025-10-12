@@ -154,7 +154,7 @@
 │                                                                      │
 │  getPublicProfile(userId)                                            │
 │  ┌────────────────────────────────────────────────────────────────┐ │
-│  │ SELECT id, username, display_name, avatar_url,                 │ │
+│  │ SELECT id, username, avatar_url,                               │ │
 │  │        is_online, created_at                                   │ │
 │  │ FROM users                                                      │ │
 │  │ WHERE id = ? AND is_active = 1                                 │ │
@@ -165,7 +165,7 @@
 │  getCompleteProfile(userId)                                          │
 │  ┌────────────────────────────────────────────────────────────────┐ │
 │  │ SELECT id, username, email, email_verified,                    │ │
-│  │        display_name, avatar_url, two_factor_enabled,           │ │
+│  │        avatar_url, two_factor_enabled,                         │ │
 │  │        is_online, last_seen, created_at, updated_at            │ │
 │  │ FROM users                                                      │ │
 │  │ WHERE id = ? AND is_active = 1                                 │ │
@@ -175,7 +175,7 @@
 │                                                                      │
 │  searchUsersByUsername(query, limit)                                 │
 │  ┌────────────────────────────────────────────────────────────────┐ │
-│  │ SELECT id, username, display_name, avatar_url, is_online       │ │
+│  │ SELECT id, username, avatar_url, is_online                     │ │
 │  │ FROM users                                                      │ │
 │  │ WHERE LOWER(username) LIKE LOWER(?) AND is_active = 1          │ │
 │  │ ORDER BY username ASC                                           │ │

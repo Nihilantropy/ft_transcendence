@@ -6,7 +6,6 @@
 
 import { logger } from '../logger.js'
 import healthRoutes from './health.js'
-import dbTestRoutes from './db-test.js'
 import authRoutes from './auth/index.js'
 import userRoutes from './users/index.js'
 
@@ -38,12 +37,6 @@ export async function registerRoutes(fastify) {
 
     await fastify.register(userRoutes, { prefix: '/users' })
     routeLogger.info('🔐 Users routes registered')
-    
-    // Database testing routes (development only)
-    if (process.env.NODE_ENV === 'development') {
-      await fastify.register(dbTestRoutes)
-      routeLogger.info('🧪 Database test routes registered (development mode)')
-    }
     
   }, { prefix: apiBasePath })
   

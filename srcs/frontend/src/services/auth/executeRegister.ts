@@ -17,7 +17,7 @@ import {
   RegisterResponseSchema,
   type RegisterRequest,
   type RegisterResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 import { apiService } from '../api/BaseApiService'
 import { catchErrorTyped } from '../error'
 

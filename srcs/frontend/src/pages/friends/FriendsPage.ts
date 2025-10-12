@@ -219,7 +219,7 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
             </div>
             
             <div>
-              <h3 class="font-bold text-green-400">${friend.friend.displayName || friend.friend.username}</h3>
+              <h3 class="font-bold text-green-400">${friend.friend.username}</h3>
               <p class="text-sm text-gray-400">@${friend.friend.username}</p>
               <p class="text-xs text-gray-500">${statusText} ${!friend.friend.isOnline ? `• Last seen: ${lastSeen}` : ''}</p>
             </div>
@@ -292,7 +292,7 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
             </div>
             
             <div>
-              <h3 class="font-bold text-yellow-400">${request.fromUser.displayName || request.fromUser.username}</h3>
+              <h3 class="font-bold text-yellow-400">${request.fromUser.username}</h3>
               <p class="text-sm text-gray-400">@${request.fromUser.username}</p>
               <p class="text-xs text-gray-500">Sent ${timeAgo}</p>
               ${request.message ? `<p class="text-sm mt-1 text-gray-300">"${request.message}"</p>` : ''}
@@ -333,7 +333,7 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
             </div>
             
             <div>
-              <h3 class="font-bold text-blue-400">${request.toUser.displayName || request.toUser.username}</h3>
+              <h3 class="font-bold text-blue-400">${request.toUser.username}</h3>
               <p class="text-sm text-gray-400">@${request.toUser.username}</p>
               <p class="text-xs text-gray-500">Sent ${timeAgo}</p>
               <p class="text-xs text-yellow-400">⏳ Pending response</p>
@@ -435,7 +435,7 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
             </div>
             
             <div>
-              <h3 class="font-bold text-green-400">${user.displayName || user.username}</h3>
+              <h3 class="font-bold text-green-400">${user.username}</h3>
               <p class="text-sm text-gray-400">@${user.username}</p>
               <p class="text-xs text-gray-500">${user.isOnline ? user.onlineStatus : 'offline'}</p>
             </div>
@@ -745,7 +745,6 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
         friend: {
           id: 'user_1',
           username: 'pongmaster',
-          displayName: 'Pong Master',
           isOnline: true,
           onlineStatus: 'online',
           lastSeen: new Date()
@@ -761,7 +760,6 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
         friend: {
           id: 'user_2',
           username: 'speedball',
-          displayName: 'Speed Ball',
           isOnline: false,
           onlineStatus: 'offline',
           lastSeen: new Date('2025-09-13')
@@ -789,7 +787,6 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
         fromUser: {
           id: 'user_3',
           username: 'newplayer',
-          displayName: 'New Player',
           isOnline: true,
           onlineStatus: 'online'
         },
@@ -818,7 +815,6 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
         toUser: {
           id: 'user_4',
           username: 'progamer',
-          displayName: 'Pro Gamer',
           isOnline: false,
           onlineStatus: 'offline'
         }

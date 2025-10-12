@@ -6,6 +6,7 @@ import userService from '../../services/user.service.js'
 import { oauthStateManager } from '../../services/oauth-state.service.js'
 import { oauthConfig } from '../../config/oauth.config.js'
 import { routeOAuthSchemas } from '../../schemas/index.js'
+import { convertAvatarUrlToBase64 } from '../../utils/avatar-converter.js'
 
 const oauthCallbackLogger = logger.child({ module: 'routes/auth/oauth-callback' })
 
@@ -63,11 +64,14 @@ async function oauthCallbackRoute(fastify) {
       // 5. Update user status to online
       userService.updateUserOnlineStatus(user.id, true)
       
-      // 6. Redirect to appropriate frontend route
-      const redirectUrl = isNewUser 
-        ? `https://localhost/username-selection`
-        : `https://localhost/profile`
+      // 6. Redirect to frontend OAuth callback handler with newUser flag
+      // Frontend will fetch user data and store in localStorage before final redirect
+      oauthCallbackLogger.info('✅ OAuth authentication successful', { 
+        userId: user.id, 
+        isNewUser 
+      })
       
+      const redirectUrl = `https://localhost/oauth/callback?newUser=${isNewUser}`
       return reply.redirect(redirectUrl)
       
     } catch (error) {
@@ -174,8 +178,21 @@ async function findOrCreateOAuthUser(googleProfile) {
     return { user, isNewUser: false }
   }
 
-  // Create new OAuth user
+  // Create new OAuth user with converted avatar
   const username = userService.createUniqueUsername(googleProfile.email)
+  
+  // Convert Google avatar URL to base64 (for consistency with uploaded avatars)
+  oauthCallbackLogger.debug('Converting Google avatar to base64', {
+    avatarUrl: googleProfile.picture
+  })
+  
+  const avatarBase64 = await convertAvatarUrlToBase64(googleProfile.picture)
+  
+  if (!avatarBase64) {
+    oauthCallbackLogger.warn('Failed to convert OAuth avatar, user will have no avatar', {
+      email: googleProfile.email
+    })
+  }
   
   user = await userService.createOAuthUser({
     email: googleProfile.email,
@@ -183,7 +200,7 @@ async function findOrCreateOAuthUser(googleProfile) {
     googleId: googleProfile.id,
     firstName: googleProfile.given_name,
     lastName: googleProfile.family_name,
-    avatarUrl: googleProfile.picture
+    avatarBase64  // Now passing base64 instead of URL
   })
 
   return { user, isNewUser: true }

@@ -8,7 +8,7 @@ import { logger } from '../../logger.js'
 import { routeAuthSchemas } from '../../schemas/routes/auth.schema.js'
 import { userService } from '../../services/index.js'
 import { generateTokenPair } from '../../utils/jwt.js'
-import { ACCESS_TOKEN_CONFIG, REFRESH_TOKEN_ROTATION_CONFIG } from '../../utils/coockie.js'
+import { setAuthCookies } from '../../utils/coockie.js'
 import { formatAuthUser } from '../../utils/user-formatters.js'
 
 const verifyEmailLogger = logger.child({ module: 'routes/auth/verify-email' })
@@ -48,10 +48,8 @@ async function verifyEmailRoute(fastify) {
         refresh: { expiresIn: '1d' }
       })
 
-      // ✅ SET ACCESS TOKEN AS HTTP-ONLY COOKIE
-      reply.setCookie('accessToken', accessToken, ACCESS_TOKEN_CONFIG)
-
-      reply.setCookie('refreshToken', refreshToken, REFRESH_TOKEN_ROTATION_CONFIG)
+      // Set auth cookies
+      setAuthCookies(reply, accessToken, refreshToken)
 
       verifyEmailLogger.info('✅ Email verified successfully', {
         userId: verifiedUser.id,

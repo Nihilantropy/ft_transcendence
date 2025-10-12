@@ -48,7 +48,27 @@ async function loginRoute(fastify, options) {
       }
       
       // =========================================================================
-      // STEP 2: VERIFY PASSWORD
+      // STEP 2: CHECK IF USER HAS PASSWORD (OAuth users don't have passwords)
+      // =========================================================================
+      
+      if (!user.password_hash) {
+        loginLogger.warn('⚠️ Login failed - OAuth user attempting password login', { 
+          userId: user.id, 
+          username: user.username 
+        })
+        reply.status(401)
+        return {
+          success: false,
+          message: 'This account uses OAuth authentication',
+          error: { 
+            code: 'OAUTH_ACCOUNT', 
+            details: 'This account was created with Google OAuth. Please use the "Sign in with Google" button.' 
+          }
+        }
+      }
+      
+      // =========================================================================
+      // STEP 3: VERIFY PASSWORD
       // =========================================================================
       
       const isPasswordValid = await verifyPassword(password, user.password_hash)
@@ -66,7 +86,7 @@ async function loginRoute(fastify, options) {
       loginLogger.debug('✅ Password verified', { userId: user.id })
       
       // =========================================================================
-      // STEP 3: CHECK IF 2FA IS ENABLED
+      // STEP 4: CHECK IF 2FA IS ENABLED
       // =========================================================================
       
       if (user.two_factor_enabled) {
@@ -87,7 +107,7 @@ async function loginRoute(fastify, options) {
       }
       
       // =========================================================================
-      // STEP 4: NO 2FA - COMPLETE LOGIN
+      // STEP 5: NO 2FA - COMPLETE LOGIN
       // =========================================================================
       
       loginLogger.debug('✅ No 2FA required - generating tokens', { userId: user.id })

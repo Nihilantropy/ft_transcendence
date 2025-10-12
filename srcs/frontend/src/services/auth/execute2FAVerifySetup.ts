@@ -19,7 +19,7 @@ import {
   Verify2FASetupResponseSchema,
   type Verify2FASetupRequest,
   type Verify2FASetupResponse
-} from './schemas/auth.schemas'
+} from './schemas/auth.schema'
 
 /**
  * @brief Execute 2FA setup verification request with validation

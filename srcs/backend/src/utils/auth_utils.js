@@ -38,9 +38,26 @@ export async function hashPassword(password) {
  * @param {string} password - Plain text password
  * @param {string} hash - Hashed password
  * @return {Promise<boolean>} - Password matches
+ * @throws {Error} If password or hash is missing
  */
 export async function verifyPassword(password, hash) {
-  return await bcrypt.compare(password, hash)
+  // Defensive check: ensure both password and hash are provided
+  if (!password || !hash) {
+    authUtilsServiceLogger.warn('⚠️ verifyPassword called with missing arguments', {
+      hasPassword: !!password,
+      hasHash: !!hash
+    })
+    return false
+  }
+  
+  try {
+    return await bcrypt.compare(password, hash)
+  } catch (error) {
+    authUtilsServiceLogger.error('❌ Password verification error', {
+      error: error.message
+    })
+    return false
+  }
 }
 
 // =============================================================================

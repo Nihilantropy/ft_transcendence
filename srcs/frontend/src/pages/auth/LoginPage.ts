@@ -10,7 +10,7 @@ import { showPopup } from '../../components/ui/Popup'
 import { router } from '../../router/router'
 import { authService } from '../../services/auth/AuthService'
 import { type PasswordValidation, PasswordUtils } from '../../services/utils'
-import { type LoginRequest, type RegisterRequest } from '../../services/auth/schemas/auth.schemas'
+import { type LoginRequest, type RegisterRequest } from '../../services/auth/schemas/auth.schema'
 
 export interface LoginPageProps {
   /** Initial mode: 'login' or 'register' */

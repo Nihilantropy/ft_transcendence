@@ -15,8 +15,7 @@ const meLogger = logger.child({ module: 'routes/users/me' })
  * @brief Register /users/me route
  * @param {FastifyInstance} fastify - Fastify instance
  */
-async function meRoute(fastify) {
-  
+export async function meRoute(fastify) {
   /**
    * @route GET /users/me
    * @description Get complete profile for authenticated user
@@ -66,4 +65,165 @@ async function meRoute(fastify) {
   })
 }
 
-export default meRoute
+/**
+ * @brief DELETE /api/users/me - Delete user account (hard delete)
+ * 
+ * @route DELETE /api/users/me
+ * @access Private (requires authentication)
+ * @returns {Object} 200 - Success response
+ * @returns {Object} 400 - Invalid request (missing password or confirmation)
+ * @returns {Object} 401 - Unauthorized (not authenticated)
+ * @returns {Object} 403 - Forbidden (incorrect password)
+ * @returns {Object} 500 - Server error
+ *
+ * @description Hard deletes user account by removing all data
+ * Requires password verification and confirmation string for safety
+ * Clears all sensitive data and logs user out
+ * 
+ * @security
+ * - Requires valid JWT token
+ * - Requires correct password
+ * - Requires confirmation="DELETE" string
+ * - Hard delete (removes all data)
+ * - Clears 2FA secrets
+ * - Invalidates session
+ */
+
+const routeLogger = logger.child({ module: 'routes/users/delete-user' })
+
+export async function deleteMeRoute(fastify) {
+  /**
+   * @route DELETE /users/me
+   * @description Delete authenticated user's account (hard delete)
+   * @authentication Required (JWT cookie)
+   * @body password - Current password (required for password-based accounts)
+   * @body confirmation - Must be "DELETE" to confirm (required)
+   */
+  fastify.delete(
+    '/me',
+    {
+      preHandler: requireAuth,
+      schema: routeUserSchemas.deleteAccount,
+    },
+    async (request, reply) => {
+      const userId = request.user.id
+
+      routeLogger.info('User account deletion request', {
+        userId,
+        username: request.user.username,
+      })
+
+      try {
+        const { password, confirmation } = request.body
+
+        // Step 1: Validate confirmation (required for all users)
+        if (!confirmation || confirmation !== 'DELETE') {
+          routeLogger.debug('Delete account failed - invalid confirmation', { 
+            userId,
+            confirmation 
+          })
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Confirmation must be "DELETE"',
+            statusCode: 400,
+          })
+        }
+
+        // Step 2: Check if user has password (to determine account type)
+        const user = userService.getUserById(userId)
+        if (!user) {
+          routeLogger.debug('Delete account failed - user not found', { userId })
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: 'User not found',
+            statusCode: 404,
+          })
+        }
+
+        const isPasswordUser = !!user.password_hash
+        const isOAuthUser = !user.password_hash
+
+        // Step 3: For password users, validate password is provided
+        if (isPasswordUser && (!password || typeof password !== 'string' || password.trim().length === 0)) {
+          routeLogger.debug('Delete account failed - password required for password-based account', { userId })
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Password is required for password-based accounts',
+            statusCode: 400,
+          })
+        }
+
+        // Step 4: Attempt to delete user
+        try {
+          // For OAuth users, pass null as password (no verification needed)
+          // For password users, pass the provided password
+          userService.deleteUser(userId, isOAuthUser ? null : password)
+          
+          // Clear session cookie to log user out
+          reply.clearCookie('access_token', {
+            path: '/',
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+          })
+
+          routeLogger.info('✅ User account deleted successfully', {
+            userId,
+            username: request.user.username,
+          })
+
+          return reply.code(200).send({
+            success: true,
+            message: 'Account deleted successfully',
+          })
+          
+        } catch (serviceError) {
+          // Handle specific service errors
+          if (serviceError.message === 'User not found') {
+            routeLogger.debug('Delete account failed - user not found', { userId })
+            return reply.code(404).send({
+              error: 'Not Found',
+              message: 'User not found',
+              statusCode: 404,
+            })
+          }
+
+          if (serviceError.message === 'Invalid password') {
+            routeLogger.debug('Delete account failed - incorrect password', { userId })
+            return reply.code(403).send({
+              error: 'Forbidden',
+              message: 'Incorrect password',
+              statusCode: 403,
+            })
+          }
+
+          if (serviceError.message === 'Password is required for this account') {
+            routeLogger.debug('Delete account failed - password required', { userId })
+            return reply.code(400).send({
+              error: 'Bad Request',
+              message: 'Password is required for password-based accounts',
+              statusCode: 400,
+            })
+          }
+
+          // Re-throw other service errors to be caught by outer catch
+          throw serviceError
+        }
+
+      } catch (error) {
+        routeLogger.error('❌ Delete account failed', {
+          userId,
+          error: error.message,
+          stack: error.stack,
+        })
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to delete account',
+          statusCode: 500,
+        })
+      }
+    }
+  )
+}
+

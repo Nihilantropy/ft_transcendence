@@ -26,7 +26,7 @@ export function formatAuthUser(user) {
     username: user.username,
     email: user.email,
     emailVerified: !!user.email_verified,
-    avatar: user.avatar_url || null,
+    avatar: user.avatar_base64 || null,
     isOnline: !!user.is_online,
     twoFactorEnabled: !!user.two_factor_enabled
   }
@@ -54,9 +54,9 @@ export function formatPublicUser(user) {
   return {
     id: user.id,
     username: user.username,
-    avatar: user.avatar_url || null,
+    avatar: user.avatar_base64 || null,
     isOnline: !!user.is_online,
-    createdAt: user.created_at
+    createdAt: user.created_at || null
   }
 }
 
@@ -68,6 +68,8 @@ export function formatPublicUser(user) {
  * @description Used in:
  * - GET /users/me
  * - GET /users/profile/complete
+ * - POST /users/set-username
+ * - POST /users/upload-avatar
  * 
  * @note Includes sensitive fields like email and 2FA status
  * because user is viewing their own profile
@@ -80,17 +82,12 @@ export function formatOwnProfile(user) {
     username: user.username,
     email: user.email,
     emailVerified: !!user.email_verified,
-    avatar: user.avatar_url || null,
+    avatar: user.avatar_base64 || null,
     isOnline: !!user.is_online,
     twoFactorEnabled: !!user.two_factor_enabled,
-    createdAt: user.created_at,
-    updatedAt: user.updated_at,
-    // Include game stats if available
-    stats: user.stats || {
-      wins: 0,
-      losses: 0,
-      gamesPlayed: 0
-    }
+    lastSeen: user.last_seen || null,
+    createdAt: user.created_at || null,
+    updatedAt: user.updated_at || null
   }
 }
 
@@ -113,7 +110,7 @@ export function formatUserPreview(user) {
   return {
     id: user.id,
     username: user.username,
-    avatar: user.avatar_url || null,
+    avatar: user.avatar_base64 || null,
     isOnline: !!user.is_online
   }
 }

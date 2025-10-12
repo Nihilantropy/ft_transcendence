@@ -102,8 +102,8 @@ export class UserService {
             -- Authentication
             password_hash, email_verified, email_verification_token,
             
-            -- Profile (display_name defaults to username)
-            display_name, avatar_url,
+            -- Profile
+            avatar_base64,
             
             -- Status (user starts active but offline)
             is_active, is_online, last_seen,
@@ -116,7 +116,7 @@ export class UserService {
             
             -- Timestamps
             created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `, [
           // Core Identity
           username,
@@ -128,8 +128,7 @@ export class UserService {
           verificationToken,
           
           // Profile
-          username, // display_name defaults to username
-          null,     // avatar_url: NULL (will be set when user uploads avatar)
+          null,     // avatar_base64: NULL (will be set when user uploads avatar)
           
           // Status
           1, // is_active: true -> 1 (user starts active)
@@ -176,7 +175,6 @@ export class UserService {
           email: email.toLowerCase(),
           email_verified: false,
           verificationToken,
-          display_name: username, // Include for frontend use
           is_active: true,
           is_online: false
         }
@@ -236,9 +234,9 @@ export class UserService {
   getUserById(userId) {
     try {
       const user = databaseConnection.get(`
-        SELECT id, username, email, email_verified, avatar_url,
+        SELECT id, username, email, email_verified, avatar_base64,
                two_factor_enabled, two_factor_secret, backup_codes,
-               is_active, is_online, created_at, updated_at
+               is_active, is_online, last_seen, created_at, updated_at
         FROM users 
         WHERE id = ? AND is_active = 1
         LIMIT 1
@@ -583,8 +581,16 @@ export class UserService {
 
   /**
    * @brief Create OAuth user (no password required)
+   * @param {Object} userData - OAuth user data
+   * @param {string} userData.email - User email
+   * @param {string} userData.username - Generated username
+   * @param {string} userData.googleId - Google OAuth ID
+   * @param {string} userData.firstName - First name from OAuth
+   * @param {string} userData.lastName - Last name from OAuth
+   * @param {string|null} userData.avatarBase64 - Base64 encoded avatar (converted from URL)
+   * @return {Promise<Object>} Created user object
    */
-  async createOAuthUser({ email, username, googleId, firstName, lastName, avatarUrl }) {
+  async createOAuthUser({ email, username, googleId, firstName, lastName, avatarBase64 }) {
     try {
       const oauthProviders = JSON.stringify({
         google: {
@@ -593,21 +599,20 @@ export class UserService {
         }
       })
       
-      userServiceLogger.debug('Creating OAuth user', { username, email, provider: 'google' })
+      userServiceLogger.debug('Creating OAuth user', { username, email, provider: 'google', hasAvatar: !!avatarBase64 })
       
       const newUser = databaseConnection.transaction(() => {
         // Insert user
         const insertResult = databaseConnection.run(`
           INSERT INTO users (
-            username, email, display_name, avatar_url, 
+            username, email, avatar_base64, 
             email_verified, oauth_providers, is_active, is_online,
             created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `, [
           username,
           email.toLowerCase(),
-          username,
-          avatarUrl,
+          avatarBase64,  // Now properly base64 encoded
           1, // OAuth emails are pre-verified
           oauthProviders,
           1, // active
@@ -638,8 +643,7 @@ export class UserService {
           username,
           email: email.toLowerCase(),
           email_verified: true,
-          display_name: `${firstName} ${lastName}`.trim() || username,
-          avatar_url: avatarUrl,
+          avatar_base64: avatarBase64,
           is_active: true,
           is_online: false
         }
@@ -708,7 +712,7 @@ export class UserService {
       userServiceLogger.debug('Finding user by Google ID:', googleId)
       
       const user = databaseConnection.get(`
-        SELECT id, username, email, display_name, avatar_url, 
+        SELECT id, username, email, avatar_base64, 
               email_verified, oauth_providers, is_active, is_online,
               created_at, updated_at
         FROM users 
@@ -797,12 +801,24 @@ export class UserService {
         throw new Error(`Invalid username format: ${validation.message}`)
       }
       
-      // 2. Check availability (case-insensitive)
+      // 2. Get current user to check if they already own this username
+      const currentUser = this.getUserById(userId)
+      if (!currentUser) {
+        throw new Error('User not found')
+      }
+      
+      // 3. If user is keeping their current username, allow it (no change needed)
+      if (currentUser.username.toLowerCase() === newUsername.toLowerCase()) {
+        userServiceLogger.debug('User keeping current username', { userId, username: newUsername })
+        return currentUser
+      }
+      
+      // 4. Check availability (case-insensitive) for different usernames
       if (this.isUsernameTaken(newUsername)) {
         throw new Error('Username is already taken')
       }
       
-      // 3. Update database
+      // 5. Update database
       const result = databaseConnection.run(`
         UPDATE users 
         SET username = ?, 
@@ -816,7 +832,7 @@ export class UserService {
       
       userServiceLogger.info('✅ Username updated successfully', { userId, newUsername })
       
-      // 4. Return updated user object
+      // 6. Return updated user object
       return this.getUserById(userId)
       
     } catch (error) {
@@ -830,22 +846,22 @@ export class UserService {
   }
 
   /**
-   * @brief Update user avatar URL
+   * @brief Update user avatar (base64 encoded image)
    * @param {number} userId - User ID
-   * @param {string} avatarUrl - New avatar URL (can be null to remove avatar)
+   * @param {string} avatarBase64 - Base64 encoded image data (can be null to remove avatar)
    * @return {Object} Updated user object
    */
-  updateAvatar(userId, avatarUrl) {
+  updateAvatar(userId, avatarBase64) {
     try {
-      userServiceLogger.debug('Updating avatar', { userId, hasAvatar: !!avatarUrl })
+      userServiceLogger.debug('Updating avatar', { userId, hasAvatar: !!avatarBase64 })
       
       // Update database (allow null to remove avatar)
       const result = databaseConnection.run(`
         UPDATE users 
-        SET avatar_url = ?, 
+        SET avatar_base64 = ?, 
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND is_active = 1
-      `, [avatarUrl, userId])
+      `, [avatarBase64, userId])
       
       if (result.changes === 0) {
         throw new Error('User not found or update failed')
@@ -1114,7 +1130,7 @@ export class UserService {
    * @return {Object|null} Public user data (no sensitive fields)
    * 
    * @description Returns only non-sensitive user information suitable for public display:
-   * - id, username, display_name, avatar_url, is_online
+   * - id, username, avatar_base64, is_online
    * - Does NOT include: email, password, 2FA data, verification tokens
    */
   getPublicProfile(userId) {
@@ -1122,7 +1138,7 @@ export class UserService {
       userServiceLogger.debug('Getting public profile', { userId })
       
       const user = databaseConnection.get(`
-        SELECT id, username, display_name, avatar_url, is_online, created_at
+        SELECT id, username, avatar_base64, is_online, created_at
         FROM users 
         WHERE id = ? AND is_active = 1
         LIMIT 1
@@ -1151,7 +1167,7 @@ export class UserService {
    * @return {Object|null} Complete user data (includes email, 2FA status, etc.)
    * 
    * @description Returns full user profile including private fields:
-   * - All public fields (id, username, display_name, avatar_url, is_online)
+   * - All public fields (id, username, avatar_base64, is_online)
    * - Private fields (email, email_verified, two_factor_enabled)
    * - Metadata (created_at, updated_at, last_seen)
    * - Does NOT include: passwords, secrets, tokens
@@ -1165,7 +1181,7 @@ export class UserService {
       const user = databaseConnection.get(`
         SELECT 
           id, username, email, email_verified,
-          display_name, avatar_url,
+          avatar_base64,
           two_factor_enabled, is_online, last_seen,
           created_at, updated_at
         FROM users 
@@ -1208,7 +1224,7 @@ export class UserService {
       }
       
       const users = databaseConnection.all(`
-        SELECT id, username, display_name, avatar_url, is_online
+        SELECT id, username, avatar_url, is_online
         FROM users 
         WHERE LOWER(username) LIKE LOWER(?) AND is_active = 1
         ORDER BY username ASC
@@ -1232,26 +1248,29 @@ export class UserService {
   }
 
   /**
-   * @brief Delete user account (soft delete)
+   * @brief Delete user account (hard delete)
    * @param {number} userId - User ID to delete
-   * @param {string} password - User's password for verification
+   * @param {string|null} password - User's password for verification (null for OAuth users)
    * @return {boolean} True if deletion successful
    * 
-   * @description Performs soft deletion by:
-   * - Verifying password matches
-   * - Setting is_active = 0 (soft delete)
-   * - Clearing sensitive data (2FA secrets)
-   * - Setting is_online = 0
+   * @description Performs hard deletion by:
+   * - For password users: Verifying password matches
+   * - For OAuth users: Skipping password verification (password will be null)
+   * - Permanently deleting user record from database
+   * - CASCADE DELETE removes related records (user_roles, user_stats, etc.)
    * 
-   * @throws {Error} If user not found, password incorrect, or deletion fails
+   * @throws {Error} If user not found, password incorrect (for password users), or deletion fails
    */
-  deleteUser(userId, password) {
+  deleteUser(userId, password = null) {
     try {
-      userServiceLogger.debug('Attempting to delete user account', { userId })
+      userServiceLogger.debug('Attempting to delete user account', { 
+        userId,
+        hasPassword: !!password 
+      })
       
-      // Get user with password for verification
+      // Get user with password_hash for verification
       const user = databaseConnection.get(`
-        SELECT id, username, password
+        SELECT id, username, password_hash
         FROM users 
         WHERE id = ? AND is_active = 1
         LIMIT 1
@@ -1262,33 +1281,53 @@ export class UserService {
         throw new Error('User not found')
       }
       
-      // Verify password
-      const passwordMatches = verifyPassword(password, user.password)
-      if (!passwordMatches) {
-        userServiceLogger.debug('Password verification failed for deletion', { userId })
-        throw new Error('Invalid password')
+      // Check if user has password (password users vs OAuth users)
+      const isPasswordUser = !!user.password_hash
+      const isOAuthUser = !user.password_hash
+      
+      // For password users: require and verify password
+      if (isPasswordUser) {
+        if (!password) {
+          userServiceLogger.debug('Password required for password-based account deletion', { userId })
+          throw new Error('Password is required for this account')
+        }
+        
+        const passwordMatches = verifyPassword(password, user.password_hash)
+        if (!passwordMatches) {
+          userServiceLogger.debug('Password verification failed for deletion', { userId })
+          throw new Error('Invalid password')
+        }
+        
+        userServiceLogger.debug('✅ Password verified for deletion', { userId })
       }
       
-      // Perform soft deletion
-      const result = databaseConnection.run(`
-        UPDATE users 
-        SET 
-          is_active = 0,
-          is_online = 0,
-          two_factor_secret = NULL,
-          two_factor_backup_codes = NULL,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [userId])
+      // For OAuth users: password not required, just confirmation
+      if (isOAuthUser) {
+        userServiceLogger.debug('OAuth user deletion - no password verification needed', { userId })
+      }
+      
+      // Perform hard deletion using transaction for data consistency
+      const result = databaseConnection.transaction(() => {
+        // Delete related records first (if not handled by CASCADE)
+        // Note: If your schema has ON DELETE CASCADE, these are automatic
+        databaseConnection.run('DELETE FROM user_roles WHERE user_id = ?', [userId])
+        databaseConnection.run('DELETE FROM user_stats WHERE user_id = ?', [userId])
+        
+        // Delete the user record itself
+        const deleteResult = databaseConnection.run('DELETE FROM users WHERE id = ?', [userId])
+        
+        return deleteResult
+      })
       
       if (result.changes === 0) {
         userServiceLogger.error('Failed to delete user - no changes made', { userId })
         throw new Error('Failed to delete user account')
       }
       
-      userServiceLogger.info('✅ User account deleted successfully', { 
+      userServiceLogger.info('✅ User account deleted permanently', { 
         userId, 
-        username: user.username 
+        username: user.username,
+        accountType: isOAuthUser ? 'OAuth' : 'Password'
       })
       
       return true

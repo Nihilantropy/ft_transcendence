@@ -1,5 +1,5 @@
 /**
- * @file Username update route - /users/set-username
+ * @file Username update route - /users/me/username
  * @description Route for updating username for authenticated user
  */
 
@@ -12,18 +12,18 @@ import { routeUserSchemas } from '../../schemas/index.js'
 const setUsernameLogger = logger.child({ module: 'routes/users/set-username' })
 
 /**
- * @brief Register /users/set-username route
+ * @brief Register /users/me/username route
  * @param {FastifyInstance} fastify - Fastify instance
  */
-async function setUsernameRoute(fastify) {
+async function updateUsernameRoute(fastify) {
   
   /**
-   * @route POST /users/set-username
+   * @route PATCH /users/me/username
    * @description Update username for authenticated user
    * @authentication Required (JWT cookie)
    * @body username - New username (required)
    */
-  fastify.post('/set-username', {
+  fastify.patch('/me/username', {
     preHandler: requireAuth,
     schema: routeUserSchemas.updateUsername
   }, async (request, reply) => {
@@ -104,4 +104,4 @@ async function setUsernameRoute(fastify) {
   })
 }
 
-export default setUsernameRoute
+export default updateUsernameRoute

@@ -50,10 +50,9 @@ const schemas = [
         properties: {
           id: { type: 'integer' },
           username: { type: 'string' },
-          displayName: { type: 'string' },
           avatar: { type: ['string', 'null'] },
           isOnline: { type: 'boolean' },
-          createdAt: { type: 'string', format: 'date-time' }
+          createdAt: { type: ['string', 'null'] }
         },
         required: ['id', 'username']
       }
@@ -77,13 +76,12 @@ const schemas = [
           username: { type: 'string' },
           email: { type: 'string', format: 'email' },
           emailVerified: { type: 'boolean' },
-          displayName: { type: 'string' },
           avatar: { type: ['string', 'null'] },
           twoFactorEnabled: { type: 'boolean' },
           isOnline: { type: 'boolean' },
-          lastSeen: { type: ['string', 'null'], format: 'date-time' },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' }
+          lastSeen: { type: ['string', 'null'] },
+          createdAt: { type: ['string', 'null'] },
+          updatedAt: { type: ['string', 'null'] }
         },
         required: ['id', 'username', 'email']
       }
@@ -136,7 +134,6 @@ const schemas = [
           properties: {
             id: { type: 'integer' },
             username: { type: 'string' },
-            displayName: { type: 'string' },
             avatar: { type: ['string', 'null'] },
             isOnline: { type: 'boolean' }
           },
@@ -198,14 +195,13 @@ const schemas = [
     $id: 'UpdateAvatarRequest',
     type: 'object',
     properties: {
-      avatarUrl: {
+      avatarBase64: {
         type: ['string', 'null'],
-        format: 'uri',
-        maxLength: 500,
-        description: 'Avatar URL (null to remove avatar)'
+        maxLength: 1000000, // ~1MB base64 string limit
+        description: 'Base64 encoded avatar image (null to remove avatar)'
       }
     },
-    required: ['avatarUrl']
+    required: ['avatarBase64']
   },
 
   /**
@@ -266,6 +262,9 @@ const schemas = [
   /**
    * @schema DeleteUserRequest
    * @description Request body for DELETE /users/me
+   * - For password-based accounts: password is required
+   * - For OAuth accounts: password is optional (not used)
+   * - confirmation is always required
    */
   {
     $id: 'DeleteUserRequest',
@@ -274,7 +273,8 @@ const schemas = [
       password: {
         type: 'string',
         minLength: 1,
-        description: 'User password for security confirmation'
+        maxLength: 100,
+        description: 'User password for security confirmation (required for password-based accounts, optional for OAuth accounts)'
       },
       confirmation: {
         type: 'string',
@@ -282,7 +282,7 @@ const schemas = [
         description: 'Must be exactly "DELETE" to confirm account deletion'
       }
     },
-    required: ['password', 'confirmation']
+    required: ['confirmation']
   },
 
   /**
@@ -368,7 +368,7 @@ export const routeUserSchemas = {
     tags: ['users'],
     operationId: 'updateAvatar',
     summary: 'Update avatar',
-    description: 'Update avatar URL for authenticated user',
+    description: 'Update avatar (base64 encoded image) for authenticated user',
     body: { $ref: 'UpdateAvatarRequest#' },
     response: {
       200: { $ref: 'UpdateAvatarResponse#' },

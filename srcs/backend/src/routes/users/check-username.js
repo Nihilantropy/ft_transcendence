@@ -18,7 +18,7 @@ async function checkUsernameRoute(fastify) {
   /**
    * @route GET /users/check-username
    * @description Check if username is available and valid
-   * @authentication Optional
+   * @authentication Optional (if authenticated, allows user to keep their current username)
    * @query username - Username to check (required)
    */
   fastify.get('/check-username', {
@@ -26,8 +26,9 @@ async function checkUsernameRoute(fastify) {
   }, async (request, reply) => {
     try {
       const { username } = request.query
+      const userId = request.user?.id // Optional authentication
       
-      checkUsernameLogger.debug('Checking username availability', { username })
+      checkUsernameLogger.debug('Checking username availability', { username, userId })
       
       // 1. Validate format
       const validation = userService.validateUsernameFormat(username)
@@ -44,7 +45,20 @@ async function checkUsernameRoute(fastify) {
         })
       }
       
-      // 2. Check availability
+      // 2. If user is authenticated, check if this is their current username
+      if (userId) {
+        const currentUser = userService.getUserById(userId)
+        if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
+          checkUsernameLogger.debug('✅ User keeping current username', { username, userId })
+          
+          return reply.code(200).send({
+            available: true,
+            message: 'This is your current username'
+          })
+        }
+      }
+      
+      // 3. Check availability
       const isTaken = userService.isUsernameTaken(username)
       
       if (isTaken) {
@@ -56,7 +70,7 @@ async function checkUsernameRoute(fastify) {
         })
       }
       
-      // 3. Username is available
+      // 4. Username is available
       checkUsernameLogger.debug('✅ Username is available', { username })
       
       return reply.code(200).send({
