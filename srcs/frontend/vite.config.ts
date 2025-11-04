@@ -42,13 +42,13 @@ export default defineConfig({
     // ✅ FIXED: HMR configuration for HTTPS nginx proxy
     hmr: {
       port: 5173,           // Keep HMR server on container port
-      host: 'localhost',    // Use localhost for client connection
+      host: "${HOST_DOMAIN}",    // Use localhost for client connection
       protocol: 'wss',      // ✅ SECURE WebSocket protocol for HTTPS
       clientPort: 443,      // Browser connects via nginx HTTPS port
       path: '/vite-hmr'     // ✅ Custom HMR path for nginx proxy
     },
     // ✅ ADDED: Origin configuration for nginx proxy
-    origin: 'https://localhost'
+    origin: "https://${HOST_DOMAIN}:4433", // Match nginx HTTPS origin
   },
   
   // Preview server configuration (for production builds)

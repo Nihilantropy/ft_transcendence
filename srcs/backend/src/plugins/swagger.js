@@ -50,7 +50,7 @@ async function swaggerPlugin(fastify) {
       // Server configuration
       servers: [
         {
-          url: `https://localhost${API_BASE_PATH}`,
+          url: `https://${HOST_DOMAIN}${API_BASE_PATH}`,
           description: 'Production server (via nginx proxy)'
         }
       ],
@@ -130,7 +130,7 @@ async function swaggerPlugin(fastify) {
   
   swaggerLogger.info(`📚 Swagger UI available at ${API_BASE_PATH}/documentation`)
   swaggerLogger.info(`📄 OpenAPI spec available at ${API_BASE_PATH}/documentation/json`)
-  swaggerLogger.info(`🌐 Nginx proxy access: https://localhost${API_BASE_PATH}/documentation`)
+  swaggerLogger.info(`🌐 Nginx proxy access: https://${HOST_DOMAIN}${API_BASE_PATH}/documentation`)
   swaggerLogger.info('✅ Swagger plugin registered successfully')
 }
 

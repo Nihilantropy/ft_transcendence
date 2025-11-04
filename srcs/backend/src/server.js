@@ -111,7 +111,7 @@ await registerRoutes(fastify)
 function initializeSocketIO(fastify) {
   const io = new SocketIOServer(fastify.server, {
     cors: {
-      origin: 'https://localhost', // ✅ FIXED: Use nginx proxy URL
+      origin: `https://${HOST_DOMAIN}`, // ✅ FIXED: Use nginx proxy URL
       methods: ['GET', 'POST'],
       credentials: true
     },

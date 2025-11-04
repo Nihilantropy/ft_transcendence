@@ -7,6 +7,8 @@ FROM nginx:1.25-alpine
 # Install required packages
 RUN apk update && apk add --no-cache \
     curl \
+    openssl \
+    gettext \
     && rm -rf /var/cache/apk/*
 
 # Create directory structure
@@ -18,23 +20,22 @@ RUN mkdir -p /etc/nginx/conf.d \
 
 # Copy nginx configuration files
 COPY nginx.conf /etc/nginx/nginx.conf
-COPY conf.d/ /etc/nginx/conf.d/
+COPY conf.d/default.conf.template /etc/nginx/conf.d/default.conf.template
 COPY error_pages/ /usr/share/nginx/html/error_pages/
 
-# Copy SSL certificates
-COPY ssl/ /etc/nginx/ssl/
+# Copy entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Set proper permissions
-RUN chown -R nginx:nginx /var/log/nginx /var/cache/nginx /usr/share/nginx/html \
-    && chmod 644 /etc/nginx/ssl/selfsigned.crt \
-    && chmod 600 /etc/nginx/ssl/selfsigned.key
+RUN chown -R nginx:nginx /var/log/nginx /var/cache/nginx /usr/share/nginx/html
 
 # Expose ports
-EXPOSE 80 443
+EXPOSE 8000 4433
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f https://localhost/health --insecure || exit 1
+    CMD curl -f https://localhost:4433/health --insecure || exit 1
 
-# Start nginx (simplified - no shell scripts)
-CMD ["nginx", "-g", "daemon off;"]
+# Use entrypoint script to configure nginx and start it
+ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -6,9 +6,11 @@ services:
     build:
       context: ./srcs/nginx
       dockerfile: Dockerfile
+    env_file:
+      - ./srcs/nginx/.env
     ports:
-      - "80:80"
-      - "443:443"
+      - "8000:8000"
+      - "4433:4433"
     networks:
       - proxy
     restart: on-failure
