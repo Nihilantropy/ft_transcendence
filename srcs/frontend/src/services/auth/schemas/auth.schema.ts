@@ -46,9 +46,14 @@ export const LoginRequestSchema = z.object({
 
 /**
  * @brief Register request schema (backend structure)
- * Backend expects both password and confirmPassword for validation
+ * Backend expects username, email, password and confirmPassword for validation
  */
 export const RegisterRequestSchema = z.object({
+  username: z.string()
+    .min(3, "Username must be at least 3 characters")
+    .max(20, "Username must be at most 20 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores")
+    .describe("Unique username"),
   email: z.string()
     .email("Valid email required")
     .describe("Valid email address"),

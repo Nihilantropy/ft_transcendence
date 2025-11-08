@@ -183,15 +183,16 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
   /**
    * @brief Perform registration with credentials (extracted from handleRegister)
    */
-  private async performRegister(credentials: { email: string; password: string; confirmPassword: string }): Promise<void> {
-    this.setState({ 
-      isLoading: true, 
-      success: null 
+  private async performRegister(credentials: { username: string; email: string; password: string; confirmPassword: string }): Promise<void> {
+    this.setState({
+      isLoading: true,
+      success: null
     })
 
     try {
-      // Use simplified registration request (no username required initially)
+      // Registration request with username
       const registerCredentials: RegisterRequest = {
+        username: credentials.username,
         email: credentials.email,
         password: credentials.password,
         confirmPassword: credentials.confirmPassword
@@ -232,8 +233,9 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
     const form = event.target as HTMLFormElement
     const formData = new FormData(form)
 
-    // Only collect email and password for initial registration
+    // Collect username, email and password for registration
     const credentials = {
+      username: formData.get('username') as string,
       email: formData.get('email') as string,
       password: formData.get('password') as string,
       confirmPassword: formData.get('confirmPassword') as string
@@ -497,6 +499,25 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
         
         <div class="space-y-4">
           <div>
+            <label for="username" class="block text-green-400 font-bold mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              required
+              pattern="[a-zA-Z0-9_]{3,20}"
+              class="w-full px-4 py-3 bg-gray-900 border border-green-600 rounded-lg text-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
+              placeholder="Choose a unique username (3-20 characters)"
+              ${isLoading ? 'disabled' : ''}
+            />
+            <p class="mt-1 text-xs text-green-600">
+              3-20 characters, letters, numbers, and underscores only
+            </p>
+          </div>
+
+          <div>
             <label for="email" class="block text-green-400 font-bold mb-2">
               Email
             </label>
@@ -510,7 +531,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
               ${isLoading ? 'disabled' : ''}
             />
           </div>
-          
+
           <div>
             <label for="password" class="block text-green-400 font-bold mb-2">
               Password
