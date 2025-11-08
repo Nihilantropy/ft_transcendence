@@ -13,7 +13,7 @@ TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_frontend-data
 
 TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 
-.PHONY: all setup build up show stop start down restart re clean fclean help
+.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage
 
 # Default target
 all: build up show logs
@@ -137,6 +137,57 @@ health:
 	@echo "Checking ft_transcendence health..."
 	@curl -f -k https://localhost/health 2>/dev/null && echo "✅ Application healthy" || echo "❌ Application unhealthy"
 
+# Testing targets
+TESTABLE_SERVICES = auth-service user-service api-gateway
+
+test:
+	@echo "Running tests for all microservices..."
+	@for service in $(TESTABLE_SERVICES); do \
+		echo ""; \
+		echo "========================================"; \
+		echo "Testing $$service..."; \
+		echo "========================================"; \
+		cd srcs/$$service && npm test || exit 1; \
+	done
+	@echo ""
+	@echo "✅ All tests passed!"
+
+test-%:
+	@echo "Running tests for $*..."
+	@if [ ! -f "srcs/$*/package.json" ]; then \
+		echo "❌ Service $* not found or has no package.json"; \
+		exit 1; \
+	fi
+	@if ! grep -q '"test"' "srcs/$*/package.json" 2>/dev/null; then \
+		echo "❌ Service $* has no test script configured"; \
+		exit 1; \
+	fi
+	@cd srcs/$* && npm test
+
+test-coverage:
+	@echo "Running tests with coverage for all microservices..."
+	@for service in $(TESTABLE_SERVICES); do \
+		echo ""; \
+		echo "========================================"; \
+		echo "Coverage for $$service..."; \
+		echo "========================================"; \
+		cd srcs/$$service && npm run test:coverage || exit 1; \
+	done
+	@echo ""
+	@echo "✅ All tests with coverage completed!"
+
+test-coverage-%:
+	@echo "Running tests with coverage for $*..."
+	@if [ ! -f "srcs/$*/package.json" ]; then \
+		echo "❌ Service $* not found or has no package.json"; \
+		exit 1; \
+	fi
+	@if ! grep -q '"test:coverage"' "srcs/$*/package.json" 2>/dev/null; then \
+		echo "❌ Service $* has no test:coverage script configured"; \
+		exit 1; \
+	fi
+	@cd srcs/$* && npm run test:coverage
+
 # Help target
 help:
 	@echo "ft_transcendence - Docker Management Commands"
@@ -170,4 +221,11 @@ help:
 	@echo "  db-backup    - Backup database"
 	@echo "  health       - Check application health"
 	@echo ""
+	@echo "Testing targets:"
+	@echo "  test                - Run all tests for all microservices"
+	@echo "  test-SERVICE        - Run tests for specific service (e.g., make test-auth-service)"
+	@echo "  test-coverage       - Run all tests with coverage"
+	@echo "  test-coverage-SERVICE - Run tests with coverage for specific service"
+	@echo ""
 	@echo "Services: nginx, backend, frontend, database"
+	@echo "Testable services: auth-service, user-service, api-gateway"
