@@ -51,7 +51,7 @@ export function verify2FAToken(token: string, secret: string): boolean {
   });
 }
 
-export function generateBackupCodes(count: number = 8): string[] {
+export function generateBackupCodes(count: number = 10): string[] {
   const codes: string[] = [];
   for (let i = 0; i < count; i++) {
     // Generate 8-character alphanumeric code
@@ -108,6 +108,9 @@ export function isStrongPassword(password: string): {
   }
   if (!/[0-9]/.test(password)) {
     errors.push('Password must contain at least one number');
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('Password must contain at least one special character');
   }
 
   return {
