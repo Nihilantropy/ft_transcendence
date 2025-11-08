@@ -131,6 +131,17 @@ CREATE TABLE oauth_state (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Email verification tokens table
+CREATE TABLE email_verification_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Games table
 CREATE TABLE games (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,33 +182,42 @@ CREATE TABLE user_stats (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tournaments table
+-- Tournaments table (supports anonymous tournament creation)
 CREATE TABLE tournaments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
     max_participants INTEGER NOT NULL,
     status TEXT DEFAULT 'registration', -- 'registration', 'in_progress', 'finished'
-    created_by INTEGER NOT NULL,
+    created_by INTEGER,  -- NULLABLE for anonymous tournament creation
     start_time DATETIME,
     end_time DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Tournament participants table
+-- Tournament participants table (supports anonymous players)
 CREATE TABLE tournament_participants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tournament_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
+    user_id INTEGER,  -- NULLABLE for anonymous participants
+    alias TEXT NOT NULL,  -- REQUIRED: Player alias for the tournament
+    session_id TEXT,  -- Session identifier for anonymous users
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     eliminated_at DATETIME,
     final_position INTEGER,
-    
+
     FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(tournament_id, user_id)
+
+    -- For authenticated users: prevent duplicate entries
+    UNIQUE(tournament_id, user_id),
+    -- For anonymous users: ensure session_id is present
+    CHECK (
+        (user_id IS NOT NULL) OR
+        (user_id IS NULL AND session_id IS NOT NULL)
+    )
 );
 
 -- Performance indexes
@@ -231,6 +251,11 @@ CREATE INDEX idx_blocked_users_blocked_id ON blocked_users(blocked_user_id);
 CREATE INDEX idx_oauth_state_state ON oauth_state(state);
 CREATE INDEX idx_oauth_state_expires ON oauth_state(expires_at);
 
+-- Email verification tokens optimization
+CREATE INDEX idx_email_verification_token ON email_verification_tokens(token);
+CREATE INDEX idx_email_verification_user ON email_verification_tokens(user_id);
+CREATE INDEX idx_email_verification_expires ON email_verification_tokens(expires_at);
+
 -- Games optimization
 CREATE INDEX idx_games_player1 ON games(player1_id);
 CREATE INDEX idx_games_player2 ON games(player2_id);
@@ -250,3 +275,28 @@ CREATE INDEX idx_tournaments_status ON tournaments(status);
 CREATE INDEX idx_tournaments_created_by ON tournaments(created_by);
 CREATE INDEX idx_tournament_participants_tournament ON tournament_participants(tournament_id);
 CREATE INDEX idx_tournament_participants_user ON tournament_participants(user_id);
+
+-- Tournament participants optimization (anonymous support)
+CREATE INDEX idx_tournament_participants_user_id ON tournament_participants(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_tournament_participants_session_id ON tournament_participants(session_id) WHERE session_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_tournament_participants_alias_unique ON tournament_participants(tournament_id, LOWER(alias));
+
+-- Tournament participants view (combines authenticated and anonymous data)
+CREATE VIEW IF NOT EXISTS v_tournament_participants AS
+SELECT
+    tp.id,
+    tp.tournament_id,
+    tp.user_id,
+    tp.alias,
+    tp.session_id,
+    tp.joined_at,
+    tp.eliminated_at,
+    tp.final_position,
+    u.username,
+    u.email,
+    CASE
+        WHEN tp.user_id IS NOT NULL THEN 'authenticated'
+        ELSE 'anonymous'
+    END as participant_type
+FROM tournament_participants tp
+LEFT JOIN users u ON tp.user_id = u.id;
