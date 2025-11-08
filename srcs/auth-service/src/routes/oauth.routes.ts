@@ -154,6 +154,7 @@ export async function oauthRoutes(
 
       // Find or create user in database
       let user = db.findUserByGoogleId(googleUser.id);
+      let isNewUser = false;
 
       if (!user) {
         // Check if email already exists
@@ -164,6 +165,7 @@ export async function oauthRoutes(
           db.updateUser(user.id, {
             google_id: googleUser.id
           });
+          isNewUser = false;
         } else {
           // Create new user
           const username = googleUser.email.split('@')[0] + '_' + Math.random().toString(36).substring(7);
@@ -172,6 +174,7 @@ export async function oauthRoutes(
             email: googleUser.email,
             google_id: googleUser.id
           });
+          isNewUser = true;
         }
       }
 
@@ -189,8 +192,8 @@ export async function oauthRoutes(
       // Set secure httpOnly cookies
       setAuthCookies(reply, accessToken, refreshToken);
 
-      // Redirect to frontend with success
-      const frontendUrl = `https://${process.env['DOMAIN'] || 'ft_transcendence.42.crea'}/oauth/callback?success=true`;
+      // Redirect to frontend with newUser flag
+      const frontendUrl = `https://${process.env['DOMAIN'] || 'ft_transcendence.42.crea'}/oauth/callback?newUser=${isNewUser}`;
       return reply.redirect(frontendUrl);
 
     } catch (error) {

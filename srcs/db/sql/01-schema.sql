@@ -114,10 +114,21 @@ CREATE TABLE blocked_users (
     blocked_user_id INTEGER NOT NULL, -- Who was blocked
     reason TEXT,                     -- Optional reason for blocking
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (blocked_user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(user_id, blocked_user_id)
+);
+
+-- OAuth state table (for CSRF protection)
+CREATE TABLE oauth_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    state TEXT UNIQUE NOT NULL,      -- Random state token
+    user_id INTEGER,                 -- Optional user ID if linking account
+    expires_at DATETIME NOT NULL,    -- Expiration time (10 minutes)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Games table
@@ -215,6 +226,10 @@ CREATE INDEX idx_friendships_friend_id ON friendships(friend_id);
 -- Blocked users optimization
 CREATE INDEX idx_blocked_users_user_id ON blocked_users(user_id);
 CREATE INDEX idx_blocked_users_blocked_id ON blocked_users(blocked_user_id);
+
+-- OAuth state optimization
+CREATE INDEX idx_oauth_state_state ON oauth_state(state);
+CREATE INDEX idx_oauth_state_expires ON oauth_state(expires_at);
 
 -- Games optimization
 CREATE INDEX idx_games_player1 ON games(player1_id);
