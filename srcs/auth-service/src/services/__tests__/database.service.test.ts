@@ -335,3 +335,114 @@ describe('DatabaseService - 2FA Operations', () => {
     });
   });
 });
+
+describe('DatabaseService - OAuth State Management', () => {
+  let db: DatabaseService;
+  let testDbPath: string;
+
+  beforeEach(() => {
+    testDbPath = ':memory:';
+
+    db = new DatabaseService(testDbPath);
+
+    const schemaPath = path.join(__dirname, '../../../../db/sql/01-schema.sql');
+    let schema = fs.readFileSync(schemaPath, 'utf-8');
+
+    // Fix duplicate index issue in schema (temporary workaround)
+    schema = schema.replace(/CREATE INDEX /g, 'CREATE INDEX IF NOT EXISTS ');
+
+    db['db'].exec(schema);
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  describe('saveOAuthState', () => {
+    it('should save OAuth state without user ID', () => {
+      const state = 'test-state-123';
+
+      db.saveOAuthState(state);
+
+      const isValid = db.validateOAuthState(state);
+      expect(isValid).toBe(true);
+    });
+
+    it('should save OAuth state with user ID', () => {
+      const user = db.createUser({
+        username: 'oauthuser',
+        email: 'oauth@example.com'
+      });
+      const state = 'test-state-456';
+
+      db.saveOAuthState(state, user.id);
+
+      const isValid = db.validateOAuthState(state);
+      expect(isValid).toBe(true);
+    });
+  });
+
+  describe('validateOAuthState', () => {
+    it('should validate existing non-expired state', () => {
+      const state = 'valid-state';
+      db.saveOAuthState(state);
+
+      const isValid = db.validateOAuthState(state);
+      expect(isValid).toBe(true);
+    });
+
+    it('should reject non-existent state', () => {
+      const isValid = db.validateOAuthState('nonexistent-state');
+      expect(isValid).toBe(false);
+    });
+
+    it('should reject expired state', () => {
+      const state = 'expired-state';
+      db.saveOAuthState(state);
+
+      // Manually expire the state
+      db['db'].exec(`
+        UPDATE oauth_state
+        SET expires_at = datetime('now', '-1 hour')
+        WHERE state = '${state}'
+      `);
+
+      const isValid = db.validateOAuthState(state);
+      expect(isValid).toBe(false);
+    });
+  });
+
+  describe('deleteOAuthState', () => {
+    it('should delete OAuth state', () => {
+      const state = 'delete-me';
+      db.saveOAuthState(state);
+
+      db.deleteOAuthState(state);
+
+      const isValid = db.validateOAuthState(state);
+      expect(isValid).toBe(false);
+    });
+  });
+
+  describe('cleanupExpiredStates', () => {
+    it('should remove expired states', () => {
+      const validState = 'valid-state';
+      const expiredState = 'expired-state';
+
+      db.saveOAuthState(validState);
+      db.saveOAuthState(expiredState);
+
+      // Expire one state
+      db['db'].exec(`
+        UPDATE oauth_state
+        SET expires_at = datetime('now', '-1 hour')
+        WHERE state = '${expiredState}'
+      `);
+
+      db.cleanupExpiredStates();
+
+      expect(db.validateOAuthState(validState)).toBe(true);
+      expect(db.validateOAuthState(expiredState)).toBe(false);
+    });
+  });
+});
