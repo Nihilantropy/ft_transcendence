@@ -218,3 +218,120 @@ describe('DatabaseService - User Operations', () => {
     });
   });
 });
+
+describe('DatabaseService - 2FA Operations', () => {
+  let db: DatabaseService;
+  let testDbPath: string;
+  let testUserId: number;
+
+  beforeEach(() => {
+    // Use in-memory database for tests (faster and isolated)
+    testDbPath = ':memory:';
+
+    db = new DatabaseService(testDbPath);
+
+    // Initialize schema - path goes up to srcs/ then to db/sql
+    const schemaPath = path.join(__dirname, '../../../../db/sql/01-schema.sql');
+    let schema = fs.readFileSync(schemaPath, 'utf-8');
+
+    // Fix duplicate index issue in schema (temporary workaround)
+    schema = schema.replace(/CREATE INDEX /g, 'CREATE INDEX IF NOT EXISTS ');
+
+    // Execute entire schema at once (better-sqlite3 handles multi-statement)
+    db['db'].exec(schema);
+
+    // Create test user
+    const user = db.createUser({
+      username: '2fauser',
+      email: '2fa@example.com'
+    });
+    testUserId = user.id;
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  describe('enable2FA', () => {
+    it('should enable 2FA with secret and backup codes', () => {
+      const secret = 'TEST2FASECRET123456';
+      const backupCodes = JSON.stringify(['BACKUP1', 'BACKUP2']);
+
+      db.enable2FA(testUserId, secret, backupCodes);
+
+      const user = db.findUserById(testUserId);
+      expect(user?.two_factor_enabled).toBeTruthy();
+      expect(user?.two_factor_secret).toBe(secret);
+      expect(user?.backup_codes).toBe(backupCodes);
+      expect(user?.two_factor_secret_tmp).toBeNull();
+    });
+
+    it('should enable 2FA without backup codes', () => {
+      const secret = 'TEST2FASECRET123456';
+
+      db.enable2FA(testUserId, secret);
+
+      const user = db.findUserById(testUserId);
+      expect(user?.two_factor_enabled).toBeTruthy();
+      expect(user?.two_factor_secret).toBe(secret);
+      expect(user?.backup_codes).toBeNull();
+    });
+  });
+
+  describe('disable2FA', () => {
+    it('should disable 2FA and clear secrets', () => {
+      // First enable 2FA
+      db.enable2FA(testUserId, 'SECRET123', JSON.stringify(['CODE1']));
+
+      // Then disable it
+      db.disable2FA(testUserId);
+
+      const user = db.findUserById(testUserId);
+      expect(user?.two_factor_enabled).toBeFalsy();
+      expect(user?.two_factor_secret).toBeNull();
+      expect(user?.backup_codes).toBeNull();
+    });
+  });
+
+  describe('saveTempBackupCodes', () => {
+    it('should save temporary backup codes', () => {
+      const tempCodes = JSON.stringify(['TEMP1', 'TEMP2']);
+
+      db.saveTempBackupCodes(testUserId, tempCodes);
+
+      const user = db.findUserById(testUserId);
+      expect(user?.backup_codes_tmp).toBe(tempCodes);
+    });
+  });
+
+  describe('useBackupCode', () => {
+    it('should remove used backup code', async () => {
+      const backupCodes = ['HASH1', 'HASH2', 'HASH3'];
+      db.enable2FA(testUserId, 'SECRET', JSON.stringify(backupCodes));
+
+      const result = db.useBackupCode(testUserId, 'HASH2');
+
+      expect(result).toBe(true);
+
+      const user = db.findUserById(testUserId);
+      const remaining = JSON.parse(user?.backup_codes as string);
+      expect(remaining).toHaveLength(2);
+      expect(remaining).not.toContain('HASH2');
+      expect(remaining).toContain('HASH1');
+      expect(remaining).toContain('HASH3');
+    });
+
+    it('should return false for non-existent code', () => {
+      db.enable2FA(testUserId, 'SECRET', JSON.stringify(['HASH1']));
+
+      const result = db.useBackupCode(testUserId, 'NONEXISTENT');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false for user without backup codes', () => {
+      const result = db.useBackupCode(testUserId, 'ANYCODE');
+      expect(result).toBe(false);
+    });
+  });
+});
