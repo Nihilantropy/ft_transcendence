@@ -45,10 +45,10 @@ await fastify.register(helmet, {
   contentSecurityPolicy: false
 });
 
-await fastify.register(rateLimit, {
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
-  timeWindow: parseInt(process.env.RATE_LIMIT_WINDOW) || 60000
-});
+// await fastify.register(rateLimit, {
+//   max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+//   timeWindow: parseInt(process.env.RATE_LIMIT_WINDOW) || 60000
+// });
 
 // Cookie support (must be registered before JWT)
 await fastify.register(cookie, {
@@ -73,7 +73,7 @@ await fastify.register(swagger, {
       description: 'Microservices API Gateway',
       version: '1.0.0'
     },
-    host: 'localhost',
+    host: process.env.DOMAIN,
     schemes: ['https'],
     consumes: ['application/json'],
     produces: ['application/json'],
@@ -197,7 +197,7 @@ fastify.get('/api/health', async (request, reply) => {
     services: {
       auth: process.env.AUTH_SERVICE_URL,
       user: process.env.USER_SERVICE_URL,
-      game: process.env.GAME_SERVICE_URL || 'http://game-service:3003'
+      game: process.env.GAME_SERVICE_URL
     },
     timestamp: new Date().toISOString()
   };
@@ -371,6 +371,7 @@ const start = async () => {
     fastify.log.info(`   /api/users/*      → ${process.env.USER_SERVICE_URL || 'http://user-service:3002'}`);
     fastify.log.info(`   /api/friends/*    → ${process.env.USER_SERVICE_URL || 'http://user-service:3002'}`);
     fastify.log.info(`   /api/stats/*      → ${process.env.USER_SERVICE_URL || 'http://user-service:3002'}`);
+    fastify.log.info(`   /api/games/*      → ${process.env.GAME_SERVICE_URL || 'http://game-service:3003'}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

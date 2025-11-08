@@ -15,7 +15,7 @@ RUN apk add --no-cache \
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install --omit=dev
+RUN npm install
 
 # Copy source code
 COPY src ./src
@@ -34,4 +34,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
 # Start server
-CMD ["node", "src/server.js"]
+CMD ["npm", "run", "dev"]

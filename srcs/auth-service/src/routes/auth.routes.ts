@@ -185,7 +185,7 @@ export async function authRoutes(
       schema: registerSchema,
       config: {
         rateLimit: {
-          max: 3,
+          max: 20,
           timeWindow: '1 hour'
         }
       }

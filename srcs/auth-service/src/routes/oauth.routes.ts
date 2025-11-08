@@ -3,7 +3,7 @@
  * @description Google OAuth 2.0 authentication endpoints
  */
 
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
 import { DatabaseService } from '../services/database.service.js';
 
 /**
@@ -42,7 +42,7 @@ export async function oauthRoutes(
    * GET /oauth/google/login
    * @description Initiate Google OAuth flow
    */
-  fastify.get('/oauth/google/login', async (request, reply) => {
+  fastify.get('/oauth/google/login', async (_request, reply) => {
     const clientId = process.env['GOOGLE_CLIENT_ID'];
     const redirectUri = process.env['GOOGLE_REDIRECT_URI'] ||
       'https://ft_transcendence.42.crea/api/auth/oauth/google/callback';

@@ -20,6 +20,7 @@
 - **Frontend calls:** `/api/auth/oauth/google/login` (AuthService.ts:97)
 - **Backend routes:** Auth service has NO OAuth routes implemented
 - **API Gateway:** Proxies `/api/auth/*` to auth-service but auth-service doesn't handle OAuth
+- **Backend routes:** Auth service has issue with oaut state ({"error":"SqliteError","message":"no such table: oauth_state","statusCode":500})
 
 ### 2. Environment Variable Configuration
 - **Found:** `VITE_API_BASE_URL="/api"` in `.env` (correct)
