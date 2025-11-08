@@ -283,30 +283,32 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
   private renderIncomingRequestCard(request: FriendRequest): string {
     const timeAgo = this.formatTimeAgo(new Date(request.createdAt))
     
+    const fromUser = request.fromUser || { username: 'Unknown User', avatar: undefined }
+
     return `
       <div class="bg-gray-900/50 border border-yellow-400/30 rounded-lg p-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-4">
             <div class="w-12 h-12 bg-yellow-400/20 rounded-full flex items-center justify-center text-xl">
-              ${request.fromUser.avatar ? `<img src="${request.fromUser.avatar}" alt="Avatar" class="w-full h-full rounded-full object-cover">` : '👤'}
+              ${fromUser.avatar ? `<img src="${fromUser.avatar}" alt="Avatar" class="w-full h-full rounded-full object-cover">` : '👤'}
             </div>
-            
+
             <div>
-              <h3 class="font-bold text-yellow-400">${request.fromUser.username}</h3>
-              <p class="text-sm text-gray-400">@${request.fromUser.username}</p>
+              <h3 class="font-bold text-yellow-400">${fromUser.username}</h3>
+              <p class="text-sm text-gray-400">@${fromUser.username}</p>
               <p class="text-xs text-gray-500">Sent ${timeAgo}</p>
               ${request.message ? `<p class="text-sm mt-1 text-gray-300">"${request.message}"</p>` : ''}
             </div>
           </div>
-          
+
           <div class="flex space-x-2">
-            <button 
+            <button
               class="accept-request-btn px-3 py-1 bg-green-600/20 hover:bg-green-600/30 border border-green-400/50 rounded text-sm transition-colors"
               data-request-id="${request.id}"
             >
               ✅ Accept
             </button>
-            <button 
+            <button
               class="decline-request-btn px-3 py-1 bg-red-600/20 hover:bg-red-600/30 border border-red-400/50 rounded text-sm transition-colors"
               data-request-id="${request.id}"
             >
@@ -323,25 +325,26 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
    */
   private renderOutgoingRequestCard(request: FriendRequest): string {
     const timeAgo = this.formatTimeAgo(new Date(request.createdAt))
-    
+    const toUser = request.toUser || { username: 'Unknown User', avatar: undefined }
+
     return `
       <div class="bg-gray-900/50 border border-blue-400/30 rounded-lg p-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-4">
             <div class="w-12 h-12 bg-blue-400/20 rounded-full flex items-center justify-center text-xl">
-              ${request.toUser.avatar ? `<img src="${request.toUser.avatar}" alt="Avatar" class="w-full h-full rounded-full object-cover">` : '👤'}
+              ${toUser.avatar ? `<img src="${toUser.avatar}" alt="Avatar" class="w-full h-full rounded-full object-cover">` : '👤'}
             </div>
-            
+
             <div>
-              <h3 class="font-bold text-blue-400">${request.toUser.username}</h3>
-              <p class="text-sm text-gray-400">@${request.toUser.username}</p>
+              <h3 class="font-bold text-blue-400">${toUser.username}</h3>
+              <p class="text-sm text-gray-400">@${toUser.username}</p>
               <p class="text-xs text-gray-500">Sent ${timeAgo}</p>
               <p class="text-xs text-yellow-400">⏳ Pending response</p>
             </div>
           </div>
-          
+
           <div class="flex space-x-2">
-            <button 
+            <button
               class="cancel-request-btn px-3 py-1 bg-gray-600/20 hover:bg-gray-600/30 border border-gray-400/50 rounded text-sm transition-colors"
               data-request-id="${request.id}"
             >
@@ -400,8 +403,8 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
    * @brief Render search result card
    */
   private renderSearchResultCard(user: FriendProfile): string {
-    const isFriend = friendsStore.isFriend(user.id)
-    const pendingRequest = friendsStore.hasPendingRequest(user.id)
+    const isFriend = friendsStore.isFriend(String(user.id))
+    const pendingRequest = friendsStore.hasPendingRequest(String(user.id))
     
     let actionButton = ''
     if (isFriend) {
@@ -703,11 +706,19 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
    */
   private async loadFriends(): Promise<void> {
     try {
-      const response = await friendsService.getFriends()
-      friendsStore.setFriends(response.friends, response.total, response.page * response.limit < response.total)
+      const friends = await friendsService.getFriends()
+      // Convert FriendProfile[] to Friend[] format expected by store
+      const friendsWithRelationship: any[] = friends.map((profile, index) => ({
+        id: index + 1,
+        userId: 1, // Current user ID
+        friendId: String(profile.id),
+        friend: profile,
+        createdAt: new Date()
+      }))
+      friendsStore.setFriends(friendsWithRelationship, friends.length, false)
     } catch (error: any) {
       console.error('Failed to load friends:', error)
-      
+
       // Use mock data for development
       this.loadMockFriends()
     }
@@ -718,11 +729,12 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
    */
   private async loadFriendRequests(): Promise<void> {
     try {
-      const response = await friendsService.getFriendRequests()
-      friendsStore.setFriendRequests(response.incoming, response.outgoing)
+      const incoming = await friendsService.getFriendRequests('pending')
+      const outgoing = await friendsService.getSentFriendRequests()
+      friendsStore.setFriendRequests(incoming, outgoing)
     } catch (error: any) {
       console.error('Failed to load friend requests:', error)
-      
+
       // Use mock data for development
       this.loadMockRequests()
     }
@@ -733,17 +745,15 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
    */
   private loadMockFriends(): void {
     console.log('⚠️ Using mock friends data for development')
-    
+
     const mockFriends: Friend[] = [
       {
-        id: 'friendship_1',
-        userId: 'current_user',
-        friendId: 'user_1',
-        status: 'accepted',
+        id: 1,
+        userId: 1,
+        friendId: '2',
         createdAt: new Date('2025-09-10'),
-        acceptedAt: new Date('2025-09-10'),
         friend: {
-          id: 'user_1',
+          id: 2,
           username: 'pongmaster',
           isOnline: true,
           onlineStatus: 'online',
@@ -751,14 +761,12 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
         }
       },
       {
-        id: 'friendship_2',
-        userId: 'current_user',
-        friendId: 'user_2',
-        status: 'accepted',
+        id: 2,
+        userId: 1,
+        friendId: '3',
         createdAt: new Date('2025-09-08'),
-        acceptedAt: new Date('2025-09-08'),
         friend: {
-          id: 'user_2',
+          id: 3,
           username: 'speedball',
           isOnline: false,
           onlineStatus: 'offline',
@@ -766,8 +774,8 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
         }
       }
     ]
-    
-    friendsStore.setFriends(mockFriends, mockFriends.length)
+
+    friendsStore.setFriends(mockFriends, mockFriends.length, false)
   }
 
   /**
@@ -775,24 +783,18 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
    */
   private loadMockRequests(): void {
     console.log('⚠️ Using mock friend requests data for development')
-    
+
     const mockIncoming: FriendRequest[] = [
       {
-        id: 'request_1',
-        fromUserId: 'user_3',
-        toUserId: 'current_user',
+        id: 1,
+        fromUserId: 4,
+        toUserId: 1,
         status: 'pending',
         message: 'Hey! Want to be friends?',
         createdAt: new Date('2025-09-14'),
         fromUser: {
-          id: 'user_3',
+          id: 4,
           username: 'newplayer',
-          isOnline: true,
-          onlineStatus: 'online'
-        },
-        toUser: {
-          id: 'current_user',
-          username: 'currentuser',
           isOnline: true,
           onlineStatus: 'online'
         }
@@ -801,26 +803,20 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
     
     const mockOutgoing: FriendRequest[] = [
       {
-        id: 'request_2',
-        fromUserId: 'current_user',
-        toUserId: 'user_4',
+        id: 2,
+        fromUserId: 1,
+        toUserId: 5,
         status: 'pending',
         createdAt: new Date('2025-09-13'),
-        fromUser: {
-          id: 'current_user',
-          username: 'currentuser',
-          isOnline: true,
-          onlineStatus: 'online'
-        },
         toUser: {
-          id: 'user_4',
+          id: 5,
           username: 'progamer',
           isOnline: false,
           onlineStatus: 'offline'
         }
       }
     ]
-    
+
     friendsStore.setFriendRequests(mockIncoming, mockOutgoing)
   }
 
@@ -872,9 +868,18 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
       friendsStore.setSearching(true)
       this.remount()
 
-      const response = await friendsService.searchUsers({ query })
-      friendsStore.setSearchResults(response.users, query)
-      
+      // Use userService for search instead of friendsService
+      const { userService } = await import('../../services/user/UserService')
+      const result = await userService.searchUsers(query, 10)
+      const profiles = result.users.map(user => ({
+        id: user.id,
+        username: user.username,
+        avatar: user.avatar || undefined,
+        isOnline: false,
+        onlineStatus: 'offline' as const
+      }))
+      friendsStore.setSearchResults(profiles, query)
+
       this.remount()
     } catch (error: any) {
       console.error('Search failed:', error)
@@ -884,9 +889,11 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
 
   private async handleAddFriend(userId: string): Promise<void> {
     try {
-      const response = await friendsService.sendFriendRequest({ userId })
-      friendsStore.addOutgoingRequest(response.request)
+      const userIdNum = parseInt(userId, 10)
+      await friendsService.sendFriendRequest(userIdNum, 'Hi! Let\'s be friends!')
       this.setSuccess('Friend request sent!')
+      // Reload friend requests to show the new outgoing request
+      await this.loadFriendRequests()
       this.remount()
     } catch (error: any) {
       console.error('Failed to send friend request:', error)
@@ -896,9 +903,11 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
 
   private async handleAcceptRequest(requestId: string): Promise<void> {
     try {
-      await friendsService.respondToFriendRequest({ requestId, action: 'accept' })
+      const requestIdNum = parseInt(requestId, 10)
+      await friendsService.acceptFriendRequest(requestIdNum)
       friendsStore.removeFriendRequest(requestId)
-      // Note: In real implementation, you'd also add the new friend to the friends list
+      // Reload friends list to show the new friend
+      await this.loadFriends()
       this.setSuccess('Friend request accepted!')
       this.remount()
     } catch (error: any) {
@@ -909,7 +918,8 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
 
   private async handleDeclineRequest(requestId: string): Promise<void> {
     try {
-      await friendsService.respondToFriendRequest({ requestId, action: 'decline' })
+      const requestIdNum = parseInt(requestId, 10)
+      await friendsService.declineFriendRequest(requestIdNum)
       friendsStore.removeFriendRequest(requestId)
       this.setSuccess('Friend request declined.')
       this.remount()
@@ -921,7 +931,9 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
 
   private async handleCancelRequest(requestId: string): Promise<void> {
     try {
-      await friendsService.cancelFriendRequest(requestId)
+      // Cancel is same as decline for outgoing requests in current API
+      const requestIdNum = parseInt(requestId, 10)
+      await friendsService.declineFriendRequest(requestIdNum)
       friendsStore.removeFriendRequest(requestId)
       this.setSuccess('Friend request cancelled.')
       this.remount()
@@ -935,7 +947,8 @@ export class FriendsPage extends Component<FriendsPageProps, FriendsPageState> {
     if (!confirm('Are you sure you want to remove this friend?')) return
 
     try {
-      await friendsService.removeFriend(friendId)
+      const friendIdNum = parseInt(friendId, 10)
+      await friendsService.removeFriend(friendIdNum)
       friendsStore.removeFriend(friendId)
       this.setSuccess('Friend removed.')
       this.remount()

@@ -9,8 +9,8 @@ services:
     env_file:
       - ./srcs/nginx/.env
     ports:
-      - "8000:8000"
-      - "4433:4433"
+      - "80:80"
+      - "443:443"
     networks:
       - proxy
     restart: on-failure
@@ -20,6 +20,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      websocket-server:
+        condition: service_healthy
 ### FRONTEND ###
   frontend:
     container_name: ft_transcendence_frontend
@@ -42,33 +47,139 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-### BACKEND ###
-  backend:
-    container_name: ft_transcendence_backend
-    image: ft_transcendence_backend:local
+### AUTH SERVICE ###
+  auth-service:
+    container_name: ft_transcendence_auth_service
+    image: ft_transcendence_auth_service:local
     build:
-      context: ./srcs/backend
+      context: ./srcs/auth-service
       dockerfile: Dockerfile
     env_file:
-      - ./srcs/backend/.env
+      - ./srcs/auth-service/.env
     volumes:
       # Mount source code for development hot reload
-      - ./srcs/backend/src:/app/src:rw
-      - ./srcs/backend/package.json:/app/package.json:ro
-      # mount for sqlite db file
+      - ./srcs/auth-service/src:/app/src:rw
+      # Mount database volume (shared with backend)
       - db-data:/app/db-data:rw
     networks:
       - proxy
       - db-network
     restart: on-failure
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 45s
+      start_period: 30s
     depends_on:
-      - db
+      db:
+        condition: service_started
+
+### USER SERVICE ###
+  user-service:
+    container_name: ft_transcendence_user_service
+    image: ft_transcendence_user_service:local
+    build:
+      context: ./srcs/user-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/user-service/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/user-service/src:/app/src:rw
+      # Mount database volume (shared with backend)
+      - db-data:/app/db-data:rw
+    networks:
+      - proxy
+      - db-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_started
+
+### API GATEWAY ###
+  api-gateway:
+    container_name: ft_transcendence_api_gateway
+    image: ft_transcendence_api_gateway:local
+    build:
+      context: ./srcs/api-gateway
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/api-gateway/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/api-gateway/src:/app/src:rw
+    networks:
+      - proxy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+
+### WEBSOCKET SERVER ###
+  websocket-server:
+    container_name: ft_transcendence_websocket_server
+    image: ft_transcendence_websocket_server:local
+    build:
+      context: ./srcs/websocket-server
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/websocket-server/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/websocket-server/src:/app/src:rw
+    networks:
+      - proxy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+### GAME SERVICE ###
+  game-service:
+    container_name: ft_transcendence_game_service
+    image: ft_transcendence_game_service:local
+    build:
+      context: ./srcs/game-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/game-service/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/game-service/src:/app/src:rw
+      # Mount database volume (shared with backend)
+      - db-data:/app/db-data:rw
+    networks:
+      - proxy
+      - db-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_started
+
 ### DATABASE - work as init container for db create, migrate and seeding ###
   db:
     container_name: ft_transcendence_db
@@ -93,9 +204,8 @@ services:
       - TZ=Etc/UTC
     volumes:
       - db-data:/config
-    ports:
-      - 3000:3000
-      - 3001:3001
+    networks:
+      - proxy
     shm_size: "1gb"
     restart: unless-stopped
 

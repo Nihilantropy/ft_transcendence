@@ -212,12 +212,12 @@ export class Input extends Component<InputProps, InputState> {
 
   /**
    * @brief Handle input focus events
-   * 
-   * @param event - Focus event
-   * 
+   *
+   * @param _event - Focus event (unused)
+   *
    * @description Updates focus state and calls onFocus prop if provided.
    */
-  private handleFocus = (event: Event): void => {
+  private handleFocus = (_event: Event): void => {
     this.setState({ isFocused: true })
 
     if (this.props.onFocus) {
@@ -231,15 +231,15 @@ export class Input extends Component<InputProps, InputState> {
 
   /**
    * @brief Handle input blur events
-   * 
-   * @param event - Blur event
-   * 
+   *
+   * @param _event - Blur event (unused)
+   *
    * @description Updates focus and touched state, calls onBlur prop if provided.
    */
-  private handleBlur = (event: Event): void => {
-    this.setState({ 
+  private handleBlur = (_event: Event): void => {
+    this.setState({
       isFocused: false,
-      isTouched: true 
+      isTouched: true
     })
 
     if (this.props.onBlur) {

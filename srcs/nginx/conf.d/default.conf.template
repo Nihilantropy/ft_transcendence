@@ -1,34 +1,65 @@
 # /**
-#  * @brief Fixed server configuration for ft_transcendence
+#  * @brief Production-ready server configuration for ft_transcendence
 #  *
-#  * @description HTTPS setup with proper backend proxy, Socket.IO WebSocket support,
-#  * and Vite HMR WebSocket proxy for development hot reloading
+#  * @description Microservices-ready HTTPS setup with:
+#  * - Standard ports (443/80)
+#  * - Rate limiting
+#  * - Connection limits
+#  * - API Gateway routing
+#  * - Separate WebSocket Server
+#  * - Enhanced security
 #  *
-#  * @param None - nginx configuration file
-#  * @return Complete nginx server configuration with WebSocket support
+#  * @version 2.0 - Microservices Migration
 #  */
 
-# Main HTTPS server
+# Rate limiting zones
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/m;
+limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=general_limit:10m rate=200r/m;
+
+# Connection limiting
+limit_conn_zone $binary_remote_addr zone=addr:10m;
+
+# Main HTTPS server (Standard port 443)
 server {
-    listen 4433 ssl;
+    listen 443 ssl;
     server_name ${HOST_DOMAIN};
+
+    # Connection limits
+    limit_conn addr 10;  # Max 10 connections per IP
 
     # Log all HTTPS requests for debugging
     access_log /var/log/nginx/https_access.log main;
     error_log /var/log/nginx/https_error.log warn;
 
-    # SSL configuration - simplified for development
+    # SSL configuration - Production ready
     ssl_certificate /etc/nginx/ssl/selfsigned.crt;
     ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
     ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # Error pages
     error_page 500 502 503 504 /50x.html;
     location = /50x.html {
         root /usr/share/nginx/html/error_pages;
+    }
+
+    # Error page for rate limiting
+    error_page 429 /429.html;
+    location = /429.html {
+        root /usr/share/nginx/html/error_pages;
+        internal;
     }
 
     # Health check endpoint
@@ -38,16 +69,21 @@ server {
         add_header Content-Type text/plain;
     }
 
-    # ✅ Backend API proxy (ENABLED)
+    # ✅ API Gateway proxy (Microservices entry point)
     location /api {
         access_log /var/log/nginx/api_access.log main;
 
-        # Proxy to backend service
-        proxy_pass http://backend:8000;
+        # Rate limiting for API
+        limit_req zone=general_limit burst=20 nodelay;
+        limit_req_status 429;
+
+        # Proxy to API Gateway service
+        proxy_pass http://api-gateway:8001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_connect_timeout 5s;
         proxy_send_timeout 30s;
         proxy_read_timeout 30s;
@@ -57,6 +93,7 @@ server {
         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
         add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
         add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
 
         # Handle preflight requests
         if ($request_method = 'OPTIONS') {
@@ -70,12 +107,52 @@ server {
         }
     }
 
-    # ✅ Socket.IO WebSocket proxy (ENABLED)
+    # ✅ Authentication endpoints (stricter rate limiting)
+    location /api/auth {
+        access_log /var/log/nginx/auth_access.log main;
+
+        # Strict rate limiting for auth endpoints
+        limit_req zone=auth_limit burst=3 nodelay;
+        limit_req_status 429;
+
+        # Proxy to API Gateway (which routes to Auth Service)
+        proxy_pass http://api-gateway:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+
+        # CORS for auth
+        add_header 'Access-Control-Allow-Origin' 'https://${HOST_DOMAIN}' always;
+        add_header 'Access-Control-Allow-Methods' 'POST, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+        # Handle preflight
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' 'https://${HOST_DOMAIN}';
+            add_header 'Access-Control-Allow-Methods' 'POST, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+    }
+
+    # ✅ WebSocket Server proxy (Dedicated service)
     location /socket.io/ {
         access_log /var/log/nginx/ws_access.log main;
 
-        # Proxy to backend Socket.IO
-        proxy_pass http://backend:8000;
+        # Rate limiting for WebSocket connections
+        limit_req zone=general_limit burst=50 nodelay;
+
+        # Proxy to dedicated WebSocket Server
+        proxy_pass http://websocket-server:3100;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -87,18 +164,19 @@ server {
         proxy_set_header Connection "upgrade";
 
         # WebSocket-specific timeouts
-        proxy_connect_timeout 5s;
+        proxy_connect_timeout 7s;
         proxy_send_timeout 86400s;  # 24 hours for long-lived connections
         proxy_read_timeout 86400s;   # 24 hours for long-lived connections
 
         # Disable proxy buffering for real-time communication
         proxy_buffering off;
+        proxy_cache off;
 
         # CORS for WebSocket
         add_header 'Access-Control-Allow-Origin' 'https://${HOST_DOMAIN}' always;
     }
 
-    # ✅ NEW: Vite HMR WebSocket proxy (DEVELOPMENT ONLY)
+    # ✅ Vite HMR WebSocket proxy (DEVELOPMENT ONLY)
     location /vite-hmr {
         access_log /var/log/nginx/hmr_access.log main;
 
@@ -114,7 +192,7 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # HMR-specific timeouts (shorter than Socket.IO)
+        # HMR-specific timeouts
         proxy_connect_timeout 5s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
@@ -127,7 +205,7 @@ server {
         add_header 'Access-Control-Allow-Origin' 'https://${HOST_DOMAIN}' always;
     }
 
-    # ✅ NEW: Vite dependencies and assets proxy
+    # ✅ Vite dependencies and assets proxy
     location ~* ^/(node_modules|@vite|@fs|src)/ {
         access_log /var/log/nginx/vite_assets_access.log main;
 
@@ -158,6 +236,9 @@ server {
     location / {
         access_log /var/log/nginx/proxy_access.log main;
 
+        # Rate limiting for general traffic
+        limit_req zone=general_limit burst=50 nodelay;
+
         # Direct proxy to frontend service
         proxy_pass http://frontend:5173;
 
@@ -181,8 +262,8 @@ server {
         proxy_intercept_errors on;
         error_page 502 503 504 /50x.html;
 
-        # Less restrictive CSP for development with WebSocket support
-        add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: wss: https://${HOST_DOMAIN};" always;
+        # Enhanced CSP for production with WebSocket support
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: https://${HOST_DOMAIN}; frame-ancestors 'self'; base-uri 'self'; form-action 'self';" always;
     }
 
     # Deny access to hidden files
@@ -191,16 +272,23 @@ server {
         access_log off;
         log_not_found off;
     }
+
+    # Deny access to sensitive files
+    location ~* \.(env|git|svn|htaccess|htpasswd)$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
 }
 
-# HTTP to HTTPS redirect
+# HTTP to HTTPS redirect (Standard port 80)
 server {
-    listen 8000;
+    listen 80;
     server_name ${HOST_DOMAIN};
 
     # Log all HTTP requests for debugging
     access_log /var/log/nginx/http_access.log main;
 
-    # Redirect all HTTP traffic to HTTPS on port 4433
-    return 301 https://$host:4433$request_uri;
+    # Redirect all HTTP traffic to HTTPS on standard port 443
+    return 301 https://$host$request_uri;
 }

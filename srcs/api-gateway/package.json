@@ -1,0 +1,27 @@
+{
+  "name": "ft-transcendence-api-gateway",
+  "version": "1.0.0",
+  "description": "API Gateway for ft_transcendence microservices",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.1.0",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/helmet": "^12.0.1",
+    "@fastify/rate-limit": "^10.1.1",
+    "@fastify/jwt": "^9.0.1",
+    "@fastify/cookie": "^10.0.1",
+    "@fastify/swagger": "^9.1.0",
+    "@fastify/swagger-ui": "^5.0.1",
+    "pino": "^9.5.0",
+    "pino-pretty": "^13.0.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

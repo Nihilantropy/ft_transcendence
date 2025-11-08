@@ -168,13 +168,13 @@ export class Modal extends Component<ModalProps, ModalState> {
 
   /**
    * @brief Custom mount to portal container
-   * 
-   * @param parent - Parent element (ignored, mounts to body)
-   * 
+   *
+   * @param _parent - Parent element (ignored, mounts to body)
+   *
    * @description Overrides default mount to use portal mounting to document.body.
    * Creates portal container and manages body scroll lock.
    */
-  mount(parent: HTMLElement): void {
+  mount(_parent: HTMLElement): void {
     if (!this.props.isOpen) {
       return // Don't mount if modal is closed
     }

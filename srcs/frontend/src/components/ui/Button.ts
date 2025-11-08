@@ -222,14 +222,14 @@ export class Button extends Component<ButtonProps, ButtonState> {
 
   /**
    * @brief Handle mouse down for visual feedback
-   * 
-   * @param event - Mouse down event
-   * 
+   *
+   * @param _event - Mouse down event (unused)
+   *
    * @description Provides visual feedback during button press.
    */
-  private handleMouseDown = (event: Event): void => {
+  private handleMouseDown = (_event: Event): void => {
     const { disabled, loading } = this.props
-    
+
     if (disabled || loading) {
       return
     }
@@ -239,23 +239,23 @@ export class Button extends Component<ButtonProps, ButtonState> {
 
   /**
    * @brief Handle mouse up to reset visual feedback
-   * 
-   * @param event - Mouse up event
-   * 
+   *
+   * @param _event - Mouse up event (unused)
+   *
    * @description Resets visual feedback when button is released.
    */
-  private handleMouseUp = (event: Event): void => {
+  private handleMouseUp = (_event: Event): void => {
     this.setState({ isPressed: false })
   }
 
   /**
    * @brief Handle mouse leave to reset state
-   * 
-   * @param event - Mouse leave event
-   * 
+   *
+   * @param _event - Mouse leave event (unused)
+   *
    * @description Resets pressed state when mouse leaves button area.
    */
-  private handleMouseLeave = (event: Event): void => {
+  private handleMouseLeave = (_event: Event): void => {
     this.setState({ isPressed: false })
   }
 

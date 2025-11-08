@@ -1,11 +1,28 @@
 /**
  * @brief Notification Service for ft_transcendence
- * 
+ *
  * @description Central notification management service that integrates with WebSocket
  * for real-time notifications. Handles storage, state management, and UI interactions.
  */
 
 import { webSocketService } from '../websocket'
+import type {
+  Notification,
+  NotificationData,
+  NotificationCategory,
+  NotificationPriority,
+  NotificationEventHandlers
+} from '../../types/notification.types'
+
+/**
+ * @brief Notification state interface
+ */
+interface NotificationState {
+  notifications: Notification[]
+  unreadCount: number
+  enabled: boolean
+  lastChecked?: Date
+}
 
 /**
  * @brief Core notification management service

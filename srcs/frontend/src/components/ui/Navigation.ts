@@ -459,9 +459,9 @@ export class Navigation extends Component<NavigationProps, NavigationState> {
    * @description Creates HTML for a single navigation item with proper accessibility.
    */
   private buildNavigationItem(
-    item: NavigationItem, 
-    activeItem?: string, 
-    layout: NavigationLayout = 'horizontal'
+    item: NavigationItem,
+    activeItem?: string,
+    _layout: NavigationLayout = 'horizontal'
   ): string {
     const isActive = item.id === activeItem
     const isDisabled = item.disabled ?? false

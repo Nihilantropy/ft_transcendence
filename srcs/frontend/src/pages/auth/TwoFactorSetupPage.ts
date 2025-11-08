@@ -24,15 +24,14 @@ interface SetupState {
 }
 
 export class TwoFactorSetupPage {
-  private props: TwoFactorSetupPageProps
   private state: SetupState = {
     step: 'loading',
     verificationToken: '',
     isSubmitting: false
   }
 
-  constructor(props: TwoFactorSetupPageProps = {}) {
-    this.props = props
+  constructor(_props: TwoFactorSetupPageProps = {}) {
+    // Props parameter kept for future extensibility
   }
 
   /**

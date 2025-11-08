@@ -34,9 +34,6 @@ export class Router {
   
   /** Base path prefix for all routes */
   private basePath: string
-  
-  /** Default fallback route */
-  private fallbackRoute: string
 
   /**
    * @brief Initialize router with configuration options
@@ -48,7 +45,7 @@ export class Router {
    */
   constructor(options: RouterOptions = {}) {
     this.basePath = options.basePath || ''
-    this.fallbackRoute = options.fallbackRoute || '/'
+    // fallbackRoute option available but not currently used
     
     // Listen for browser navigation
     window.addEventListener('popstate', this.handlePopState.bind(this))
@@ -108,7 +105,7 @@ export class Router {
     }
     
     // Separate path from query parameters for route matching
-    const [pathname, queryString] = path.split('?')
+    const [pathname] = path.split('?')
     const route = this.findMatchingRoute(pathname)
     
     if (!route) {

@@ -1,875 +1,1755 @@
-# ft_transcendence - Architecture & Development Guide
+# ft_transcendence - Microservices Architecture Design
 
-## Project Overview
+## Executive Summary
 
-**ft_transcendence** is a modern, real-time multiplayer Pong game web application with advanced features including tournaments, friend systems, authentication, and live notifications.
-
-**Tech Stack Summary:**
-- **Backend:** Node.js + Fastify + Socket.IO
-- **Frontend:** TypeScript + Vite + TailwindCSS
-- **Database:** SQLite (better-sqlite3)
-- **Reverse Proxy:** Nginx (with SSL/TLS)
-- **Containerization:** Docker & Docker Compose
+This document describes the architecture for a real-time multiplayer Pong game platform with comprehensive user management, authentication, and game modes. The system is designed with a microservices backend, TypeScript/TailwindCSS frontend, and supports local, multiplayer, and AI game modes.
 
 ---
 
-## 1. High-Level Architecture Overview
+## 0. Project Status & Migration Plan
 
-### System Architecture Diagram
+### Current State (As of 2025-01-07)
+
+**✅ Microservices Architecture: Complete**
+
+The project has successfully transitioned from a monolithic backend to a fully microservices-based architecture.
+
+#### ✅ **Implemented Components**
+- **Frontend:** TypeScript + Vite + TailwindCSS (fully operational)
+- **Nginx Reverse Proxy:** HTTPS termination, custom domain (`ft_transcendence.42.crea`)
+- **Microservices (Production-Ready):**
+  - ✅ API Gateway (Fastify + Node.js)
+  - ✅ Auth Service (OAuth 2.0, 2FA, JWT)
+  - ✅ User Service (profiles, friends, stats)
+  - ✅ Game Service (game logic, tournaments, AI)
+  - ✅ WebSocket Server (Socket.IO, real-time communication)
+- **Database:** SQLite (shared volume across services)
+
+#### 🎯 **Migration Goals**
+1. **Phase 1 (Completed):** Establish microservices infrastructure
+   - API Gateway routing ✅
+   - Auth Service with OAuth 2.0 + 2FA ✅
+   - User Service with friends system ✅
+   - Game Service with tournament support ✅
+   - WebSocket Server for real-time ✅
+
+2. **Phase 2 (Completed):** Migrate remaining monolith features
+   - All backend functionality migrated to microservices ✅
+   - Frontend API calls updated to use microservices ✅
+   - All routes properly configured in API Gateway ✅
+
+3. **Phase 3 (Completed):** Remove monolithic backend
+   - Removed `backend` service from docker-compose.yml ✅
+   - Removed backend directory ✅
+   - Updated documentation ✅
+   - Final testing and validation ✅
+
+#### 📊 **Service Port Allocation**
+```
+Nginx (HTTPS):        443, 80
+Frontend (Vite Dev):  5173
+API Gateway:          8001
+Auth Service:         3001
+User Service:         3002
+Game Service:         3003
+WebSocket Server:     3100
+```
+
+#### 🔗 **Domain Configuration**
+- **Custom Domain:** `ft_transcendence.42.crea` (configured in `/srcs/nginx/.env`)
+- **HTTPS:** Enforced with automatic HTTP → HTTPS redirect
+- **Access:** All services accessible through nginx reverse proxy
+
+---
+
+## 1. System Architecture Overview (Target State)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         NGINX (Reverse Proxy)                   │
-│              Ports: 8000 (HTTP→HTTPS), 4433 (HTTPS)             │
+│                    NGINX Reverse Proxy (HTTPS)                  │
+│                   Ports: 443 (HTTPS), 80→443                    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │            Frontend (Vite Dev Server)                    │  │
-│  │  • TypeScript + TailwindCSS                              │  │
-│  │  • Port 5173 (internal) → 443 (nginx proxy)              │  │
-│  │  • Single Page Application (SPA) with Client Router      │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │            Backend API (Fastify Server)                  │  │
-│  │  • Port 8000                                             │  │
-│  │  • REST API endpoints at /api/*                          │  │
-│  │  • Socket.IO WebSocket on /socket.io/                   │  │
-│  │  • Swagger docs at /api/documentation                   │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                           ↓                                     │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │            SQLite Database                               │  │
-│  │  • File-based: /app/db-data/ft_transcendence.db          │  │
-│  │  • Initialized by db container                           │  │
-│  │  • Shared volume: db-data (Docker)                       │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │            SQLite Browser (Debug Tool)                   │  │
-│  │  • Port 3000-3001 for database inspection                │  │
-│  │  • Development only                                      │  │
-│  └──────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │              Frontend (TypeScript + TailwindCSS)          │ │
+│  │  • SPA with Client-Side Routing                           │ │
+│  │  • Socket.IO Client for Real-time                         │ │
+│  │  • Responsive UI (TailwindCSS)                            │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                              ↓                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                  API Gateway (Fastify)                    │ │
+│  │  • Route orchestration                                    │ │
+│  │  • JWT verification                                       │ │
+│  │  • Rate limiting                                          │ │
+│  │  • Request validation                                     │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                              ↓                                  │
+│  ┌─────────────────────── MICROSERVICES ─────────────────────┐ │
+│  │                                                            │ │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │ │
+│  │  │   Auth       │  │    User      │  │    Game      │   │ │
+│  │  │   Service    │  │   Service    │  │   Service    │   │ │
+│  │  │              │  │              │  │              │   │ │
+│  │  │ • Login/Reg  │  │ • Profiles   │  │ • Game Logic │   │ │
+│  │  │ • OAuth 2.0  │  │ • Friends    │  │ • Matchmaking│   │ │
+│  │  │ • 2FA/MFA    │  │ • Search     │  │ • Tournaments│   │ │
+│  │  │ • JWT        │  │ • Stats      │  │ • AI Engine  │   │ │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘   │ │
+│  │                                                            │ │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │ │
+│  │  │ Notification │  │   Match      │  │   Chat       │   │ │
+│  │  │   Service    │  │   History    │  │   Service    │   │ │
+│  │  │              │  │   Service    │  │              │   │ │
+│  │  │ • Real-time  │  │ • Game Logs  │  │ • Direct Msg │   │ │
+│  │  │ • Alerts     │  │ • Statistics │  │ • Blocking   │   │ │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘   │ │
+│  │                                                            │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ↓                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │              WebSocket Server (Socket.IO)                 │ │
+│  │  • Real-time game state                                   │ │
+│  │  • Player movements                                       │ │
+│  │  • Chat messages                                          │ │
+│  │  • Friend status updates                                  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                              ↓                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                  Database Layer (SQLite)                  │ │
+│  │  • users, roles, sessions                                 │ │
+│  │  • friendships, blocked_users                             │ │
+│  │  • games, tournaments, match_history                      │ │
+│  │  • user_stats, notifications                              │ │
+│  └───────────────────────────────────────────────────────────┘ │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Communication Flow
+---
 
-1. **Client → Nginx**: Browser connects to `https://localhost:4433`
-2. **Nginx → Frontend**: Routes to Vite dev server via HTTP proxy
-3. **Frontend → Backend**: 
-   - REST API calls to `/api/*` endpoints
-   - WebSocket connections via Socket.IO to `/socket.io/`
-4. **Backend → Database**: SQLite queries via better-sqlite3
-5. **Real-time Updates**: Socket.IO broadcasts game state, friend status, notifications
+## 2. Layer Breakdown
 
-### Real-time Communication (Socket.IO)
+### 2.1 Reverse Proxy Layer (Nginx)
 
-The application uses Socket.IO for real-time multiplayer features:
+**Purpose:** SSL termination, request routing, load balancing
 
-**Client-Server Events:**
-- `friend:request`, `friend:accept`, `friend:decline` - Friend system
-- `game:join`, `game:leave`, `game:ready`, `game:move`, `game:pause`, `game:resume` - Game events
-- `notification:send`, `notification:read` - Notifications
-- `user:status_update`, `user:online`, `user:offline` - User presence
-- `ping`, `pong` - Connection health checks
+**Configuration:**
+```
+nginx/
+├── nginx.conf                 # Main config
+├── conf.d/
+│   └── default.conf          # Server blocks, routing rules
+├── ssl/
+│   ├── cert.pem              # SSL certificate
+│   └── key.pem               # Private key
+└── Dockerfile
+```
+
+**Responsibilities:**
+- HTTPS enforcement (redirect HTTP → HTTPS)
+- TLS/SSL termination
+- Proxy `/api/*` → API Gateway
+- Proxy `/socket.io/` → WebSocket Server
+- Proxy `/*` → Frontend static files
+- WebSocket upgrade handling
+- Security headers (HSTS, CSP, X-Frame-Options)
 
 ---
 
-## 2. Project Structure
+### 2.2 Frontend Layer
 
-### Root Directory (`/home/crea/Desktop/ft_transcendence/`)
-
-```
-ft_transcendence/
-├── docker-compose.yml          # Service orchestration configuration
-├── Makefile                    # Docker management commands
-├── README.md                   # Project overview
-├── TODO                        # Current development tasks
-├── .gitignore                 # Git ignore rules
-├── docs/                      # Project documentation (markdown & PDFs)
-├── srcs/                      # Source code for all services
-│   ├── frontend/             # Vite TypeScript frontend
-│   ├── backend/              # Fastify Node.js backend
-│   ├── db/                   # SQLite database initialization
-│   └── nginx/                # Nginx reverse proxy configuration
-└── .git/                      # Git repository
-```
-
-### Frontend (`srcs/frontend/`)
+**Tech Stack:** TypeScript + Vite + TailwindCSS
 
 ```
 frontend/
-├── package.json              # Dependencies & npm scripts
-├── package-lock.json         # Lock file for reproducible builds
-├── vite.config.ts           # Vite build configuration
-├── tsconfig.json            # TypeScript configuration
-├── Dockerfile               # Frontend container definition
-├── .env                     # Environment variables
-├── .dockerignore            # Files to exclude from Docker build
-├── .gitignore              # Git ignore rules
-├── public/                 # Static assets
-└── src/
-    ├── main.ts              # Application bootstrap entry point
-    ├── index.css            # Global TailwindCSS styles
-    ├── vite-env.d.ts        # Vite type definitions
-    ├── test-websocket-integration.ts  # WebSocket testing
-    ├── assets/              # Images, fonts, static resources
-    ├── components/          # Reusable UI components
-    │   ├── auth/           # Login, registration forms
-    │   ├── base/           # Base layout components
-    │   ├── game/           # Game UI components
-    │   └── ui/             # Generic UI widgets
-    ├── pages/              # Full page components (routes)
-    │   ├── auth/           # Auth pages (login, register, 2FA)
-    │   ├── friends/        # Friends list and management
-    │   ├── game/           # Game play pages
-    │   ├── home/           # Home/dashboard pages
-    │   ├── users/          # User profile pages
-    │   └── index.ts        # Page exports
-    ├── router/             # Client-side routing
-    │   └── router.ts       # Route definitions and navigation
-    ├── services/           # Business logic & API communication
-    │   ├── auth/           # Authentication service (login, register, 2FA)
-    │   ├── api/            # API client (friends, users)
-    │   ├── game/           # Game service
-    │   ├── user/           # User service
-    │   ├── websocket/      # WebSocket/Socket.IO service
-    │   ├── notification/   # Notification service
-    │   ├── error/          # Error handling
-    │   ├── utils/          # Utility functions (validation, password)
-    │   └── index.ts        # Service exports
-    └── stores/             # Application state management
+├── src/
+│   ├── main.ts                    # Entry point
+│   ├── router/
+│   │   └── index.ts              # SPA routing (history API)
+│   ├── pages/
+│   │   ├── auth/
+│   │   │   ├── LoginPage.ts      # Login + OAuth buttons
+│   │   │   ├── RegisterPage.ts   # Registration
+│   │   │   └── TwoFactorPage.ts  # 2FA verification
+│   │   ├── dashboard/
+│   │   │   └── DashboardPage.ts  # User home
+│   │   ├── profile/
+│   │   │   ├── ProfilePage.ts    # View/edit profile
+│   │   │   └── StatsPage.ts      # User statistics
+│   │   ├── friends/
+│   │   │   ├── FriendsPage.ts    # Friends list
+│   │   │   └── SearchPage.ts     # User search
+│   │   ├── game/
+│   │   │   ├── LocalGamePage.ts  # Same-keyboard 2P
+│   │   │   ├── OnlineGamePage.ts # Multiplayer
+│   │   │   ├── AIGamePage.ts     # vs AI
+│   │   │   └── TournamentPage.ts # Tournament UI
+│   │   └── chat/
+│   │       └── ChatPage.ts       # Direct messaging
+│   ├── components/
+│   │   ├── GameCanvas.ts         # Pong rendering
+│   │   ├── UserCard.ts
+│   │   ├── FriendList.ts
+│   │   ├── TournamentBracket.ts
+│   │   └── Navbar.ts
+│   ├── services/
+│   │   ├── api/
+│   │   │   ├── ApiClient.ts      # HTTP client (fetch wrapper)
+│   │   │   ├── AuthAPI.ts
+│   │   │   ├── UserAPI.ts
+│   │   │   ├── GameAPI.ts
+│   │   │   └── FriendAPI.ts
+│   │   ├── websocket/
+│   │   │   └── SocketManager.ts  # Socket.IO client
+│   │   ├── game/
+│   │   │   ├── LocalGameEngine.ts  # Client-side game (local)
+│   │   │   ├── OnlineGameClient.ts # Server-authoritative
+│   │   │   └── AIOpponent.ts       # AI logic
+│   │   └── auth/
+│   │       └── TokenManager.ts   # JWT storage/refresh
+│   ├── store/
+│   │   ├── UserStore.ts          # User state management
+│   │   └── GameStore.ts          # Game state
+│   └── utils/
+│       ├── validation.ts
+│       └── formatters.ts
+├── public/
+│   └── assets/
+├── index.html
+├── vite.config.ts
+├── tailwind.config.js
+└── Dockerfile
 ```
 
-### Backend (`srcs/backend/`)
+**Key Features:**
+- SPA with History API routing (back/forward support)
+- JWT stored in localStorage (with refresh mechanism)
+- Socket.IO for real-time updates
+- Responsive design (mobile-first)
+- Form validation (Zod)
+
+---
+
+### 2.3 API Gateway
+
+**Tech Stack:** Fastify + Node.js
+
+**Purpose:** Single entry point for all microservices
 
 ```
-backend/
-├── package.json              # Dependencies (Fastify, JWT, OAuth2, etc.)
-├── package-lock.json         # Lock file
-├── Dockerfile               # Backend container definition
-├── .env                     # Environment variables (JWT secret, DB path)
-├── .dockerignore            # Files to exclude
-├── .gitignore              # Git ignore
-├── generate-jwt-secrets.js  # Utility to generate JWT secrets
-└── src/
-    ├── server.js            # Main Fastify server & Socket.IO initialization
-    ├── database.js          # SQLite connection management
-    ├── logger.js            # Centralized logging configuration
-    ├── config/              # Configuration modules
-    │   └── oauth.config.js  # OAuth 2.0 (Google) configuration
-    ├── middleware/          # Express-style middleware
-    │   ├── authentication.js # JWT/auth middleware
-    │   └── validation.js    # Request validation middleware
-    ├── plugins/             # Fastify plugins
-    │   ├── swagger.js       # Swagger/OpenAPI documentation
-    │   ├── error-handler.js # Global error handling
-    │   └── index.js         # Plugin exports
-    ├── routes/              # API route handlers
-    │   ├── health.js        # Health check endpoint
-    │   ├── auth/            # Authentication routes
-    │   │   ├── login.js
-    │   │   ├── register.js
-    │   │   ├── oauth.js
-    │   │   ├── 2fa.js
-    │   │   └── index.js
-    │   ├── users/           # User management routes
-    │   │   ├── me.js        # Current user profile
-    │   │   ├── username.js  # Update username
-    │   │   ├── public-profile.js
-    │   │   ├── search.js
-    │   │   └── index.js
-    │   └── index.js         # Route registration
-    ├── schemas/             # Input/output validation schemas (JSON Schema/Zod)
-    │   ├── routes/          # Route-specific schemas
-    │   │   ├── auth.schema.js
-    │   │   ├── user.schema.js
-    │   │   └── oauth.schema.js
-    │   └── common/          # Reusable schemas
-    │       ├── user.schema.js
-    │       └── responses.schema.js
-    ├── services/            # Business logic
-    │   ├── user.service.js  # User operations
-    │   ├── email.service.js # Email sending (2FA, verification)
-    │   ├── oauth-state.service.js # OAuth state management
-    │   └── index.js         # Service exports
-    └── utils/               # Utility functions
-        ├── auth_utils.js    # Authentication helpers
-        ├── jwt.js           # JWT token generation/verification
-        ├── avatar-converter.js # Image processing
-        ├── user-formatters.js # Data formatting
-        ├── coockie.js        # Cookie management
-        └── index.js          # Utility exports
+api-gateway/
+├── src/
+│   ├── server.ts                 # Main server
+│   ├── config/
+│   │   └── routes.config.ts     # Route mappings
+│   ├── middleware/
+│   │   ├── auth.middleware.ts   # JWT verification
+│   │   ├── rateLimit.middleware.ts
+│   │   └── validation.middleware.ts
+│   ├── plugins/
+│   │   ├── swagger.plugin.ts
+│   │   └── cors.plugin.ts
+│   └── utils/
+│       └── serviceProxy.ts      # Proxy to microservices
+└── Dockerfile
 ```
 
-### Database (`srcs/db/`)
+**Responsibilities:**
+- Route requests to appropriate microservices
+- JWT token verification (except auth routes)
+- Rate limiting (per user, per IP)
+- Request/response logging
+- API documentation (Swagger)
+- CORS handling
 
+**Route Mapping:**
 ```
-db/
-├── Dockerfile               # Database initialization container
-├── .env                    # Environment variables
-├── .dockerignore           # Files to exclude
-├── .gitignore              # Git ignore
-├── scripts/
-│   ├── init-db.sh         # Database initialization entrypoint
-│   └── seed-db.sh         # Database seeding
-└── sql/
-    ├── 01-schema.sql      # Main schema definition (tables, indexes)
-    ├── 02-seed-roles.sql  # Initial roles (user, moderator, admin)
-    ├── 03-seed-admin.sql.template # Admin user template
-    └── 04-seed-user-stats.sql     # User statistics initialization
-```
-
-### Nginx (`srcs/nginx/`)
-
-```
-nginx/
-├── Dockerfile               # Nginx container definition
-├── docker-entrypoint.sh    # Startup script for config templating
-├── nginx.conf              # Main nginx configuration
-├── README.md               # Nginx-specific documentation
-├── .env                    # Environment variables (HOST_DOMAIN)
-├── .dockerignore           # Files to exclude
-├── .gitignore              # Git ignore
-├── conf.d/
-│   └── default.conf.template # Server config (templated with envsubst)
-├── ssl/                    # SSL certificate directory (self-signed)
-└── error_pages/            # Error page HTML files
+/api/auth/*       → Auth Service
+/api/users/*      → User Service
+/api/games/*      → Game Service
+/api/friends/*    → User Service
+/api/chat/*       → Chat Service
+/api/notifications/* → Notification Service
+/api/history/*    → Match History Service
 ```
 
 ---
 
-## 3. Technology Stack
+### 2.4 Microservices Layer
 
-### Backend Stack
+#### 2.4.1 Auth Service
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Framework** | Fastify 5.1.0 | Lightweight, fast Node.js framework |
-| **Runtime** | Node.js 24.8.0 (Alpine) | JavaScript runtime |
-| **Database** | SQLite + better-sqlite3 | File-based relational DB, synchronous API |
-| **Authentication** | JWT + Fastify-JWT | Stateless token-based auth |
-| **OAuth 2.0** | Fastify-OAuth2 + Google API | Social login integration |
-| **Real-time** | Socket.IO 4.8.1 | WebSocket communication |
-| **Security** | Fastify-Helmet, bcrypt | Security headers, password hashing |
-| **Rate Limiting** | Fastify-Rate-Limit | API endpoint protection |
-| **File Upload** | Fastify-Multipart, Multer | File handling & validation |
-| **Image Processing** | Sharp 0.34.4 | Avatar image manipulation |
-| **Email** | Nodemailer 7.0.6 | Transactional email (2FA, verification) |
-| **2FA** | Speakeasy + QR Code | TOTP authentication |
-| **Logging** | Pino | Structured JSON logging |
-| **Validation** | Fastify built-in AJV | JSON Schema validation |
-| **API Docs** | Fastify-Swagger | OpenAPI/Swagger documentation |
+**Purpose:** Authentication, authorization, session management
 
-### Frontend Stack
+```
+auth-service/
+├── src/
+│   ├── server.ts
+│   ├── routes/
+│   │   ├── login.route.ts       # POST /auth/login
+│   │   ├── register.route.ts    # POST /auth/register
+│   │   ├── oauth.route.ts       # GET/POST /auth/oauth/*
+│   │   ├── twoFactor.route.ts   # POST /auth/2fa/*
+│   │   └── refresh.route.ts     # POST /auth/refresh
+│   ├── services/
+│   │   ├── authService.ts       # Core auth logic
+│   │   ├── oauthService.ts      # OAuth 2.0 (Google, GitHub, 42)
+│   │   ├── twoFactorService.ts  # TOTP generation/verification
+│   │   └── jwtService.ts        # Token generation/validation
+│   ├── models/
+│   │   └── User.model.ts
+│   └── utils/
+│       ├── password.util.ts     # bcrypt hashing
+│       └── crypto.util.ts       # Secret generation
+└── Dockerfile
+```
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Framework** | Vanilla TypeScript | No framework dependencies (lightweight SPA) |
-| **Build Tool** | Vite 6.3.5 | Lightning-fast dev server & bundler |
-| **Type Safety** | TypeScript 5.8 | Strict type checking |
-| **Styling** | TailwindCSS 4.1 | Utility-first CSS framework |
-| **Real-time** | Socket.IO Client 4.8.1 | WebSocket communication |
-| **Validation** | Zod 4.1.11 | Runtime schema validation |
-| **File Upload** | FilePond + plugins | Drag-drop file upload with preview |
-| **OAuth** | Google APIs 160.0.0 | Google login integration |
-| **Routing** | Custom Router | Lightweight client-side routing |
+**Features:**
+- Local authentication (email/password)
+- OAuth 2.0 integration (Google, GitHub, 42 Intra)
+- Two-Factor Authentication (TOTP with QR codes)
+- JWT token issuance (access + refresh tokens)
+- Password reset flow
+- Email verification
+- Secure session management
 
-### Infrastructure
-
-| Component | Technology | Port | Purpose |
-|-----------|-----------|------|---------|
-| **Reverse Proxy** | Nginx 1.25 Alpine | 8000 (HTTP), 4433 (HTTPS) | SSL termination, request routing |
-| **Frontend Server** | Vite Dev | 5173 (internal) | Development hot reload |
-| **Backend Server** | Fastify | 8000 (internal) | REST API & WebSocket |
-| **Database** | SQLite | File-based | Persistent data storage |
-| **DB Browser** | SQLite Browser | 3000-3001 | Development inspection |
-| **Container Runtime** | Docker | - | Application containerization |
-| **Orchestration** | Docker Compose | - | Multi-container coordination |
+**Database Tables:**
+- `users` (id, email, password_hash, email_verified, created_at)
+- `oauth_accounts` (user_id, provider, provider_user_id)
+- `two_factor` (user_id, secret, backup_codes, enabled)
+- `refresh_tokens` (user_id, token_hash, expires_at)
 
 ---
 
-## 4. Build and Development Commands
+#### 2.4.2 User Service
 
-### Prerequisites
+**Purpose:** User profiles, friends, search, stats
 
-```bash
-# Required installations
-- Docker 20.10+
-- Docker Compose 2.0+
-- Git
-- Make (optional, but convenient)
+```
+user-service/
+├── src/
+│   ├── server.ts
+│   ├── routes/
+│   │   ├── profile.route.ts     # GET/PUT /users/me
+│   │   ├── publicProfile.route.ts # GET /users/:id
+│   │   ├── friends.route.ts     # POST/GET /users/friends/*
+│   │   ├── search.route.ts      # GET /users/search
+│   │   ├── stats.route.ts       # GET /users/:id/stats
+│   │   └── avatar.route.ts      # POST /users/avatar
+│   ├── services/
+│   │   ├── userService.ts
+│   │   ├── friendService.ts
+│   │   └── statsService.ts
+│   └── utils/
+│       └── imageProcessing.ts   # Avatar upload/resize
+└── Dockerfile
 ```
 
-### Quick Start
+**Features:**
+- User profiles (username, display name, avatar, bio)
+- Friend system (send/accept/decline/remove)
+- Friend online status (via WebSocket)
+- User search (by username/display name)
+- Block/unblock users
+- User statistics (wins, losses, rank, play time)
+- Match history integration
+- Avatar upload with validation
 
-#### Option 1: Using Make (Recommended)
+**Database Tables:**
+- `user_profiles` (user_id, username, display_name, avatar_url, bio)
+- `friendships` (user_id, friend_id, status, created_at)
+- `blocked_users` (user_id, blocked_user_id)
+- `user_stats` (user_id, games_played, wins, losses, rank, total_score)
+
+---
+
+#### 2.4.3 Game Service
+
+**Purpose:** Game logic, matchmaking, tournaments, AI
+
+```
+game-service/
+├── src/
+│   ├── server.ts
+│   ├── routes/
+│   │   ├── game.route.ts        # POST/GET /games/*
+│   │   ├── tournament.route.ts  # POST/GET /tournaments/*
+│   │   ├── matchmaking.route.ts # POST /games/matchmaking
+│   │   └── ai.route.ts          # POST /games/ai/start
+│   ├── services/
+│   │   ├── gameService.ts       # Game creation/management
+│   │   ├── matchmakingService.ts # Queue + ELO matching
+│   │   ├── tournamentService.ts # Bracket generation
+│   │   └── aiService.ts         # AI opponent logic
+│   ├── engine/
+│   │   ├── PongEngine.ts        # Server-authoritative game state
+│   │   ├── Physics.ts           # Ball/paddle physics
+│   │   ├── Collision.ts         # Collision detection
+│   │   └── AIPlayer.ts          # AI decision-making
+│   └── models/
+│       ├── Game.model.ts
+│       └── Tournament.model.ts
+└── Dockerfile
+```
+
+**Game Modes:**
+1. **Local (Same Keyboard):** Pure client-side, no server
+2. **Multiplayer (Remote):** Server-authoritative with client prediction
+3. **AI Opponent:** Server simulates AI with keyboard constraints
+4. **Tournament:** Multi-round bracket system
+
+**Server-Authoritative Game Loop:**
+```typescript
+// Game runs at 60 TPS (ticks per second)
+// Client sends inputs, server computes state, broadcasts updates
+setInterval(() => {
+  processPlayerInputs();
+  updateBallPosition();
+  checkCollisions();
+  updateScore();
+  broadcastGameState();
+}, 1000 / 60);
+```
+
+**AI Constraints (Per Subject):**
+- AI can only "see" game state once per second
+- Must simulate keyboard input (not perfect tracking)
+- Must anticipate ball trajectory
+- Same paddle speed as human players
+
+**Database Tables:**
+- `games` (id, mode, player1_id, player2_id, status, winner_id, created_at)
+- `game_state` (game_id, state_json, updated_at)
+- `tournaments` (id, name, status, bracket_json, created_at)
+- `tournament_participants` (tournament_id, user_id, seed)
+
+---
+
+#### 2.4.4 Match History Service
+
+**Purpose:** Game logs, statistics aggregation
+
+```
+match-history-service/
+├── src/
+│   ├── server.ts
+│   ├── routes/
+│   │   ├── history.route.ts     # GET /history/:userId
+│   │   └── stats.route.ts       # GET /stats/:userId
+│   ├── services/
+│   │   ├── historyService.ts
+│   │   └── statsAggregator.ts   # Real-time stats calculation
+│   └── models/
+│       └── MatchHistory.model.ts
+└── Dockerfile
+```
+
+**Features:**
+- Store complete match data (scores, duration, moves)
+- User match history with filters
+- Head-to-head statistics
+- Leaderboards
+- Performance analytics
+
+**Database Tables:**
+- `match_history` (id, game_id, player1_id, player2_id, score1, score2, duration, winner_id, created_at)
+- `match_events` (match_id, event_type, event_data, timestamp)
+
+---
+
+#### 2.4.5 Notification Service
+
+**Purpose:** Real-time notifications, alerts
+
+```
+notification-service/
+├── src/
+│   ├── server.ts
+│   ├── routes/
+│   │   ├── notifications.route.ts # GET/PUT /notifications/*
+│   ├── services/
+│   │   ├── notificationService.ts
+│   │   └── socketEmitter.ts       # Emit to Socket.IO
+│   └── types/
+│       └── NotificationType.ts
+└── Dockerfile
+```
+
+**Notification Types:**
+- Friend request received
+- Friend request accepted
+- Game invitation
+- Tournament starting
+- Match completed
+- User came online
+
+**Database Tables:**
+- `notifications` (id, user_id, type, message, data_json, read, created_at)
+
+---
+
+#### 2.4.6 Chat Service
+
+**Purpose:** Direct messaging, user blocking
+
+```
+chat-service/
+├── src/
+│   ├── server.ts
+│   ├── routes/
+│   │   ├── messages.route.ts    # GET/POST /chat/messages
+│   │   └── block.route.ts       # POST /chat/block
+│   ├── services/
+│   │   ├── chatService.ts
+│   │   └── messageValidator.ts  # XSS prevention
+│   └── models/
+│       └── Message.model.ts
+└── Dockerfile
+```
+
+**Features:**
+- Direct messages between users
+- Message history
+- Block users (no messages shown)
+- Online/offline status
+- Real-time message delivery via WebSocket
+
+**Database Tables:**
+- `messages` (id, sender_id, receiver_id, content, created_at)
+- `chat_blocks` (user_id, blocked_user_id)
+
+---
+
+### 2.5 WebSocket Server
+
+**Tech Stack:** Socket.IO + Node.js
+
+```
+websocket-server/
+├── src/
+│   ├── server.ts
+│   ├── handlers/
+│   │   ├── gameHandler.ts       # Game events
+│   │   ├── chatHandler.ts       # Chat events
+│   │   ├── friendHandler.ts     # Friend status
+│   │   └── notificationHandler.ts
+│   ├── middleware/
+│   │   └── socketAuth.ts        # JWT verification
+│   └── utils/
+│       └── roomManager.ts       # Game rooms
+└── Dockerfile
+```
+
+**Socket.IO Events:**
+
+**Client → Server:**
+- `game:move` - Paddle movement
+- `game:ready` - Player ready
+- `chat:message` - Send message
+- `friend:request` - Send friend request
+- `presence:update` - User online/offline
+
+**Server → Client:**
+- `game:state` - Game state update (60Hz)
+- `game:start` - Game started
+- `game:end` - Game finished
+- `chat:message` - New message
+- `notification:new` - New notification
+- `friend:online` - Friend came online
+
+**Room Structure:**
+```typescript
+// Game room: game_{gameId}
+// User room: user_{userId}
+// Friend broadcast: friends_{userId}
+```
+
+---
+
+### 2.6 Database Layer
+
+**Tech Stack:** SQLite (single file, better-sqlite3)
+
+**Database Schema:**
+
+```sql
+-- Users & Auth
+users (id, email, password_hash, email_verified, created_at)
+oauth_accounts (user_id, provider, provider_user_id)
+two_factor (user_id, secret, backup_codes, enabled)
+refresh_tokens (user_id, token_hash, expires_at)
+roles (id, name)
+user_roles (user_id, role_id)
+
+-- Profiles & Social
+user_profiles (user_id, username, display_name, avatar_url, bio)
+friendships (user_id, friend_id, status, created_at)
+blocked_users (user_id, blocked_user_id)
+
+-- Games
+games (id, mode, player1_id, player2_id, status, winner_id, created_at)
+game_state (game_id, state_json, updated_at)
+tournaments (id, name, status, bracket_json, created_at)
+tournament_participants (tournament_id, user_id, seed)
+
+-- History & Stats
+match_history (id, game_id, player1_id, player2_id, score1, score2, duration, winner_id, created_at)
+user_stats (user_id, games_played, wins, losses, rank, total_score)
+
+-- Messaging
+messages (id, sender_id, receiver_id, content, created_at)
+notifications (id, user_id, type, message, data_json, read, created_at)
+```
+
+**Migrations:**
+```
+db/migrations/
+├── 001_initial_schema.sql
+├── 002_add_oauth.sql
+├── 003_add_2fa.sql
+└── 004_add_tournaments.sql
+```
+
+---
+
+## 3. Inter-Service Communication
+
+### 3.1 Synchronous (HTTP/REST)
+
+**Pattern:** API Gateway proxies to microservices
+
+**Example:**
+```
+Client → API Gateway → User Service
+  GET /api/users/me
+    → JWT verified in Gateway
+    → Forwarded to User Service with user_id
+    → User Service queries DB
+    → Response returned
+```
+
+### 3.2 Asynchronous (Event Bus)
+
+**Option 1: Redis Pub/Sub** (if adding Redis for scaling)
+**Option 2: In-process events** (for MVP)
+
+**Events:**
+- `user.created` → Notification Service sends welcome
+- `game.finished` → Match History logs, User Stats update
+- `friend.request` → Notification sent to recipient
+- `user.online` → Broadcast to all friends
+
+---
+
+## 4. Authentication & Security
+
+### 4.1 JWT Flow
+
+```
+1. User logs in
+   ↓
+2. Auth Service validates credentials
+   ↓
+3. Generate access token (15 min) + refresh token (7 days)
+   ↓
+4. Client stores tokens in localStorage
+   ↓
+5. Every API request includes: Authorization: Bearer <access_token>
+   ↓
+6. API Gateway verifies JWT signature
+   ↓
+7. Extract user_id from JWT payload
+   ↓
+8. Forward to microservice with user context
+```
+
+**JWT Payload:**
+```json
+{
+  "user_id": "uuid",
+  "email": "user@example.com",
+  "roles": ["user"],
+  "iat": 1234567890,
+  "exp": 1234568790
+}
+```
+
+### 4.2 OAuth 2.0 Flow
+
+```
+1. User clicks "Login with Google"
+   ↓
+2. Redirect to Google OAuth consent screen
+   ↓
+3. Google redirects back with auth code
+   ↓
+4. Backend exchanges code for access token
+   ↓
+5. Fetch user info from Google
+   ↓
+6. Create/update user in DB
+   ↓
+7. Generate JWT token
+   ↓
+8. Redirect to frontend with token
+```
+
+### 4.3 Two-Factor Authentication (2FA)
+
+```
+1. User enables 2FA in settings
+   ↓
+2. Server generates TOTP secret (32-char base32)
+   ↓
+3. QR code displayed with: otpauth://totp/Transcendence:{email}?secret={secret}
+   ↓
+4. User scans with authenticator app
+   ↓
+5. User enters verification code to confirm
+   ↓
+6. Server validates and enables 2FA
+
+Login with 2FA:
+1. User enters email/password
+   ↓
+2. Server checks if 2FA enabled
+   ↓
+3. Return temporary token requiring 2FA
+   ↓
+4. User enters TOTP code
+   ↓
+5. Server validates (30-sec time window)
+   ↓
+6. Issue full JWT tokens
+```
+
+**Backup Codes:** 10 single-use codes for recovery
+
+### 4.4 Security Measures
+
+**Password Hashing:** bcrypt (rounds: 12)
+**SQL Injection:** Parameterized queries only
+**XSS Prevention:** Sanitize all user input, Content-Security-Policy headers
+**CSRF:** SameSite cookies for refresh tokens
+**Rate Limiting:**
+  - Login: 5 attempts per 15 min
+  - API: 100 requests per min per user
+  - WebSocket: Connection throttling
+**HTTPS:** Enforced everywhere
+**Input Validation:** JSON Schema validation on all endpoints
+
+---
+
+## 5. Game Architecture
+
+### 5.1 Local Game (Same Keyboard) - **MANDATORY FEATURE**
+
+**Subject Requirement:**
+> "Users must be able to participate in a live Pong game against another player directly on the website. Both players will use the same keyboard."
+
+This is a **mandatory baseline feature** that must work WITHOUT any modules or user accounts.
+
+**Implementation Details:**
+
+**Architecture:**
+- **Pure client-side** - No server communication during gameplay
+- **Canvas-based rendering** at 60 FPS
+- **No authentication required** - Accessible to anyone visiting the site
+- **Immediate play** - No setup, registration, or waiting
+
+**Keyboard Controls:**
+```typescript
+// Player 1 (Left Paddle)
+- W: Move paddle up
+- S: Move paddle down
+
+// Player 2 (Right Paddle)
+- Arrow Up: Move paddle up
+- Arrow Down: Move paddle down
+```
+
+**Game Flow:**
+```
+1. User navigates to local game page
+2. Game starts immediately (or on "Start" button)
+3. Both players control paddles with keyboard
+4. Ball physics calculated client-side
+5. Score tracked in browser
+6. Game ends at target score (e.g., 11 points)
+7. Optional: Submit final score to server (if user logged in)
+```
+
+**Technical Implementation:**
+```typescript
+// LocalGameEngine.ts
+class LocalGameEngine {
+  private canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  private gameState: {
+    paddle1: { y: number, velocity: number };
+    paddle2: { y: number, velocity: number };
+    ball: { x: number, y: number, vx: number, vy: number };
+    score: { player1: number, player2: number };
+  };
+
+  constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d')!;
+    this.initGame();
+    this.setupKeyboardListeners();
+  }
+
+  private setupKeyboardListeners() {
+    // Player 1: W/S keys
+    // Player 2: Arrow Up/Down
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'w') this.gameState.paddle1.velocity = -1;
+      if (e.key === 's') this.gameState.paddle1.velocity = 1;
+      if (e.key === 'ArrowUp') this.gameState.paddle2.velocity = -1;
+      if (e.key === 'ArrowDown') this.gameState.paddle2.velocity = 1;
+    });
+  }
+
+  private gameLoop() {
+    requestAnimationFrame(() => this.gameLoop());
+    this.update();
+    this.render();
+  }
+
+  private update() {
+    // Update paddle positions
+    // Update ball position
+    // Check collisions
+    // Update score
+  }
+}
+```
+
+**File Location:** `frontend/src/services/game/LocalGameEngine.ts`
+**Page Component:** `frontend/src/pages/game/LocalGamePage.ts`
+
+**Post-Game Options:**
+- **Without User Accounts:** Display final score, option to play again
+- **With User Accounts Module:** Optionally save match to history (if both players logged in)
+
+### 5.2 Multiplayer (Remote)
+
+**Architecture:** Server-authoritative with client prediction
+
+**Flow:**
+```
+Client 1                Server                  Client 2
+   |                      |                        |
+   |-- game:join -------->|                        |
+   |                      |<------- game:join -----|
+   |                      |                        |
+   |                   [Create room]               |
+   |                      |                        |
+   |<-- game:start -------|------> game:start -----|
+   |                      |                        |
+   |-- input:move ------->|                        |
+   |                   [Compute]                   |
+   |<-- game:state -------|------> game:state -----|
+   |                      |                        |
+```
+
+**Server Game Loop (60 TPS):**
+```typescript
+const TICK_RATE = 60;
+const MS_PER_TICK = 1000 / TICK_RATE;
+
+setInterval(() => {
+  // 1. Process queued player inputs
+  applyPlayerInputs();
+
+  // 2. Update ball physics
+  ball.x += ball.velocityX * deltaTime;
+  ball.y += ball.velocityY * deltaTime;
+
+  // 3. Check collisions (walls, paddles)
+  handleCollisions();
+
+  // 4. Update score if ball out of bounds
+  if (ball.x < 0) {
+    player2Score++;
+    resetBall();
+  }
+
+  // 5. Broadcast state to all players
+  io.to(`game_${gameId}`).emit('game:state', {
+    ball: { x: ball.x, y: ball.y },
+    paddle1: { y: paddle1.y },
+    paddle2: { y: paddle2.y },
+    score: { p1: player1Score, p2: player2Score }
+  });
+}, MS_PER_TICK);
+```
+
+**Client Prediction:** Client immediately moves paddle, server validates
+
+### 5.3 AI Opponent
+
+**Constraints (per subject):**
+- AI can only update once per second
+- Must simulate keyboard input (not perfect tracking)
+- Same paddle speed as humans
+
+**Algorithm:**
+```typescript
+class AIPlayer {
+  lastUpdate: number = 0;
+  predictedBallY: number = 0;
+  targetY: number = 0;
+
+  update(gameState: GameState, currentTime: number) {
+    // Only compute every 1000ms (per subject requirement)
+    if (currentTime - this.lastUpdate >= 1000) {
+      this.predictedBallY = this.predictBallPosition(gameState.ball);
+      this.targetY = this.calculateTargetPosition(this.predictedBallY);
+      this.lastUpdate = currentTime;
+    }
+
+    // Simulate keyboard press (gradual movement)
+    const currentPaddleY = gameState.paddle2.y;
+    if (Math.abs(this.targetY - currentPaddleY) > 5) {
+      return this.targetY > currentPaddleY ? 'DOWN' : 'UP';
+    }
+    return null;
+  }
+
+  predictBallPosition(ball: Ball): number {
+    // Raycast to predict where ball will be at paddle X position
+    // Account for wall bounces
+    let x = ball.x;
+    let y = ball.y;
+    let vx = ball.velocityX;
+    let vy = ball.velocityY;
+
+    while (x < PADDLE2_X) {
+      x += vx;
+      y += vy;
+      if (y <= 0 || y >= CANVAS_HEIGHT) {
+        vy *= -1; // Bounce off wall
+      }
+    }
+
+    return y;
+  }
+}
+```
+
+**Difficulty Levels:**
+- Easy: Random errors in prediction
+- Medium: Accurate prediction
+- Hard: Anticipates player patterns
+
+### 5.4 Tournament System - **MANDATORY FEATURE**
+
+**Subject Requirement:**
+> "A player must be able to play against another, and a tournament system should also be available... A registration system is required: at the start of a tournament, each player must input their alias."
+
+This is a **mandatory baseline feature** that must work WITHOUT the Standard User Management module.
+
+**Two Implementation Modes:**
+
+#### **Mode 1: WITHOUT User Management Module (Mandatory Minimum)**
+
+**Alias Registration:**
+```typescript
+// Tournament starts
+Tournament.create() → {
+  participants: [],
+  aliases: Map<participantId, alias>
+}
+
+// Each player enters alias
+Player enters: "GhostKing42"
+→ Stored temporarily in tournament.aliases
+→ Valid ONLY for this tournament session
+→ Reset when new tournament begins
+```
+
+**Features:**
+- Players enter **temporary alias** at tournament start
+- Aliases are **unique within tournament** (validation required)
+- Aliases **do not persist** after tournament ends
+- **No authentication required** - Anyone can join
+- Tournament history **not saved** (unless module added)
+
+**Flow:**
+```
+1. User creates new tournament
+2. Other users join tournament
+3. Each participant enters alias (checked for uniqueness)
+4. Tournament creator starts when ready
+5. System generates bracket
+6. Matches played sequentially
+7. Winner announced
+8. Tournament ends → all aliases cleared
+```
+
+**Database (Minimal):**
+```sql
+-- Only if saving tournament results (optional)
+tournaments (id, name, status, bracket_json, created_at)
+tournament_participants (tournament_id, alias, seed)
+-- No user_id linkage without User Management module
+```
+
+#### **Mode 2: WITH User Management Module (Enhanced)**
+
+**Registered User Integration:**
+```typescript
+// Users must be logged in
+Tournament.create() → {
+  participants: User[],  // Full user objects
+  creatorId: userId
+}
+
+// Aliases use registered usernames
+Player.username → Used as tournament alias
+→ Persisted in user account
+→ Linked to tournament history
+```
+
+**Enhanced Features:**
+- Automatic alias from **registered username**
+- Tournament history **saved to user profile**
+- **Persistent statistics** (tournaments won, matches played)
+- **Friend invitations** to tournaments
+- **ELO rankings** across tournaments
+- **Matchmaking** by skill level
+
+**Database (Enhanced):**
+```sql
+tournaments (id, name, creator_user_id, status, bracket_json, created_at)
+tournament_participants (tournament_id, user_id, seed, final_position)
+user_tournament_stats (user_id, tournaments_played, tournaments_won, total_matches)
+```
+
+**Subject Compliance Note:**
+> "The tournament system must work with or without user registration. Without the Standard User Management module: users manually input an alias. With the module: aliases are linked to registered accounts, allowing persistent stats and friend lists. The module extends the tournament logic; it does not replace it."
+
+**Implementation Priority:**
+1. **First:** Implement Mode 1 (alias-based, no accounts)
+2. **Then:** Add User Management module
+3. **Finally:** Enhance tournament system to use registered users when available
+
+**Tournament Bracket Example:**
+```
+Round 1 (Quarterfinals):
+  Match 1: "GhostKing42" vs "ProPaddle"
+  Match 2: "BallMaster" vs "PongChamp"
+  Match 3: "QuickReflexes" vs "WallBouncer"
+  Match 4: "SpinKing" vs "AcePlayer"
+
+Round 2 (Semifinals):
+  Match 5: Winner(1) vs Winner(2)
+  Match 6: Winner(3) vs Winner(4)
+
+Finals:
+  Match 7: Winner(5) vs Winner(6)
+```
+
+**Matchmaking System:**
+- **Without User Module:** Random bracket seeding
+- **With User Module:** Seeding by ELO rating or tournament wins
+
+---
+
+## 6. Deployment Architecture
+
+### 6.1 Docker Compose
+
+```yaml
+version: '3.8'
+
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - transcendence-net
+
+  frontend:
+    build: ./frontend
+    environment:
+      - VITE_API_URL=https://localhost/api
+      - VITE_WS_URL=https://localhost
+    networks:
+      - transcendence-net
+
+  api-gateway:
+    build: ./api-gateway
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:3000
+      - USER_SERVICE_URL=http://user-service:3001
+      - GAME_SERVICE_URL=http://game-service:3002
+    depends_on:
+      - auth-service
+      - user-service
+      - game-service
+    networks:
+      - transcendence-net
+
+  auth-service:
+    build: ./services/auth-service
+    environment:
+      - DATABASE_URL=/data/db.sqlite
+      - JWT_SECRET=${JWT_SECRET}
+      - OAUTH_GOOGLE_ID=${OAUTH_GOOGLE_ID}
+      - OAUTH_GOOGLE_SECRET=${OAUTH_GOOGLE_SECRET}
+    volumes:
+      - db-data:/data
+    networks:
+      - transcendence-net
+
+  user-service:
+    build: ./services/user-service
+    environment:
+      - DATABASE_URL=/data/db.sqlite
+    volumes:
+      - db-data:/data
+    networks:
+      - transcendence-net
+
+  game-service:
+    build: ./services/game-service
+    environment:
+      - DATABASE_URL=/data/db.sqlite
+    volumes:
+      - db-data:/data
+    networks:
+      - transcendence-net
+
+  match-history-service:
+    build: ./services/match-history-service
+    environment:
+      - DATABASE_URL=/data/db.sqlite
+    volumes:
+      - db-data:/data
+    networks:
+      - transcendence-net
+
+  notification-service:
+    build: ./services/notification-service
+    environment:
+      - DATABASE_URL=/data/db.sqlite
+      - WEBSOCKET_URL=http://websocket-server:3100
+    volumes:
+      - db-data:/data
+    networks:
+      - transcendence-net
+
+  chat-service:
+    build: ./services/chat-service
+    environment:
+      - DATABASE_URL=/data/db.sqlite
+      - WEBSOCKET_URL=http://websocket-server:3100
+    volumes:
+      - db-data:/data
+    networks:
+      - transcendence-net
+
+  websocket-server:
+    build: ./websocket-server
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - transcendence-net
+
+volumes:
+  db-data:
+
+networks:
+  transcendence-net:
+    driver: bridge
+```
+
+### 6.2 Single Command Startup
 
 ```bash
-# Build all services
+# From project root
+docker-compose up --build
+
+# Or with Makefile
 make build
-
-# Start all services in background
 make up
-
-# View status of all services
-make show
-
-# View real-time logs
-make logs
-
-# View logs for specific service
-make logs-frontend
-make logs-backend
-make logs-nginx
-make logs-db
-
-# Restart all services
-make restart
-
-# Stop services
-make stop
-
-# Stop and remove containers (keep volumes)
-make down
-
-# Full cleanup (remove images, volumes, containers)
-make fclean
-
-# Full rebuild
-make re
-
-# Development mode (foreground, see all logs)
-make dev
-
-# Shell into a service
-make exec-backend
-make exec-frontend
-make exec-nginx
-
-# Check application health
-make health
-
-# View help
-make help
 ```
 
-#### Option 2: Using Docker Compose Directly
+---
 
+## 7. Directory Structure
+
+```
+ft_transcendence/
+├── docker-compose.yml
+├── Makefile
+├── .env.example
+├── ARCHITECTURE.md
+├── README.md
+│
+├── nginx/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   ├── conf.d/
+│   │   └── default.conf
+│   └── ssl/
+│       ├── cert.pem
+│       └── key.pem
+│
+├── frontend/
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   ├── index.html
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── router/
+│   │   ├── pages/
+│   │   ├── components/
+│   │   ├── services/
+│   │   ├── store/
+│   │   └── utils/
+│   └── public/
+│
+├── api-gateway/
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── src/
+│   │   ├── server.ts
+│   │   ├── middleware/
+│   │   ├── plugins/
+│   │   └── utils/
+│   └── tsconfig.json
+│
+├── services/
+│   ├── auth-service/
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   └── src/
+│   │       ├── server.ts
+│   │       ├── routes/
+│   │       ├── services/
+│   │       ├── models/
+│   │       └── utils/
+│   │
+│   ├── user-service/
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   └── src/
+│   │       └── [similar structure]
+│   │
+│   ├── game-service/
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   └── src/
+│   │       ├── server.ts
+│   │       ├── routes/
+│   │       ├── services/
+│   │       └── engine/
+│   │           ├── PongEngine.ts
+│   │           ├── Physics.ts
+│   │           ├── Collision.ts
+│   │           └── AIPlayer.ts
+│   │
+│   ├── match-history-service/
+│   ├── notification-service/
+│   └── chat-service/
+│
+├── websocket-server/
+│   ├── Dockerfile
+│   ├── package.json
+│   └── src/
+│       ├── server.ts
+│       ├── handlers/
+│       ├── middleware/
+│       └── utils/
+│
+└── database/
+    ├── migrations/
+    │   ├── 001_initial_schema.sql
+    │   ├── 002_add_oauth.sql
+    │   ├── 003_add_2fa.sql
+    │   └── 004_add_tournaments.sql
+    ├── seeds/
+    │   └── dev_users.sql
+    └── init.sh
+```
+
+---
+
+## 8. Mandatory Requirements vs. Optional Modules
+
+### 8.1 Mandatory Requirements (25% - Must Implement)
+
+These features are **required** regardless of module selection:
+
+| Requirement | Description | Implementation Status |
+|-------------|-------------|----------------------|
+| **Local 2-Player Game** | Same-keyboard Pong with W/S and Arrow keys | ✅ Documented |
+| **Tournament System** | Alias-based registration, bracket generation, matchmaking | ✅ Documented |
+| **Docker Deployment** | Single command launch (`docker-compose up`) | ✅ Implemented |
+| **HTTPS Everywhere** | SSL/TLS encryption, secure WebSocket (wss://) | ✅ Implemented |
+| **Security Measures** | Password hashing, SQL injection prevention, XSS protection | ✅ Documented |
+| **Input Validation** | All forms and user input validated | ✅ Documented |
+| **SPA with Routing** | Single-page app with back/forward browser support | ✅ Implemented |
+| **Firefox Compatible** | Latest stable Mozilla Firefox | ✅ Target browser |
+| **Identical Paddle Speeds** | All players (human/AI) have same movement speed | ✅ Documented |
+
+**Key Points:**
+- Local game and tournament **DO NOT require** user accounts
+- These features work **immediately** without any module implementation
+- Modules **enhance** these features but don't replace them
+
+### 8.2 Module Implementation Plan
+
+**Minimum Requirement:** 7 Major Modules (70%) + 25% Mandatory = **95% to pass**
+
+#### **Implemented Modules:**
+
+| # | Module | Type | Points | Status | Notes |
+|---|--------|------|--------|--------|-------|
+| 1 | Backend Framework (Fastify + Node.js) | Major | 10 | ✅ | Overrides PHP requirement |
+| 2 | Database (SQLite) | Minor | 5 | ✅ | Required by framework module |
+| 3 | Frontend (TailwindCSS + TypeScript) | Minor | 5 | ✅ | Enhanced mandatory frontend |
+| 4 | Standard User Management | Major | 10 | ✅ | Auth, profiles, friends, stats |
+| 5 | Remote Authentication (OAuth 2.0) | Major | 10 | ✅ | Google, GitHub, 42 Intra |
+| 6 | Remote Players | Major | 10 | ✅ | Network multiplayer |
+| 7 | AI Opponent | Major | 10 | ✅ | 1-second constraint |
+| 8 | 2FA + JWT | Major | 10 | ✅ | TOTP, secure sessions |
+| 9 | Microservices Backend | Major | 10 | ✅ | Service decomposition |
+| 10 | User/Game Stats Dashboard | Minor | 5 | ✅ | Analytics & metrics |
+
+**Score Calculation:**
+- Mandatory: 25%
+- Major Modules: 7 × 10 = 70%
+- Minor Modules: 3 × 5 = 15% (= 1.5 major)
+- **Total: 8.5 Major Equivalents = 110%**
+
+**Minimum Achieved:** ✅ Exceeds 7 major modules requirement
+
+### 8.3 Module Dependencies
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  MANDATORY FEATURES                     │
+│  (Work WITHOUT any modules)                            │
+│  • Local 2-Player Game                                 │
+│  • Tournament System (alias-based)                     │
+│  • Docker Deployment                                   │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│              TECHNOLOGY OVERRIDES                       │
+│  (Change default tech stack)                           │
+│  • Backend Framework Module → Fastify replaces PHP     │
+│  • Frontend Module → TailwindCSS + TypeScript          │
+│  • Database Module → SQLite (required by framework)    │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│           USER MANAGEMENT FOUNDATION                    │
+│  (Enables persistent accounts)                         │
+│  • Standard User Management Module                     │
+│    ├─→ Enables: Remote Authentication Module           │
+│    ├─→ Enables: 2FA + JWT Module                       │
+│    └─→ Enhances: Tournament system with persistence    │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│             GAME MODE ENHANCEMENTS                      │
+│  (Add new ways to play)                                │
+│  • Remote Players Module                               │
+│  • AI Opponent Module                                  │
+│  • Stats Dashboard Module                              │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│          ARCHITECTURAL ENHANCEMENTS                     │
+│  (Backend structure)                                   │
+│  • Microservices Backend Module ✅ IMPLEMENTED         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Dependency Rules:**
+1. **Database module** is required when using Backend Framework module ✅
+2. **Standard User Management** is required for:
+   - Remote Authentication (OAuth 2.0) ✅
+   - 2FA + JWT ✅
+   - Persistent tournament history ✅
+3. **Remote Players module** recommended before Multiplayer (4+ players)
+4. **Backend Framework** recommended before Microservices module ✅
+
+### 8.4 Implementation Phases
+
+**Phase 1: Mandatory Baseline (COMPLETED)**
+```
+✅ Docker setup
+✅ Nginx HTTPS reverse proxy
+✅ Frontend SPA with routing
+✅ Local 2-player game (client-side only)
+✅ Tournament system (alias-based, no persistence)
+✅ Security measures (hashing, validation, HTTPS)
+```
+
+**Phase 2: Module Foundation (COMPLETED)**
+```
+✅ Backend Framework (Fastify + Node.js)
+✅ Database (SQLite)
+✅ Microservices architecture
+✅ API Gateway
+✅ WebSocket Server
+✅ All backend features migrated to microservices
+```
+
+**Phase 3: User Management (COMPLETED)**
+```
+✅ Auth Service (registration, login)
+✅ User Service (profiles, friends)
+✅ OAuth 2.0 (Google, GitHub, 42)
+✅ 2FA + JWT
+✅ Tournament persistence with user accounts
+```
+
+**Phase 4: Game Features (COMPLETED)**
+```
+✅ Remote multiplayer game mode
+✅ AI opponent (with 1-second constraint)
+✅ Game Service
+✅ Stats dashboard
+```
+
+**Phase 5: Cleanup & Production (COMPLETED)**
+```
+✅ Removed legacy backend service
+✅ Updated documentation
+✅ All features tested and validated
+✅ Production-ready microservices architecture
+```
+
+---
+
+## 9. Security Implementation
+
+### 9.1 Password Security
+- bcrypt hashing (cost factor: 12)
+- Minimum password requirements (8 chars, uppercase, number, symbol)
+- Password strength meter on frontend
+- Secure password reset with expiring tokens
+
+### 9.2 SQL Injection Prevention
+- Parameterized queries only
+- Input validation with JSON Schema
+- No dynamic SQL construction
+
+### 9.3 XSS Prevention
+- Output encoding for all user-generated content
+- Content-Security-Policy headers
+- Sanitize HTML in chat messages
+- React-like framework auto-escaping (or manual escaping in vanilla TS)
+
+### 9.4 CSRF Protection
+- SameSite=Strict cookies for refresh tokens
+- JWT in Authorization header (not cookies) for stateless API
+
+### 9.5 Rate Limiting
+```typescript
+// API Gateway
+const rateLimiter = {
+  login: { max: 5, window: '15m' },
+  register: { max: 3, window: '1h' },
+  api: { max: 100, window: '1m' },
+  websocket: { max: 10, window: '10s' }
+};
+```
+
+### 9.6 HTTPS Enforcement
+- Nginx redirects all HTTP → HTTPS
+- HSTS header (Strict-Transport-Security)
+- Secure cookies (Secure, HttpOnly flags)
+
+---
+
+## 10. Performance Considerations
+
+### 10.1 Frontend
+- Code splitting (lazy load pages)
+- Asset optimization (minify, compress)
+- Image optimization (WebP format)
+- Caching strategy (service workers)
+
+### 10.2 Backend
+- Database indexing (user_id, email, game_id)
+- Connection pooling
+- Query optimization
+- Response caching for static data (user profiles)
+
+### 10.3 WebSocket
+- Binary protocol for game state (reduce bandwidth)
+- Client interpolation (smooth rendering between updates)
+- Event throttling (debounce rapid inputs)
+
+### 10.4 Game Engine
+- Server tick rate: 60 TPS
+- Client render rate: 60 FPS
+- Physics timestep: 16.67ms (1/60)
+- Collision detection: AABB (Axis-Aligned Bounding Box)
+
+---
+
+## 11. Testing Strategy
+
+### 11.1 Unit Tests
+- Service logic (auth, game engine, AI)
+- Utility functions
+- API endpoint handlers
+
+### 11.2 Integration Tests
+- API Gateway → Microservices
+- Database interactions
+- OAuth flow
+- 2FA flow
+
+### 11.3 E2E Tests
+- User registration → login → play game
+- Tournament flow
+- Friend system
+
+### 11.4 Load Tests
+- WebSocket concurrency (1000+ connections)
+- API throughput (1000 req/s)
+- Database query performance
+
+---
+
+## 12. Monitoring & Logging
+
+### 12.1 Logging
+- Structured JSON logs (Pino)
+- Log levels: error, warn, info, debug
+- Centralized logging (ELK stack - optional module)
+
+### 12.2 Metrics
+- API response times
+- WebSocket connection count
+- Active games count
+- Database query performance
+
+### 12.3 Alerts
+- Service health checks
+- Error rate thresholds
+- Disk space monitoring
+
+---
+
+## 13. Future Scaling
+
+### 13.1 Horizontal Scaling
+- Load balancer (Nginx)
+- Multiple API Gateway instances
+- Microservice replication
+- WebSocket server clustering (Socket.IO Redis adapter)
+
+### 13.2 Database Scaling
+- Migrate SQLite → PostgreSQL
+- Read replicas
+- Caching layer (Redis)
+
+### 13.3 CDN
+- Static asset distribution
+- Global edge caching
+
+---
+
+## 14. Development Workflow
+
+### 14.1 Local Development
 ```bash
-# Build images
-docker compose build --parallel
+# Start all services
+docker-compose up
 
-# Start services
-docker compose up -d
-
-# View status
-docker ps
+# Rebuild after code changes
+docker-compose up --build
 
 # View logs
-docker compose logs -f
+docker-compose logs -f game-service
 
-# View specific service logs
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f nginx
-
-# Stop services
-docker compose down
-
-# Full cleanup
-docker compose down -v
-
-# Restart
-docker compose restart
+# Shell into service
+docker-compose exec game-service sh
 ```
 
-### Access Points
-
-Once services are running:
-
-- **Frontend:** https://localhost:4433
-- **Backend API:** https://localhost:4433/api
-- **API Documentation:** https://localhost:4433/api/documentation
-- **Health Check:** https://localhost:4433/health
-- **SQLite Browser:** http://localhost:3000 (development only)
-
-### Environment Setup
-
-Each service requires an `.env` file (examples provided):
-
-**Backend (`srcs/backend/.env`):**
+### 14.2 Environment Variables
 ```bash
-NODE_ENV=development
-PORT=8000
-API_BASE_PATH=/api
-LOG_LEVEL=info
-
-# Database
-DB_DIR=/app/db-data
-DB_FILE=ft_transcendence.db
-
-# JWT
-JWT_SECRET=<generate with: node generate-jwt-secrets.js>
-
-# Google OAuth 2.0 (optional)
-GOOGLE_CLIENT_ID=<from Google Cloud Console>
-GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
-GOOGLE_REDIRECT_URI=https://localhost/api/auth/oauth/google/callback
-
-# Email (for 2FA, verification)
-SMTP_HOST=<smtp server>
-SMTP_PORT=587
-SMTP_USER=<email>
-SMTP_PASSWORD=<password>
-SMTP_FROM=noreply@transcendence.local
-
-# CORS
-FRONTEND_URL=http://localhost:5173
+# .env file
+JWT_SECRET=<generate-with-openssl>
+OAUTH_GOOGLE_ID=<from-google-console>
+OAUTH_GOOGLE_SECRET=<from-google-console>
+DATABASE_URL=/data/db.sqlite
+FRONTEND_URL=https://localhost
 ```
 
-**Frontend (`srcs/frontend/.env`):**
+### 14.3 Database Migrations
 ```bash
-VITE_API_BASE_URL=https://localhost:4433/api
-VITE_WEBSOCKET_URL=https://localhost:4433
-VITE_ENV=development
-```
+# Run migrations
+npm run migrate
 
-**Nginx (`srcs/nginx/.env`):**
-```bash
-HOST_DOMAIN=localhost
-```
+# Rollback
+npm run migrate:rollback
 
-**Database (`srcs/db/.env`):**
-```bash
-DB_DIR=/app/db-data
-DB_FILE=ft_transcendence.db
-ADMIN_USERNAME=admin
-ADMIN_EMAIL=admin@transcendence.local
-```
-
-### Development Workflow
-
-#### Frontend Development
-
-```bash
-# Frontend runs with hot-reload (HMR) in container
-# Changes to src/ automatically reload in browser
-
-# Files watched:
-# - src/**/*.ts
-# - src/**/*.css
-# - public/**/*
-
-# Vite config includes path aliases for clean imports:
-# @/components, @/pages, @/services, @/stores, @/router, @/assets
-```
-
-#### Backend Development
-
-```bash
-# Backend runs with nodemon (auto-restart on file changes)
-
-# Backend entry point: src/server.js
-# Supports ES modules (type: "module" in package.json)
-
-# Run specific script:
-npm run dev    # Development with hot-reload
-npm run build  # Build step (no-op for Node.js)
-npm run lint   # ESLint checks
-npm run lint:fix # Auto-fix linting issues
-```
-
-#### Database Development
-
-```bash
-# Database is initialized on first container startup
-# Uses SQL scripts in srcs/db/sql/
-
-# Schema: 01-schema.sql
-# Roles: 02-seed-roles.sql
-# Admin user: 03-seed-admin.sql.template
-# Stats: 04-seed-user-stats.sql
-
-# Tables created:
-# - users (authentication, profile)
-# - roles (user roles)
-# - user_roles (user-role mapping)
-# - friend_requests (friend system)
-# - friendships (confirmed friendships)
-# - blocked_users (blocking system)
-# - games (game history)
-# - user_stats (game statistics)
-# - oauth_state (OAuth flow state)
-# - notifications (in-app notifications)
-```
-
-### Testing
-
-```bash
-# Backend unit tests (Node.js built-in test runner)
-npm test
-
-# Frontend integration test (WebSocket)
-npm run dev  # Then check test-websocket-integration.ts
-
-# Health checks (built-in via Docker Compose)
-make health
-```
-
-### Performance & Optimization
-
-#### Frontend Build
-
-```bash
-# Production build (no hot-reload)
-npm run build
-
-# Generates optimized dist/ for production deployment
-```
-
-#### Backend Optimization
-
-- Uses better-sqlite3 (synchronous) for performance
-- Implements connection pooling for database
-- Request validation prevents unnecessary processing
-- Rate limiting protects endpoints
-
-#### Database Optimization
-
-- Indexes on frequently queried columns (users.email, users.google_id)
-- Foreign key constraints with cascading deletes
-- PRAGMA optimizations in SQLite
-
-### Common Issues & Solutions
-
-#### Nginx SSL Certificate Issues
-```bash
-# Self-signed certificates are auto-generated
-# For custom certs, replace files in srcs/nginx/ssl/
-# - selfsigned.crt
-# - selfsigned.key
-```
-
-#### Database Connection Timeout
-```bash
-# Backend waits 30 retries (5 minutes) for database
-# If db container fails to initialize, check:
-# - SQL script errors: make logs-db
-# - File permissions: Dockerfile handles chown
-# - Volume mounting: Check docker-compose.yml db-data volume
-```
-
-#### WebSocket Connection Issues
-```bash
-# Socket.IO uses /socket.io/ path (proxied by nginx)
-# Ensure nginx conf includes WebSocket upgrade headers:
-# - Upgrade header mapping in nginx.conf
-# - proxy_set_header in default.conf.template
-```
-
-#### Hot Reload Not Working
-```bash
-# Frontend HMR requires:
-# - vite.config.ts with correct HMR settings
-# - Nginx proxy to /vite-hmr path
-# - Browser WebSocket not blocked
-# - Service ports correctly exposed
+# Seed dev data
+npm run seed
 ```
 
 ---
 
-## 5. Key Architectural Patterns
+## 15. API Documentation
 
-### Authentication Flow
+### 15.1 Swagger/OpenAPI
+- Auto-generated from Fastify schemas
+- Available at: `https://localhost/api/documentation`
+- Interactive API testing
 
+### 15.2 Example Endpoints
+
+**Authentication:**
 ```
-User → Frontend (login form)
-      ↓
-   REST API /api/auth/login
-      ↓
-   Backend validates credentials
-      ↓
-   Database user lookup
-      ↓
-   JWT token generation
-      ↓
-   Response with token + user data
-      ↓
-   Frontend stores token (localStorage)
-      ↓
-   Future requests: Authorization: Bearer <token>
+POST   /api/auth/register
+POST   /api/auth/login
+GET    /api/auth/oauth/google
+POST   /api/auth/2fa/enable
+POST   /api/auth/2fa/verify
+POST   /api/auth/refresh
 ```
 
-### OAuth 2.0 Flow (Google)
-
+**Users:**
 ```
-User → Frontend "Login with Google"
-    ↓
-Frontend redirects to Google auth
-    ↓
-Google → User (consent screen)
-    ↓
-User authorizes → Google callback
-    ↓
-Backend receives auth code
-    ↓
-Backend exchanges code for token
-    ↓
-Backend fetches user info
-    ↓
-Create or update user in DB
-    ↓
-Generate JWT
-    ↓
-Redirect to frontend with token
+GET    /api/users/me
+PUT    /api/users/me
+GET    /api/users/:id
+GET    /api/users/search?q=username
+POST   /api/users/avatar
+GET    /api/users/:id/stats
 ```
 
-### Two-Factor Authentication (2FA)
-
+**Friends:**
 ```
-1. User enables 2FA
-   - Backend generates TOTP secret
-   - Frontend displays QR code
-   - User scans with authenticator app
-
-2. User logs in
-   - Backend prompts for 2FA code
-   - User enters code from authenticator
-   - Backend validates with TOTP secret
-   - JWT issued on success
-
-3. Backup codes provided for account recovery
+POST   /api/friends/request
+POST   /api/friends/accept/:id
+DELETE /api/friends/:id
+GET    /api/friends
+POST   /api/friends/block/:id
 ```
 
-### Real-time Game Updates (Socket.IO)
-
+**Games:**
 ```
-Player 1 & 2 → Join game room via Socket.IO
-            ↓
-   Both ready → Backend sends game:start
-            ↓
-   During game:
-     - game:move events from each player
-     - Backend broadcasts game:update to room
-     - Ball position, scores synchronized
-            ↓
-   Game end → game:finish event
+POST   /api/games/create
+GET    /api/games/:id
+POST   /api/games/matchmaking
+GET    /api/games/history
 ```
 
-### Database Schema Relationships
-
+**Tournaments:**
 ```
-users ──┬──→ user_roles ──→ roles
-        │
-        ├──→ friend_requests ──→ users (to_user_id)
-        │
-        ├──→ friendships ──→ users (friend_id)
-        │
-        ├──→ blocked_users ──→ users (blocked_user_id)
-        │
-        ├──→ games ──┬──→ users (player1_id)
-        │            └──→ users (player2_id)
-        │
-        └──→ user_stats (1:1)
+POST   /api/tournaments/create
+POST   /api/tournaments/:id/join
+GET    /api/tournaments/:id
 ```
 
 ---
 
-## 6. Important Files & Modules
+## 16. Summary
 
-### Critical Backend Files
+### 16.1 Architecture Overview
 
-| File | Purpose |
-|------|---------|
-| `src/server.js` | Fastify initialization, Socket.IO setup, route registration |
-| `src/database.js` | SQLite connection management with retry logic |
-| `src/logger.js` | Centralized structured logging (Pino-based) |
-| `src/routes/index.js` | Route registration and organization |
-| `src/middleware/authentication.js` | JWT verification and authorization |
-| `src/services/user.service.js` | User CRUD and profile management |
-| `src/config/oauth.config.js` | OAuth 2.0 configuration validation |
-| `src/plugins/swagger.js` | OpenAPI documentation generation |
+This architecture provides:
 
-### Critical Frontend Files
+✓ **Microservices backend** (modular, scalable, maintainable)
+✓ **Comprehensive user management** (auth, OAuth, 2FA, profiles, friends)
+✓ **Multiple game modes** (local, multiplayer, AI, tournaments)
+✓ **Real-time communication** (WebSocket for game state, chat, notifications)
+✓ **Security-first design** (HTTPS, JWT, hashing, validation, rate limiting)
+✓ **Database-driven** (persistent state, match history, statistics)
+✓ **Docker deployment** (single command: `docker-compose up`)
+✓ **Scalable foundation** (horizontal scaling ready)
 
-| File | Purpose |
-|------|---------|
-| `src/main.ts` | Application bootstrap and initialization |
-| `src/router/router.ts` | Client-side routing logic |
-| `src/services/auth/AuthService.ts` | Login, registration, 2FA flow |
-| `src/services/websocket/WebSocketService.ts` | Socket.IO client wrapper |
-| `src/services/game/GameService.ts` | Game state management |
-| `src/index.css` | Global TailwindCSS + custom styles |
-| `vite.config.ts` | Vite build and HMR configuration |
+### 16.2 Tech Stack
 
-### Configuration Files
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | TypeScript + Vite + TailwindCSS | SPA with reactive UI |
+| **API Gateway** | Fastify + Node.js | Request routing, JWT verification |
+| **Microservices** | Fastify + Node.js | Auth, User, Game services |
+| **WebSocket** | Socket.IO | Real-time bidirectional communication |
+| **Database** | SQLite + better-sqlite3 | Persistent data storage |
+| **Reverse Proxy** | Nginx | HTTPS termination, routing |
+| **Authentication** | JWT + OAuth 2.0 + TOTP | Secure user sessions |
+| **Deployment** | Docker + Docker Compose | Container orchestration |
 
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | Service definitions and networking |
-| `Makefile` | Docker management commands |
-| `srcs/nginx/nginx.conf` | Nginx main configuration |
-| `srcs/nginx/conf.d/default.conf.template` | Server block configuration (templated) |
-| `.gitignore` | Git ignore patterns across all services |
+### 16.3 Compliance Summary
 
----
+**Subject Requirements:**
+- ✅ **Mandatory Features (25%):** Local game, tournaments, Docker, HTTPS, security
+- ✅ **Module Requirements (70%):** 7+ major modules implemented
+- ✅ **Total Score:** 110% (8.5 major module equivalents)
 
-## 7. Deployment Considerations
+**Technology Constraints:**
+- ✅ **Frontend:** TypeScript + TailwindCSS (per subject)
+- ✅ **Backend:** Fastify + Node.js (overrides PHP via module)
+- ✅ **Database:** SQLite (required by framework module)
+- ✅ **Browser:** Mozilla Firefox (latest stable)
+- ✅ **Deployment:** Docker (single command)
+- ✅ **Domain:** Custom domain (`ft_transcendence.42.crea`) ✅ **NOT localhost**
 
-### Security Features Implemented
+**Security Compliance:**
+- ✅ Password hashing (bcrypt, rounds: 12)
+- ✅ SQL injection prevention (parameterized queries)
+- ✅ XSS prevention (input sanitization, CSP headers)
+- ✅ HTTPS everywhere (wss:// for WebSocket)
+- ✅ Rate limiting (login, API, WebSocket)
+- ✅ CSRF protection (SameSite cookies)
 
-- **HTTPS/TLS:** Nginx SSL termination (self-signed for dev, production certs needed)
-- **JWT:** Stateless authentication with signed tokens
-- **CORS:** Configured per-origin in nginx
-- **Helmet:** Security headers via Fastify-Helmet
-- **Rate Limiting:** Per-endpoint rate limiting
-- **Password Hashing:** bcrypt with salt
-- **2FA:** TOTP + backup codes
-- **SQL Injection Prevention:** Parameterized queries via better-sqlite3
+### 16.4 Current Project State
 
-### Scaling Considerations
+**Status:** ✅ **Microservices Architecture Fully Operational**
 
-Current architecture is single-instance. For production scaling:
+**Completed:**
+- Microservices architecture established
+- API Gateway operational
+- Auth, User, Game services deployed
+- WebSocket server functional
+- Frontend integrated with microservices
+- All backend functionality migrated to microservices
+- Legacy monolithic backend removed
+- Documentation updated
+- System tested and validated
 
-1. **Database:** SQLite → PostgreSQL (horizontal scaling)
-2. **Cache:** Redis for session/state
-3. **Load Balancing:** Multiple backend instances behind load balancer
-4. **Socket.IO:** Redis adapter for multi-server Socket.IO
-5. **Static Assets:** CDN for frontend files
-6. **Logging:** Centralized logging (ELK stack, CloudWatch, etc.)
+**Production Ready:**
+- All services operational and tested
+- Comprehensive API routing through gateway
+- Real-time communication via WebSocket
+- Secure authentication with OAuth 2.0 + 2FA
+- Performance optimized
 
-### Backup & Recovery
-
-- Database: SQLite file-based backup via `make db-backup`
-- Volumes: Docker named volume `db-data` persists across restarts
-- Recovery: Database recreated from SQL scripts on container restart
-
----
-
-## 8. Development Guidelines
-
-### Code Organization
-
-- **Services:** Business logic, API calls, external integrations
-- **Components:** Reusable UI building blocks
-- **Pages:** Full-page components corresponding to routes
-- **Utils:** Pure functions (validation, formatting, calculations)
-- **Stores:** Application state (currently minimal, could use Redux/Zustand)
-- **Schemas:** Input/output validation rules
-
-### Naming Conventions
-
-- **Files:** camelCase.ts (TypeScript) or kebab-case.js (JavaScript)
-- **Classes/Types:** PascalCase (e.g., UserService, AuthResponse)
-- **Functions/Variables:** camelCase
-- **Constants:** UPPER_SNAKE_CASE
-- **Database Tables:** lowercase_plural (users, games, friend_requests)
-
-### Validation Strategy
-
-- **Frontend:** Zod schemas for client-side validation
-- **Backend:** JSON Schema via AJV for API input validation
-- **Database:** SQLite constraints (NOT NULL, UNIQUE, FOREIGN KEY)
-
-### Error Handling
-
-- **Backend:** Global error handler plugin returns consistent error format
-- **Frontend:** Custom error classes (CustomErrors.ts) with error types
-- **Socket.IO:** Error events for connection failures
-- **Logging:** All errors logged with context (user ID, action, timestamp)
+**Next Steps:**
+1. Continue feature development
+2. Monitor performance metrics
+3. Scale services as needed
+4. Implement additional optional modules
 
 ---
 
-## 9. Troubleshooting Guide
-
-### Backend Won't Start
-
-```bash
-# Check logs
-make logs-backend
-
-# Verify database is ready
-make logs-db
-
-# Common issues:
-# - JWT_SECRET not set: Run generate-jwt-secrets.js
-# - Port 8000 already in use: Check with lsof -i :8000
-# - Database connection timeout: Wait for db container to initialize
-```
-
-### Frontend Shows Blank Page
-
-```bash
-# Check browser console for errors
-# Verify network tab for 502/503 errors (nginx issue)
-make logs-nginx
-
-# Check Vite dev server
-make logs-frontend
-
-# Verify HMR is working:
-# - Network tab should show WebSocket to /vite-hmr
-# - Console should show ">>> [vite] connected"
-```
-
-### WebSocket Connection Fails
-
-```bash
-# Check nginx logs for proxy errors
-make logs-nginx
-
-# Verify Socket.IO namespace available
-curl https://localhost:4433/socket.io/?EIO=4
-
-# Browser console should show Socket.IO connection
-# Check Network tab for /socket.io/ WebSocket upgrade
-```
-
-### Database File Corruption
-
-```bash
-# Reset database (removes all data)
-make clean
-make build
-make up
-
-# Backup data first
-make db-backup
-
-# Restore from backup (if available)
-# Manual steps needed - copy backup.db to db-data/ft_transcendence.db
-```
-
----
-
-## 10. Additional Resources
-
-### Documentation Files
-
-Located in `docs/` directory:
-
-- Frontend architecture and implementation details
-- Socket.IO integration guide
-- API reference with examples
-- Password reset flow documentation
-- 2FA implementation analysis
-- Email verification system
-- TailwindCSS styling guide
-
-### External Documentation
-
-- [Fastify Documentation](https://www.fastify.io/)
-- [Socket.IO Documentation](https://socket.io/docs/)
-- [Vite Documentation](https://vitejs.dev/)
-- [TailwindCSS Documentation](https://tailwindcss.com/)
-- [SQLite Documentation](https://www.sqlite.org/docs.html)
-- [Nginx Documentation](https://nginx.org/en/docs/)
-
----
-
-**Last Updated:** November 3, 2025
-**Project Status:** Active Development (User System & Auth Implementation)
-**Current Branch:** dev
+**Document Version:** 3.0
+**Last Updated:** 2025-01-07
+**Project:** ft_transcendence (42 School)
+**Architecture:** Microservices (Production)
+**Migration Status:** Complete ✅

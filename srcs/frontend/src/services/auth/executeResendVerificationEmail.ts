@@ -1,18 +1,17 @@
 /**
  * @brief Simple resend verification email business logic
- * 
+ *
  * @description Pure function that handles resend verification email request to backend.
  * Uses Zod schemas for validation and validates server response.
- * 
+ *
  * @param email - User email address
  * @param endpoint - API endpoint for resend verification email
- * 
+ *
  * @return Promise<SuccessResponse> - Validated resend verification response
  */
 
-import { z } from 'zod'
 import { validateData } from '../utils/validation'
-import { 
+import {
   SuccessResponseSchema,
   ResendVerificationEmailSchema,
   type ResendVerificationEmailRequest,
