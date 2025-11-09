@@ -1,37 +1,35 @@
-# API Gateway Dockerfile
-FROM node:24.8.0-alpine
+# Build stage
+FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install dependencies for building
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    curl
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install all dependencies (including dev for build)
+RUN npm ci
+
+# Copy source code
+COPY src/ ./src/
+
+# Build TypeScript
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install only production dependencies
+RUN npm ci --only=production
 
-# Copy source code
-COPY src ./src
+# Copy built files from builder
+COPY --from=builder /app/dist ./dist
 
-# Use existing node user (UID 1000) to match other services
-RUN chown -R node:node /app
-
-# Switch to non-root user
-USER node
-
-# Expose port
 EXPOSE 8001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
-
-# Start server
-CMD ["npm", "run", "dev"]
+CMD ["node", "dist/server.js"]
