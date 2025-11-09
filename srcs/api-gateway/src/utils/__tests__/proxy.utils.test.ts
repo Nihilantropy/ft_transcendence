@@ -31,6 +31,16 @@ describe('proxy.utils', () => {
 
       expect(result).toBe('http://user-service:3002/users/search?q=john');
     });
+
+    it('should not modify URLs when prefix not at start', () => {
+      const originalUrl = '/auth/api/login';
+      const targetBaseUrl = 'http://user-service:3002';
+      const stripPrefix = '/api';
+
+      const result = buildTargetUrl(originalUrl, targetBaseUrl, stripPrefix);
+
+      expect(result).toBe('http://user-service:3002/auth/api/login');
+    });
   });
 
   describe('extractHeaders', () => {

@@ -13,8 +13,8 @@ export function buildTargetUrl(
   targetBaseUrl: string,
   stripPrefix?: string
 ): string {
-  const targetPath = stripPrefix
-    ? originalUrl.replace(stripPrefix, '')
+  const targetPath = stripPrefix && originalUrl.startsWith(stripPrefix)
+    ? originalUrl.slice(stripPrefix.length)
     : originalUrl;
 
   return targetBaseUrl + targetPath;
