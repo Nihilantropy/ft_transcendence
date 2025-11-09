@@ -2,11 +2,13 @@
   "name": "ft-transcendence-api-gateway",
   "version": "1.0.0",
   "description": "API Gateway for ft_transcendence microservices",
-  "main": "src/server.js",
+  "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -25,9 +27,13 @@
     "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^4.0.8",
     "nodemon": "^3.1.9",
     "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.8"
   }
 }
