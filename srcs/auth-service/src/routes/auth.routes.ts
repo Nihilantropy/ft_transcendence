@@ -27,43 +27,7 @@ import {
 } from '../utils/auth.utils.js';
 import { authenticateJWT } from '../middleware/auth.middleware.js';
 import { DatabaseService } from '../services/database.service.js';
-
-/**
- * Helper function to set authentication cookies securely
- */
-function setAuthCookies(
-  reply: FastifyReply,
-  accessToken: string,
-  refreshToken: string
-): void {
-  const isProduction = process.env['NODE_ENV'] === 'production';
-
-  // Set access token cookie (httpOnly, secure in production)
-  reply.setCookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 15 * 60 // 15 minutes in seconds
-  });
-
-  // Set refresh token cookie (httpOnly, secure in production)
-  reply.setCookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
-  });
-}
-
-/**
- * Helper function to clear authentication cookies
- */
-function clearAuthCookies(reply: FastifyReply): void {
-  reply.clearCookie('accessToken', { path: '/' });
-  reply.clearCookie('refreshToken', { path: '/' });
-}
+import { setAuthCookies, clearAuthCookies } from '../utils/auth.utils.js';
 
 export async function authRoutes(
   fastify: FastifyInstance,

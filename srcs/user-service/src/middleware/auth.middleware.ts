@@ -1,30 +1,25 @@
 /**
  * @file Authentication Middleware
- * @description JWT verification middleware for protected routes
+ * @description JWT verification for protected routes
  */
 
-import { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { JWTPayload } from '../types/index.js';
 
 /**
- * Authenticates JWT token from httpOnly cookie
- * Verifies token signature and extracts user payload
- *
- * @param request - Fastify request object
- * @param reply - Fastify reply object
+ * Authenticate JWT token from cookie or Authorization header
  */
 export async function authenticateJWT(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
   try {
-    // Verify JWT token from cookie (set by @fastify/jwt plugin)
+    // Verify JWT (from @fastify/jwt)
     const payload = await request.jwtVerify() as JWTPayload;
 
-    // Attach user data to request for route handlers
+    // Attach user to request
     (request as any).user = payload;
   } catch (error) {
-    // Token missing, invalid, or expired
     reply.code(401).send({
       error: 'Unauthorized',
       message: 'Invalid or missing authentication token',
@@ -34,11 +29,7 @@ export async function authenticateJWT(
 }
 
 /**
- * Optional authentication - does not reject if token is missing
- * Used for routes that work differently for authenticated vs anonymous users
- *
- * @param request - Fastify request object
- * @param reply - Fastify reply object
+ * Optional authentication (doesn't fail if no token)
  */
 export async function optionalAuth(
   request: FastifyRequest,
@@ -47,8 +38,8 @@ export async function optionalAuth(
   try {
     const payload = await request.jwtVerify() as JWTPayload;
     (request as any).user = payload;
-  } catch (_error) {
-    // Silently fail - route can check if request.user exists
+  } catch {
+    // No token or invalid token - continue without user
     (request as any).user = null;
   }
 }

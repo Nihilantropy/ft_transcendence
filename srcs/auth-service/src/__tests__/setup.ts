@@ -3,7 +3,7 @@
  * @description Global test configuration and utilities
  */
 
-import { beforeEach, afterEach } from 'vitest';
+import { afterEach } from 'vitest';
 import path from 'path';
 import fs from 'fs';
 

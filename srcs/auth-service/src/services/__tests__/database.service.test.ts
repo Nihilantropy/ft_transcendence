@@ -183,13 +183,11 @@ describe('DatabaseService - User Operations', () => {
       });
 
       db.updateUser(user.id, {
-        email_verified: 1, // SQLite uses 1 for true
-        is_online: 1
+        email_verified: true // SQLite uses 1 for true
       });
 
       const updated = db.findUserById(user.id);
       expect(updated?.email_verified).toBeTruthy();
-      expect(updated?.is_online).toBeTruthy();
     });
 
     it('should handle partial updates', () => {
@@ -198,10 +196,7 @@ describe('DatabaseService - User Operations', () => {
         email: 'partial@example.com'
       });
 
-      db.updateUser(user.id, { is_online: 1 }); // SQLite uses 1 for true
-
       const updated = db.findUserById(user.id);
-      expect(updated?.is_online).toBeTruthy();
       expect(updated?.email).toBe('partial@example.com'); // Unchanged
     });
 

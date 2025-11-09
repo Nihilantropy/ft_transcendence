@@ -145,7 +145,7 @@ describe('auth.utils', () => {
         const code = 'ABC12345';
         const codes = [code];
         const hashes = await hashBackupCodes(codes);
-        const isValid = await verifyBackupCode(code, hashes[0]);
+        const isValid = await verifyBackupCode(code, hashes[0] ?? '');
 
         expect(isValid).toBe(true);
       });
@@ -154,7 +154,7 @@ describe('auth.utils', () => {
         const code = 'ABC12345';
         const codes = [code];
         const hashes = await hashBackupCodes(codes);
-        const isValid = await verifyBackupCode('WRONG123', hashes[0]);
+        const isValid = await verifyBackupCode('WRONG123', hashes[0] ?? '');
 
         expect(isValid).toBe(false);
       });

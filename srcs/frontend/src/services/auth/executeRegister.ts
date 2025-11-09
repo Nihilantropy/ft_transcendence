@@ -43,6 +43,7 @@ export async function executeRegister(
 
   // Transform to backend request format (remove confirmPassword)
   const registerRequest: RegisterRequest = {
+    username: validCredentials.username,
     email: validCredentials.email,
     password: validCredentials.password,
     confirmPassword: validCredentials.confirmPassword

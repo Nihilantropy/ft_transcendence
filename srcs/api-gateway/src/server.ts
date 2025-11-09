@@ -380,7 +380,7 @@ async function start(): Promise<void> {
 
     await fastify.listen({ port, host });
     fastify.log.info(`🚀 API Gateway running on http://${host}:${port}`);
-    fastify.log.info(`📚 API Documentation: http://${host}:${port}/api/documentation`);
+    fastify.log.info(`📚 API Documentation: http://${host}:${port}/api/docs`);
     fastify.log.info(`🔌 Routing Configuration:`);
     fastify.log.info(`   /api/auth/*       → ${process.env['AUTH_SERVICE_URL'] || 'http://auth-service:3001'}`);
     fastify.log.info(`   /api/users/*      → ${process.env['USER_SERVICE_URL'] || 'http://user-service:3002'}`);

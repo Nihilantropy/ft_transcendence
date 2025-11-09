@@ -107,25 +107,6 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
   }
 
   /**
-   * @brief Handle Google OAuth registration/login
-   */
-  private async handleGoogleRegister(): Promise<void> {
-    if (this.state.isLoading) return;
-
-    this.setState({ isLoading: true, success: null });
-
-    try {
-      // Initiate OAuth flow - redirects to Google
-      await authService.startGoogleOAuth();
-      
-    } catch (error) {
-      this.setState({ 
-        isLoading: false, 
-      });
-    }
-  }
-
-  /**
    * @brief Perform login with credentials (extracted from handleLogin)
    */
   private async performLogin(credentials: LoginRequest): Promise<void> {
@@ -707,7 +688,7 @@ export class LoginPage extends Component<LoginPageProps, LoginPageState> {
 
     const oauthRegisterButton = container.querySelector('[data-oauth-register]') as HTMLButtonElement
     if (oauthRegisterButton) {
-      oauthRegisterButton.addEventListener('click', this.handleGoogleRegister.bind(this))
+      oauthRegisterButton.addEventListener('click', this.handleGoogleLogin.bind(this))
     }
 
     // Password input for real-time validation (registration only)

@@ -3,35 +3,9 @@
  * @description Google OAuth 2.0 authentication endpoints
  */
 
-import { FastifyInstance, FastifyReply } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import { DatabaseService } from '../services/database.service.js';
-
-/**
- * Helper function to set authentication cookies securely
- */
-function setAuthCookies(
-  reply: FastifyReply,
-  accessToken: string,
-  refreshToken: string
-): void {
-  const isProduction = process.env['NODE_ENV'] === 'production';
-
-  reply.setCookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 15 * 60
-  });
-
-  reply.setCookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60
-  });
-}
+import { setAuthCookies } from '../utils/auth.utils.js';
 
 export async function oauthRoutes(
   fastify: FastifyInstance,

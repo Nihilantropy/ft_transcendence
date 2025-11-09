@@ -62,8 +62,7 @@ services:
       # Mount database volume (shared with backend)
       - db-data:/app/db-data:rw
     networks:
-      - proxy
-      - db-network
+      - backend-network
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
@@ -90,8 +89,7 @@ services:
       # Mount database volume (shared with backend)
       - db-data:/app/db-data:rw
     networks:
-      - proxy
-      - db-network
+      - backend-network
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
@@ -117,6 +115,7 @@ services:
       - ./srcs/api-gateway/src:/app/src:rw
     networks:
       - proxy
+      - backend-network
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -168,7 +167,7 @@ services:
       - db-data:/app/db-data:rw
     networks:
       - proxy
-      - db-network
+      - backend-network
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
@@ -192,7 +191,7 @@ services:
     volumes:
       - db-data:/app/db-data:rw
     networks:
-      - db-network
+      - backend-network
     restart: on-failure
 
   sqlitebrowser:
@@ -206,6 +205,7 @@ services:
       - db-data:/config
     networks:
       - proxy
+      - backend-network
     shm_size: "1gb"
     restart: unless-stopped
 
@@ -213,7 +213,7 @@ services:
 networks:
   proxy:
     driver: bridge
-  db-network:
+  backend-network:
     driver: bridge
 
 ### VOLUMES ###

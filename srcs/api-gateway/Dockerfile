@@ -1,14 +1,13 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Stage 1: Builder
+FROM node:24.8.0-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY package*.json tsconfig.json ./
 
-# Install all dependencies (including dev for build)
-RUN npm ci
+# Install dependencies
+RUN npm install
 
 # Copy source code
 COPY src/ ./src/
@@ -16,20 +15,23 @@ COPY src/ ./src/
 # Build TypeScript
 RUN npm run build
 
-# Production stage
-FROM node:20-alpine
+# Stage 2: Production
+FROM node:24.8.0-alpine
 
 WORKDIR /app
 
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 # Copy package files
-COPY package*.json ./
+COPY --from=builder /app/package*.json ./
 
-# Install only production dependencies
-RUN npm ci --only=production
+# Copy node_modules from builder
+COPY --from=builder /app/node_modules ./node_modules
 
-# Copy built files from builder
+# Copy compiled code
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 8001
 
-CMD ["node", "dist/server.js"]
+CMD ["npm", "run", "dev"]
