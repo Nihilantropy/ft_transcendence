@@ -3,8 +3,6 @@
  * @description Core types and interfaces for the API Gateway
  */
 
-import { FastifyRequest, FastifyReply } from 'fastify';
-
 /**
  * JWT Payload decoded from access tokens
  */
@@ -13,13 +11,6 @@ export interface JWTPayload {
   email: string;
   iat?: number;
   exp?: number;
-}
-
-/**
- * Authenticated request with user data
- */
-export interface AuthenticatedRequest extends FastifyRequest {
-  user: JWTPayload;
 }
 
 /**
@@ -69,11 +60,14 @@ export interface EnvConfig {
 
 declare module 'fastify' {
   interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-    optionalAuth: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    authenticate: (request: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) => Promise<void>;
+    optionalAuth: (request: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) => Promise<void>;
   }
+}
 
-  interface FastifyRequest {
-    user?: JWTPayload | null;
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: JWTPayload;
+    user: JWTPayload | null;
   }
 }
