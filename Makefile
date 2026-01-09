@@ -40,6 +40,9 @@ up:
 	@echo "📊 View logs with: make logs"
 	@echo ""
 
+up-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up $* -d
+
 # Show system status
 show:
 	@echo "============= ft_transcendence Status ============="
