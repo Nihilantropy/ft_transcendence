@@ -1,7 +1,5 @@
-# ft_transcendence Makefile - Refactored from Inception structure
-# Docker management for ft_transcendence project
+.DEFAULT_GOAL := help
 
-# Docker compose configuration
 DOCKER_COMPOSE = docker compose
 COMPOSE_FILE = docker-compose.yml
 PROJECT_NAME = ft_transcendence
@@ -122,72 +120,6 @@ dev:
 exec-%:
 	@docker exec -it $(PROJECT_NAME)_$* /bin/sh
 
-# Database management
-db-shell:
-	@docker exec -it $(PROJECT_NAME)_database sqlite3 /data/transcendence.db
-
-db-backup:
-	@mkdir -p backups
-	@docker exec $(PROJECT_NAME)_database sqlite3 /data/transcendence.db ".backup /data/backup.db"
-	@docker cp $(PROJECT_NAME)_database:/data/backup.db ./backups/transcendence_$(shell date +%Y%m%d_%H%M%S).db
-	@echo "✅ Database backed up to ./backups/"
-
-# Health checks
-health:
-	@echo "Checking ft_transcendence health..."
-	@curl -f -k https://localhost/health 2>/dev/null && echo "✅ Application healthy" || echo "❌ Application unhealthy"
-
-# Testing targets
-TESTABLE_SERVICES = auth-service user-service api-gateway
-
-test:
-	@echo "Running tests for all microservices..."
-	@for service in $(TESTABLE_SERVICES); do \
-		echo ""; \
-		echo "========================================"; \
-		echo "Testing $$service..."; \
-		echo "========================================"; \
-		cd srcs/$$service && npm test || exit 1; \
-	done
-	@echo ""
-	@echo "✅ All tests passed!"
-
-test-%:
-	@echo "Running tests for $*..."
-	@if [ ! -f "srcs/$*/package.json" ]; then \
-		echo "❌ Service $* not found or has no package.json"; \
-		exit 1; \
-	fi
-	@if ! grep -q '"test"' "srcs/$*/package.json" 2>/dev/null; then \
-		echo "❌ Service $* has no test script configured"; \
-		exit 1; \
-	fi
-	@cd srcs/$* && npm test
-
-test-coverage:
-	@echo "Running tests with coverage for all microservices..."
-	@for service in $(TESTABLE_SERVICES); do \
-		echo ""; \
-		echo "========================================"; \
-		echo "Coverage for $$service..."; \
-		echo "========================================"; \
-		cd srcs/$$service && npm run test:coverage || exit 1; \
-	done
-	@echo ""
-	@echo "✅ All tests with coverage completed!"
-
-test-coverage-%:
-	@echo "Running tests with coverage for $*..."
-	@if [ ! -f "srcs/$*/package.json" ]; then \
-		echo "❌ Service $* not found or has no package.json"; \
-		exit 1; \
-	fi
-	@if ! grep -q '"test:coverage"' "srcs/$*/package.json" 2>/dev/null; then \
-		echo "❌ Service $* has no test:coverage script configured"; \
-		exit 1; \
-	fi
-	@cd srcs/$* && npm run test:coverage
-
 # Help target
 help:
 	@echo "ft_transcendence - Docker Management Commands"
@@ -217,15 +149,3 @@ help:
 	@echo "Development targets:"
 	@echo "  dev          - Start in development mode (foreground)"
 	@echo "  exec-SERVICE - Shell into service container"
-	@echo "  db-shell     - SQLite shell"
-	@echo "  db-backup    - Backup database"
-	@echo "  health       - Check application health"
-	@echo ""
-	@echo "Testing targets:"
-	@echo "  test                - Run all tests for all microservices"
-	@echo "  test-SERVICE        - Run tests for specific service (e.g., make test-auth-service)"
-	@echo "  test-coverage       - Run all tests with coverage"
-	@echo "  test-coverage-SERVICE - Run tests with coverage for specific service"
-	@echo ""
-	@echo "Services: nginx, backend, frontend, database"
-	@echo "Testable services: auth-service, user-service, api-gateway"

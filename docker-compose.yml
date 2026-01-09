@@ -26,81 +26,79 @@ services:
       websocket-server:
         condition: service_healthy
 ### FRONTEND ###
-  frontend:
-    container_name: ft_transcendence_frontend
-    image: ft_transcendence_frontend:local
-    build:
-      context: ./srcs/frontend
-      dockerfile: Dockerfile
-    env_file:
-      - ./srcs/frontend/.env
-    volumes:
-      # Mount source code for development hot reload
-      - ./srcs/frontend/src:/app/src:rw
-      - ./srcs/frontend/public:/app/public:rw
-    networks:
-      - proxy
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+  # frontend:
+  #   container_name: ft_transcendence_frontend
+  #   image: ft_transcendence_frontend:local
+  #   build:
+  #     context: ./srcs/frontend
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ./srcs/frontend/.env
+  #   volumes:
+  #     # Mount source code for development hot reload
+  #     - ./srcs/frontend/src:/app/src:rw
+  #     - ./srcs/frontend/public:/app/public:rw
+  #   networks:
+  #     - proxy
+  #   restart: on-failure
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:5173"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 30s
 ### AUTH SERVICE ###
-  auth-service:
-    container_name: ft_transcendence_auth_service
-    image: ft_transcendence_auth_service:local
-    build:
-      context: ./srcs/auth-service
-      dockerfile: Dockerfile
-    env_file:
-      - ./srcs/auth-service/.env
-    volumes:
-      # Mount source code for development hot reload
-      - ./srcs/auth-service/src:/app/src:rw
-      # Mount database volume (shared with backend)
-      - db-data:/app/db-data:rw
-    networks:
-      - backend-network
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      db:
-        condition: service_started
-
+  # auth-service:
+  #   container_name: ft_transcendence_auth_service
+  #   image: ft_transcendence_auth_service:local
+  #   build:
+  #     context: ./srcs/auth-service
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ./srcs/auth-service/.env
+  #   volumes:
+  #     # Mount source code for development hot reload
+  #     - ./srcs/auth-service/src:/app/src:rw
+  #     # Mount database volume (shared with backend)
+  #     - db-data:/app/db-data:rw
+  #   networks:
+  #     - backend-network
+  #   restart: on-failure
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 30s
+  #   depends_on:
+  #     db:
+  #       condition: service_started
 ### USER SERVICE ###
-  user-service:
-    container_name: ft_transcendence_user_service
-    image: ft_transcendence_user_service:local
-    build:
-      context: ./srcs/user-service
-      dockerfile: Dockerfile
-    env_file:
-      - ./srcs/user-service/.env
-    volumes:
-      # Mount source code for development hot reload
-      - ./srcs/user-service/src:/app/src:rw
-      # Mount database volume (shared with backend)
-      - db-data:/app/db-data:rw
-    networks:
-      - backend-network
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      db:
-        condition: service_started
-
+  # user-service:
+  #   container_name: ft_transcendence_user_service
+  #   image: ft_transcendence_user_service:local
+  #   build:
+  #     context: ./srcs/user-service
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ./srcs/user-service/.env
+  #   volumes:
+  #     # Mount source code for development hot reload
+  #     - ./srcs/user-service/src:/app/src:rw
+  #     # Mount database volume (shared with backend)
+  #     - db-data:/app/db-data:rw
+  #   networks:
+  #     - backend-network
+  #   restart: on-failure
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 30s
+  #   depends_on:
+  #     db:
+  #       condition: service_started
 ### API GATEWAY ###
   api-gateway:
     container_name: ft_transcendence_api_gateway
@@ -128,86 +126,6 @@ services:
         condition: service_healthy
       user-service:
         condition: service_healthy
-
-### WEBSOCKET SERVER ###
-  websocket-server:
-    container_name: ft_transcendence_websocket_server
-    image: ft_transcendence_websocket_server:local
-    build:
-      context: ./srcs/websocket-server
-      dockerfile: Dockerfile
-    env_file:
-      - ./srcs/websocket-server/.env
-    volumes:
-      # Mount source code for development hot reload
-      - ./srcs/websocket-server/src:/app/src:rw
-    networks:
-      - proxy
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-### GAME SERVICE ###
-  game-service:
-    container_name: ft_transcendence_game_service
-    image: ft_transcendence_game_service:local
-    build:
-      context: ./srcs/game-service
-      dockerfile: Dockerfile
-    env_file:
-      - ./srcs/game-service/.env
-    volumes:
-      # Mount source code for development hot reload
-      - ./srcs/game-service/src:/app/src:rw
-      # Mount database volume (shared with backend)
-      - db-data:/app/db-data:rw
-    networks:
-      - proxy
-      - backend-network
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      db:
-        condition: service_started
-
-### DATABASE - work as init container for db create, migrate and seeding ###
-  db:
-    container_name: ft_transcendence_db
-    image: ft_transcendence_db:local
-    build:
-      context: ./srcs/db
-      dockerfile: Dockerfile
-    env_file:
-      - ./srcs/db/.env
-    volumes:
-      - db-data:/app/db-data:rw
-    networks:
-      - backend-network
-    restart: on-failure
-
-  sqlitebrowser:
-    image: lscr.io/linuxserver/sqlitebrowser:3.13.1
-    container_name: ft_transcendence_sqlitebrowser
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    volumes:
-      - db-data:/config
-    networks:
-      - proxy
-      - backend-network
-    shm_size: "1gb"
-    restart: unless-stopped
 
 ### NETWORKS ###
 networks:
