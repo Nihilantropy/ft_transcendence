@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from config import settings
 from middleware.auth_middleware import JWTAuthMiddleware
+from middleware.rate_limit import RateLimitMiddleware
 from routes import proxy
 
 app = FastAPI(
@@ -22,7 +23,13 @@ app.add_middleware(
     allow_credentials=True,  # Allow cookies
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
-    expose_headers=["X-Request-ID"],  # Expose custom headers to frontend
+    expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"],  # Expose custom headers to frontend
+)
+
+# Rate Limiting (before auth to limit unauthenticated requests)
+app.add_middleware(
+    RateLimitMiddleware,
+    rate_limit_per_minute=settings.RATE_LIMIT_PER_MINUTE
 )
 
 # Add JWT authentication middleware

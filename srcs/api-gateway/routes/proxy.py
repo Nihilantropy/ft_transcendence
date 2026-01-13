@@ -109,13 +109,13 @@ async def forward_request(
             }
         )
 
-@router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@router.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_handler(request: Request, path: str):
     """
     Universal proxy handler that routes requests to appropriate backend services.
     """
     # Construct full path
-    full_path = f"/{path}"
+    full_path = f"/api/{path}"
 
     # Determine backend service
     backend_url = get_backend_service_url(full_path)
