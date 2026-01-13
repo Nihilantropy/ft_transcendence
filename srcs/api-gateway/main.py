@@ -4,6 +4,7 @@ from datetime import datetime
 from config import settings
 from middleware.auth_middleware import JWTAuthMiddleware
 from middleware.rate_limit import RateLimitMiddleware
+from middleware.logging_middleware import LoggingMiddleware
 from routes import proxy
 
 app = FastAPI(
@@ -25,6 +26,9 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
     expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"],  # Expose custom headers to frontend
 )
+
+# Request Logging
+app.add_middleware(LoggingMiddleware)
 
 # Rate Limiting (before auth to limit unauthenticated requests)
 app.add_middleware(
