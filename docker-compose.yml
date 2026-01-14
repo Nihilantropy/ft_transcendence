@@ -12,7 +12,8 @@ services:
       - "80:80"
       - "443:443"
     networks:
-      - proxy
+      - proxy           # External access
+      - backend-network # To reach API Gateway (production-like)
     restart: on-failure
     healthcheck:
       test: ["CMD", "nginx", "-t"]
@@ -182,12 +183,13 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./srcs/api-gateway/.env
+    ports:
+      - "8001:8001"  # Expose for development testing (curl/Postman)
     volumes:
       # Mount source code for development hot reload
       - ./srcs/api-gateway/src:/app/src:rw
     networks:
-      - proxy
-      - backend-network
+      - backend-network  # Internal only (production-like), NGINX proxies to it
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]

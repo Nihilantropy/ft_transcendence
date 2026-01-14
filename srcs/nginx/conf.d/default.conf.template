@@ -107,38 +107,32 @@ server {
         }
     }
 
-    # Main application proxy to frontend (with WebSocket upgrade support)
+    # Main application - Frontend placeholder (frontend not implemented yet)
+    # When frontend is ready, uncomment and update this section
+    # location / {
+    #     access_log /var/log/nginx/proxy_access.log main;
+    #     limit_req zone=general_limit burst=50 nodelay;
+    #     proxy_pass http://frontend:5173;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Upgrade $http_upgrade;
+    #     proxy_set_header Connection $connection_upgrade;
+    #     proxy_connect_timeout 5s;
+    #     proxy_send_timeout 30s;
+    #     proxy_read_timeout 30s;
+    #     proxy_intercept_errors on;
+    #     error_page 502 503 504 /50x.html;
+    #     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: https://${HOST_DOMAIN}; frame-ancestors 'self'; base-uri 'self'; form-action 'self';" always;
+    # }
+
+    # Temporary root location - Returns API info (until frontend is implemented)
     location / {
-        access_log /var/log/nginx/proxy_access.log main;
-
-        # Rate limiting for general traffic
-        limit_req zone=general_limit burst=50 nodelay;
-
-        # Direct proxy to frontend service
-        proxy_pass http://frontend:5173;
-
-        # Basic proxy headers
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support (for any additional WebSocket connections)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-
-        # Reasonable timeouts
-        proxy_connect_timeout 5s;
-        proxy_send_timeout 30s;
-        proxy_read_timeout 30s;
-
-        # Handle proxy errors gracefully
-        proxy_intercept_errors on;
-        error_page 502 503 504 /50x.html;
-
-        # Enhanced CSP for production with WebSocket support
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: https://${HOST_DOMAIN}; frame-ancestors 'self'; base-uri 'self'; form-action 'self';" always;
+        access_log /var/log/nginx/root_access.log main;
+        default_type application/json;
+        return 200 '{"status":"ok","message":"SmartBreeds API Gateway","api_endpoint":"https://${HOST_DOMAIN}/api","documentation":"Use /api/* endpoints for backend services","note":"Frontend not yet implemented - use direct API calls"}';
     }
 
     # Deny access to hidden files
