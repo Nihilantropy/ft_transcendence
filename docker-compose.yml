@@ -53,29 +53,29 @@ services:
       - backend-network
     restart: unless-stopped
 
-  open-webui:
-    container_name: open-webui
-    image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
-    environment:
-      - MODEL_DOWNLOAD_DIR=/models
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - WEBUI_SECRET_KEY=your_secret_key_here  # Add this to prevent logouts after updates
-    volumes:
-      - open-webui:/app/backend/data
-    ports:
-      - ${OPEN_WEBUI_PORT-3000}:8080
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-    depends_on:
-      - ollama
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - backend-network
-    restart: unless-stopped
+  # open-webui:
+  #   container_name: open-webui
+  #   image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
+  #   environment:
+  #     - MODEL_DOWNLOAD_DIR=/models
+  #     - OLLAMA_BASE_URL=http://ollama:11434
+  #     - WEBUI_SECRET_KEY=your_secret_key_here  # Add this to prevent logouts after updates
+  #   volumes:
+  #     - open-webui:/app/backend/data
+  #   ports:
+  #     - ${OPEN_WEBUI_PORT-3000}:8080
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "5m"
+  #       max-file: "2"
+  #   depends_on:
+  #     - ollama
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   networks:
+  #     - backend-network
+  #   restart: unless-stopped
 
 ### FRONTEND ###
   # frontend:
@@ -151,33 +151,58 @@ services:
   #   depends_on:
   #     db:
   #       condition: service_started
+### REDIS ###
+  redis:
+    container_name: ft_transcendence_redis
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
 ### API GATEWAY ###
-  # api-gateway:
-  #   container_name: ft_transcendence_api_gateway
-  #   image: ft_transcendence_api_gateway:local
-  #   build:
-  #     context: ./srcs/api-gateway
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ./srcs/api-gateway/.env
-  #   volumes:
-  #     # Mount source code for development hot reload
-  #     - ./srcs/api-gateway/src:/app/src:rw
-  #   networks:
-  #     - proxy
-  #     - backend-network
-  #   restart: on-failure
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
-  #   depends_on:
-  #     auth-service:
-  #       condition: service_healthy
-  #     user-service:
-  #       condition: service_healthy
+  api-gateway:
+    container_name: ft_transcendence_api_gateway
+    image: ft_transcendence_api_gateway:local
+    build:
+      context: ./srcs/api-gateway
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/api-gateway/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/api-gateway/src:/app/src:rw
+    networks:
+      - proxy
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+    # depends_on:
+    #   auth-service:
+    #     condition: service_healthy
+    #   user-service:
+    #     condition: service_healthy
 
 ### NETWORKS ###
 networks:
@@ -191,6 +216,8 @@ volumes:
   frontend-data:
     driver: local
   db-data:
+    driver: local
+  redis-data:
     driver: local
   ollama:
     driver: local
