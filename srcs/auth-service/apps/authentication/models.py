@@ -80,3 +80,36 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_short_name(self):
         """Return first name or email"""
         return self.first_name or self.email
+
+
+class RefreshToken(models.Model):
+    """Refresh token for JWT authentication"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refresh_tokens')
+    token_hash = models.CharField(max_length=64, unique=True)  # SHA256 hash
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    is_revoked = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'refresh_tokens'
+        indexes = [
+            models.Index(fields=['token_hash']),
+            models.Index(fields=['user', 'is_revoked']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"RefreshToken for {self.user.email}"
+
+    def is_valid(self):
+        """Check if token is valid (not revoked and not expired)"""
+        return not self.is_revoked and self.expires_at > timezone.now()
+
+    def revoke(self):
+        """Revoke this token"""
+        self.is_revoked = True
+        self.save(update_fields=['is_revoked'])
