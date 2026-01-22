@@ -2,15 +2,11 @@
 Authentication views for user login, registration, token refresh, and logout
 """
 import json
-from datetime import timedelta
-from django.conf import settings
-from django.utils import timezone
 from rest_framework.views import APIView
 
 from apps.authentication.models import User, RefreshToken
-from apps.authentication.serializers import LoginSerializer, UserSerializer
-from apps.authentication.jwt_utils import generate_access_token, generate_refresh_token, hash_token
-from apps.authentication.utils import success_response, error_response
+from apps.authentication.serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from apps.authentication.utils import success_response, error_response, issue_auth_tokens
 
 
 class LoginView(APIView):
@@ -70,23 +66,6 @@ class LoginView(APIView):
         # Revoke all previous refresh tokens (single session policy)
         RefreshToken.objects.filter(user=user, is_revoked=False).update(is_revoked=True)
 
-        # Generate access token
-        access_token = generate_access_token(user)
-
-        # Create refresh token record
-        refresh_token_record = RefreshToken.objects.create(
-            user=user,
-            token_hash='placeholder',  # Will be updated after token generation
-            expires_at=timezone.now() + timedelta(days=settings.JWT_REFRESH_TOKEN_LIFETIME_DAYS)
-        )
-
-        # Generate refresh token
-        refresh_token = generate_refresh_token(user, refresh_token_record.id)
-
-        # Update token hash in database
-        refresh_token_record.token_hash = hash_token(refresh_token)
-        refresh_token_record.save(update_fields=['token_hash'])
-
         # Prepare response with user data
         user_serializer = UserSerializer(user)
         response = success_response(
@@ -94,26 +73,58 @@ class LoginView(APIView):
             status=200
         )
 
-        # Set HTTP-only cookies
-        response.set_cookie(
-            key='access_token',
-            value=access_token,
-            max_age=settings.JWT_ACCESS_TOKEN_LIFETIME_MINUTES * 60,
-            httponly=True,
-            secure=settings.COOKIE_SECURE,
-            samesite=settings.COOKIE_SAMESITE,
-            domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN != 'localhost' else None
+        # Issue tokens and set cookies
+        response = issue_auth_tokens(user, response)
+
+        return response
+
+
+class RegisterView(APIView):
+    """
+    POST /api/v1/auth/register
+
+    Register a new user account and issue JWT tokens as HTTP-only cookies.
+    Auto-login: user is immediately logged in after registration.
+    """
+
+    def post(self, request):
+        # Parse JSON body
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+
+        # Validate input
+        serializer = RegisterSerializer(data=data)
+        if not serializer.is_valid():
+            # Check if error is duplicate email
+            if 'email' in serializer.errors:
+                for error in serializer.errors['email']:
+                    if 'already exists' in str(error).lower():
+                        return error_response(
+                            code='EMAIL_ALREADY_EXISTS',
+                            message='A user with this email already exists',
+                            status=409
+                        )
+
+            return error_response(
+                code='VALIDATION_ERROR',
+                message='Invalid input',
+                details=serializer.errors,
+                status=422
+            )
+
+        # Create user via serializer (handles password hashing)
+        user = serializer.save()
+
+        # Prepare response with user data
+        user_serializer = UserSerializer(user)
+        response = success_response(
+            data={'user': user_serializer.data},
+            status=201
         )
 
-        response.set_cookie(
-            key='refresh_token',
-            value=refresh_token,
-            max_age=settings.JWT_REFRESH_TOKEN_LIFETIME_DAYS * 24 * 60 * 60,
-            httponly=True,
-            secure=settings.COOKIE_SECURE,
-            samesite=settings.COOKIE_SAMESITE,
-            path='/api/v1/auth/refresh',
-            domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN != 'localhost' else None
-        )
+        # Issue tokens and set cookies
+        response = issue_auth_tokens(user, response)
 
         return response
