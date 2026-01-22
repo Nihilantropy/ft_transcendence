@@ -8,6 +8,7 @@ def django_db_setup():
         'NAME': 'test_smartbreeds',
         'USER': 'postgres',
         'PASSWORD': 'postgres',
-        'HOST': 'localhost',
+        'HOST': 'db',
         'PORT': '5432',
+        'ATOMIC_REQUESTS': False,
     }

@@ -2,7 +2,8 @@
 URL configuration for authentication app
 """
 from django.urls import path
+from apps.authentication.views import LoginView
 
 urlpatterns = [
-    # Endpoints will be added as they are implemented
+    path('login', LoginView.as_view(), name='login'),
 ]
