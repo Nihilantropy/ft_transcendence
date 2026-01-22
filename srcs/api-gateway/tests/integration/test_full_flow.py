@@ -5,14 +5,14 @@ from main import app
 from jose import jwt
 from datetime import datetime, timedelta
 from httpx import Response
+from conftest import TEST_PRIVATE_KEY_PEM, TEST_PUBLIC_KEY_PEM
 
 client = TestClient(app)
 
-TEST_SECRET = "your-secret-key-here-change-in-production"
-TEST_ALGORITHM = "HS256"
+TEST_ALGORITHM = "RS256"
 
 def create_test_token(user_id: str, role: str = "user"):
-    """Helper to create test JWT tokens"""
+    """Helper to create test JWT tokens signed with RS256"""
     payload = {
         "user_id": user_id,
         "email": "test@example.com",
@@ -20,7 +20,7 @@ def create_test_token(user_id: str, role: str = "user"):
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1)
     }
-    return jwt.encode(payload, TEST_SECRET, algorithm=TEST_ALGORITHM)
+    return jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm=TEST_ALGORITHM)
 
 @pytest.mark.integration
 def test_full_authenticated_request_flow():
@@ -111,7 +111,7 @@ def test_expired_token_is_rejected():
         "iat": datetime.utcnow() - timedelta(hours=2),
         "exp": datetime.utcnow() - timedelta(hours=1)
     }
-    expired_token = jwt.encode(payload, TEST_SECRET, algorithm=TEST_ALGORITHM)
+    expired_token = jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm=TEST_ALGORITHM)
 
     response = client.get(
         "/api/v1/users/me",

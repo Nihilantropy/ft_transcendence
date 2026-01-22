@@ -4,15 +4,15 @@ from fastapi.testclient import TestClient
 from middleware.auth_middleware import JWTAuthMiddleware
 from jose import jwt
 from datetime import datetime, timedelta
+from conftest import TEST_PRIVATE_KEY_PEM, TEST_PUBLIC_KEY_PEM
 
 app = FastAPI()
 
-# Test configuration
-TEST_SECRET = "test-secret-for-middleware"
-TEST_ALGORITHM = "HS256"
+# Test configuration - RS256
+TEST_ALGORITHM = "RS256"
 
-# Add middleware
-app.add_middleware(JWTAuthMiddleware, secret_key=TEST_SECRET, algorithm=TEST_ALGORITHM)
+# Add middleware with public key
+app.add_middleware(JWTAuthMiddleware, public_key=TEST_PUBLIC_KEY_PEM, algorithm=TEST_ALGORITHM)
 
 @app.get("/protected")
 async def protected_route():
@@ -25,7 +25,7 @@ async def health_route():
 client = TestClient(app)
 
 def create_test_token(user_id: str, role: str = "user", exp_minutes: int = 30):
-    """Helper to create test JWT tokens"""
+    """Helper to create test JWT tokens signed with RS256"""
     payload = {
         "user_id": user_id,
         "email": "test@example.com",
@@ -33,7 +33,7 @@ def create_test_token(user_id: str, role: str = "user", exp_minutes: int = 30):
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(minutes=exp_minutes)
     }
-    return jwt.encode(payload, TEST_SECRET, algorithm=TEST_ALGORITHM)
+    return jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm=TEST_ALGORITHM)
 
 def test_request_with_valid_token_succeeds():
     """Test that request with valid JWT cookie succeeds"""

@@ -22,8 +22,7 @@ This application utilizes AI-powered computer vision to identify and classify im
   - multimodal model: qwen3-vl:8b for image recognition, analysis and description generation.
 - React for frontend development.
 - Tailwind CSS for styling and responsive design.
-- Next.js for api-gateway routing.
-- Django for ai micro-service.
-- Flask for auth micro-service and user management micro-service.
+- Django for api-gateway routing.
+- Django for backend micro-service.
 - PostgreSQL for database management.
-- Blockchain integration for pedigree validation and tracking.
+- Blockchain integration for pedigree validation and tracking. (backlog feature)

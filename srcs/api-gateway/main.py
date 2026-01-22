@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from datetime import datetime
-from config import settings
+from config import settings, JWT_PUBLIC_KEY
 from middleware.auth_middleware import JWTAuthMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 from middleware.logging_middleware import LoggingMiddleware
@@ -88,10 +88,10 @@ app.add_middleware(
     rate_limit_per_minute=settings.RATE_LIMIT_PER_MINUTE
 )
 
-# Add JWT authentication middleware
+# Add JWT authentication middleware (RS256 with public key verification)
 app.add_middleware(
     JWTAuthMiddleware,
-    secret_key=settings.JWT_SECRET_KEY,
+    public_key=JWT_PUBLIC_KEY,
     algorithm=settings.JWT_ALGORITHM
 )
 

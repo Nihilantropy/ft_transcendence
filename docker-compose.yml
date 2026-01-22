@@ -101,31 +101,29 @@ services:
   #     retries: 3
   #     start_period: 30s
 ### AUTH SERVICE ###
-  # auth-service:
-  #   container_name: ft_transcendence_auth_service
-  #   image: ft_transcendence_auth_service:local
-  #   build:
-  #     context: ./srcs/auth-service
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ./srcs/auth-service/.env
-  #   volumes:
-  #     # Mount source code for development hot reload
-  #     - ./srcs/auth-service/src:/app/src:rw
-  #     # Mount database volume (shared with backend)
-  #     - db-data:/app/db-data:rw
-  #   networks:
-  #     - backend-network
-  #   restart: on-failure
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
-  #   depends_on:
-  #     db:
-  #       condition: service_started
+  auth-service:
+    container_name: ft_transcendence_auth_service
+    image: ft_transcendence_auth_service:local
+    build:
+      context: ./srcs/auth-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/auth-service/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/auth-service:/app:rw
+    networks:
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import requests; requests.get(\"http://localhost:3001/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
 ### USER SERVICE ###
   # user-service:
   #   container_name: ft_transcendence_user_service
@@ -174,6 +172,30 @@ services:
         max-size: "5m"
         max-file: "2"
 
+### DATABASE ###
+  db:
+    container_name: ft_transcendence_db
+    image: postgres:15-alpine
+    env_file:
+      - ./srcs/db/.env
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./srcs/db/init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
 ### API GATEWAY ###
   api-gateway:
     container_name: ft_transcendence_api_gateway
@@ -188,6 +210,8 @@ services:
     volumes:
       # Mount source code for development hot reload
       - ./srcs/api-gateway/src:/app/src:rw
+      # Share JWT public key from auth-service (RS256 verification)
+      - ./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     networks:
       - backend-network  # Internal only (production-like), NGINX proxies to it
     restart: on-failure

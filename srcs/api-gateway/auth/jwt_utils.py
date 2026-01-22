@@ -6,14 +6,16 @@ class JWTValidationError(Exception):
     """Custom exception for JWT validation errors"""
     pass
 
-def decode_jwt(token: str, secret_key: str, algorithm: str = "HS256") -> Dict[str, Any]:
+def decode_jwt(token: str, key: str, algorithm: str = "RS256") -> Dict[str, Any]:
     """
     Decode and validate a JWT token.
 
     Args:
         token: JWT token string
-        secret_key: Secret key for signature verification
-        algorithm: JWT algorithm (default: HS256)
+        key: Key for signature verification
+             - For RS256: RSA public key (PEM format)
+             - For HS256: Shared secret key
+        algorithm: JWT algorithm (default: RS256)
 
     Returns:
         Dict containing the decoded payload
@@ -24,7 +26,7 @@ def decode_jwt(token: str, secret_key: str, algorithm: str = "HS256") -> Dict[st
     try:
         payload = jwt.decode(
             token,
-            secret_key,
+            key,
             algorithms=[algorithm]
         )
         return payload

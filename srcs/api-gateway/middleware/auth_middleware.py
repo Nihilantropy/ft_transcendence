@@ -10,11 +10,12 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
     """
     Middleware to validate JWT tokens from HTTP-only cookies.
     Extracts user context and adds headers for backend services.
+    Uses RS256 asymmetric verification (public key only).
     """
 
-    def __init__(self, app: ASGIApp, secret_key: str, algorithm: str = "HS256"):
+    def __init__(self, app: ASGIApp, public_key: str, algorithm: str = "RS256"):
         super().__init__(app)
-        self.secret_key = secret_key
+        self.public_key = public_key
         self.algorithm = algorithm
 
         # Endpoints that bypass authentication
@@ -40,7 +41,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         try:
             # Validate JWT and extract payload
-            payload = decode_jwt(access_token, self.secret_key, self.algorithm)
+            payload = decode_jwt(access_token, self.public_key, self.algorithm)
             user_context = extract_user_context(payload)
 
             # Add user context to request state for use in route handlers
