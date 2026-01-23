@@ -2,11 +2,13 @@
 Authentication views for user login, registration, token refresh, and logout
 """
 import json
+import jwt
 from rest_framework.views import APIView
 
 from apps.authentication.models import User, RefreshToken
 from apps.authentication.serializers import LoginSerializer, RegisterSerializer, UserSerializer
 from apps.authentication.utils import success_response, error_response, issue_auth_tokens
+from apps.authentication.jwt_utils import decode_token, hash_token
 
 
 class LoginView(APIView):
@@ -125,6 +127,112 @@ class RegisterView(APIView):
         )
 
         # Issue tokens and set cookies
+        response = issue_auth_tokens(user, response)
+
+        return response
+
+
+class RefreshView(APIView):
+    """
+    POST /api/v1/auth/refresh
+
+    Exchange a valid refresh token for new access and refresh tokens.
+    Implements token rotation: old token is revoked, new token is issued.
+    """
+
+    def post(self, request):
+        # 1. Extract refresh_token from cookies
+        refresh_token = request.COOKIES.get('refresh_token')
+        if not refresh_token:
+            return error_response(
+                code='MISSING_TOKEN',
+                message='Refresh token is required',
+                status=401
+            )
+
+        # 2. Decode JWT (using public key)
+        try:
+            payload = decode_token(refresh_token)
+        except jwt.ExpiredSignatureError:
+            return error_response(
+                code='TOKEN_EXPIRED',
+                message='Refresh token has expired',
+                status=401
+            )
+        except jwt.InvalidTokenError:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid refresh token',
+                status=401
+            )
+
+        # 2b. Check token_type is 'refresh'
+        if payload.get('token_type') != 'refresh':
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid refresh token',
+                status=401
+            )
+
+        # 3. Find RefreshToken record by token_id (jti)
+        token_id = payload.get('token_id')
+        try:
+            token_record = RefreshToken.objects.get(id=token_id)
+        except RefreshToken.DoesNotExist:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid refresh token',
+                status=401
+            )
+
+        # 4. Validate RefreshToken record
+        # 4a. Check if revoked
+        if token_record.is_revoked:
+            return error_response(
+                code='TOKEN_REVOKED',
+                message='Refresh token has been revoked',
+                status=401
+            )
+
+        # 4b. Check token hash matches
+        if token_record.token_hash != hash_token(refresh_token):
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid refresh token',
+                status=401
+            )
+
+        # 5. Find user by user_id from JWT
+        user_id = payload.get('user_id')
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid refresh token',
+                status=401
+            )
+
+        # 6. Check user status
+        if not user.is_active:
+            return error_response(
+                code='ACCOUNT_DISABLED',
+                message='Account is disabled',
+                status=403
+            )
+
+        # 7. Revoke current refresh token (token rotation)
+        token_record.is_revoked = True
+        token_record.save(update_fields=['is_revoked'])
+
+        # 8. Issue new tokens (reuse issue_auth_tokens helper)
+        user_serializer = UserSerializer(user)
+        response = success_response(
+            data={'user': user_serializer.data},
+            status=200
+        )
+
+        # Issue new tokens and set cookies
         response = issue_auth_tokens(user, response)
 
         return response
