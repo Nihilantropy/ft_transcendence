@@ -133,9 +133,11 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
 
-**User Service (Django - port 3002):** [Currently stub]
-- User profile management
-- Pet profiles (name, breed, age, weight, health conditions)
+**User Service (Django - port 3002):** [Complete]
+- User profile management (GET/PUT/PATCH /users/me)
+- Pet profiles CRUD (name, breed, species, age, weight, health conditions)
+- Pet analysis history (breed detection results from AI service)
+- Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
 **AI Service (FastAPI + LlamaIndex - port 3003):**
@@ -283,14 +285,12 @@ Services use environment variables from `.env` files:
 - Nginx reverse proxy configuration
 - Redis integration for rate limiting and caching
 - Ollama GPU setup for AI inference
+- User Service (Django 5.1.5 with full CRUD, 41 passing tests, Docker integrated)
 
 **In Progress:**
 - Auth Service (User/RefreshToken models, JWT utils, validators, serializers done; views/endpoints pending)
 - AI Service (LlamaIndex + RAG + ML recommendations)
 - Frontend (React scaffolding exists, needs implementation)
-
-**Planned:**
-- User Service (Django skeleton, needs profile/pet models)
 
 ## Common Troubleshooting
 
