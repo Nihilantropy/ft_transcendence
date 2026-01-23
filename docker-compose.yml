@@ -12,7 +12,8 @@ services:
       - "80:80"
       - "443:443"
     networks:
-      - proxy
+      - proxy           # External access
+      - backend-network # To reach API Gateway (production-like)
     restart: on-failure
     healthcheck:
       test: ["CMD", "nginx", "-t"]
@@ -20,11 +21,63 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+  ### OLLAMA ###
+  ollama:
+    container_name: ollama
+    image: ollama/ollama:latest
+    runtime: nvidia
+    entrypoint: ["/workspace/init.sh"]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - CUDA_VISIBLE_DEVICES=0
+      - LOG_LEVEL=debug
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: all
+    volumes:
+      - ollama:/root/.ollama
+      - models:/models
+      - ./srcs/ollama/:/workspace/:rw
+    ports:
+      - "11434:11434"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  open-webui:
+    container_name: open-webui
+    image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
+    environment:
+      - MODEL_DOWNLOAD_DIR=/models
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=your_secret_key_here  # Add this to prevent logouts after updates
+    volumes:
+      - open-webui:/app/backend/data
+    ports:
+      - ${OPEN_WEBUI_PORT-3000}:8080
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
     depends_on:
-      api-gateway:
-        condition: service_healthy
-      websocket-server:
-        condition: service_healthy
+      - ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - backend-network
+    restart: unless-stopped
+
 ### FRONTEND ###
   # frontend:
   #   container_name: ft_transcendence_frontend
@@ -48,31 +101,29 @@ services:
   #     retries: 3
   #     start_period: 30s
 ### AUTH SERVICE ###
-  # auth-service:
-  #   container_name: ft_transcendence_auth_service
-  #   image: ft_transcendence_auth_service:local
-  #   build:
-  #     context: ./srcs/auth-service
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ./srcs/auth-service/.env
-  #   volumes:
-  #     # Mount source code for development hot reload
-  #     - ./srcs/auth-service/src:/app/src:rw
-  #     # Mount database volume (shared with backend)
-  #     - db-data:/app/db-data:rw
-  #   networks:
-  #     - backend-network
-  #   restart: on-failure
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
-  #   depends_on:
-  #     db:
-  #       condition: service_started
+  auth-service:
+    container_name: ft_transcendence_auth_service
+    image: ft_transcendence_auth_service:local
+    build:
+      context: ./srcs/auth-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/auth-service/.env
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/auth-service:/app:rw
+    networks:
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import requests; requests.get(\"http://localhost:3001/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
 ### USER SERVICE ###
   # user-service:
   #   container_name: ft_transcendence_user_service
@@ -99,6 +150,52 @@ services:
   #   depends_on:
   #     db:
   #       condition: service_started
+### REDIS ###
+  redis:
+    container_name: ft_transcendence_redis
+    image: redis:8.4.0-alpine3.22
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+### DATABASE ###
+  db:
+    container_name: ft_transcendence_db
+    image: postgres:15-alpine
+    env_file:
+      - ./srcs/db/.env
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./srcs/db/init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
 ### API GATEWAY ###
   api-gateway:
     container_name: ft_transcendence_api_gateway
@@ -108,12 +205,17 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./srcs/api-gateway/.env
+    ports:
+      - "8001:8001"  # Expose for development testing (curl/Postman)
     volumes:
       # Mount source code for development hot reload
       - ./srcs/api-gateway/src:/app/src:rw
+      # Mount tests for development
+      - ./srcs/api-gateway/tests:/app/tests:rw
+      # Share JWT public key from auth-service (RS256 verification)
+      - ./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     networks:
-      - proxy
-      - backend-network
+      - backend-network  # Internal only (production-like), NGINX proxies to it
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -122,10 +224,13 @@ services:
       retries: 3
       start_period: 30s
     depends_on:
-      auth-service:
+      redis:
         condition: service_healthy
-      user-service:
-        condition: service_healthy
+    # depends_on:
+    #   auth-service:
+    #     condition: service_healthy
+    #   user-service:
+    #     condition: service_healthy
 
 ### NETWORKS ###
 networks:
@@ -139,4 +244,12 @@ volumes:
   frontend-data:
     driver: local
   db-data:
+    driver: local
+  redis-data:
+    driver: local
+  ollama:
+    driver: local
+  models:
+    driver: local
+  open-webui:
     driver: local

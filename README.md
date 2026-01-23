@@ -15,4 +15,14 @@ This application utilizes AI-powered computer vision to identify and classify im
 - Luxury pet product retailers aiming to provide personalized recommendations.
 
 ## Technologies Used
-TODO define technologies used in the project
+- Docker for containerization and deployment.
+- Nginx for reverse proxy.
+- Redis for caching and session management.
+- ollama backend server for AI model hosting.
+  - multimodal model: qwen3-vl:8b for image recognition, analysis and description generation.
+- React for frontend development.
+- Tailwind CSS for styling and responsive design.
+- Django for api-gateway routing.
+- Django for backend micro-service.
+- PostgreSQL for database management.
+- Blockchain integration for pedigree validation and tracking. (backlog feature)
