@@ -153,7 +153,7 @@ services:
 ### REDIS ###
   redis:
     container_name: ft_transcendence_redis
-    image: redis:7-alpine
+    image: redis:8.4.0-alpine3.22
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
