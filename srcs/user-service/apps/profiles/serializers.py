@@ -48,3 +48,42 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             if not set(value.keys()).issubset(allowed_keys):
                 raise serializers.ValidationError("Invalid address fields")
         return value
+
+
+class PetSerializer(serializers.ModelSerializer):
+    """Serializer for pet profile"""
+
+    class Meta:
+        model = Pet
+        fields = [
+            'id', 'user_id', 'name', 'breed', 'breed_confidence',
+            'species', 'age', 'weight', 'health_conditions',
+            'image_url', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'user_id', 'created_at', 'updated_at']
+
+    def validate_age(self, value):
+        """Age must be positive if provided"""
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Age cannot be negative")
+        return value
+
+    def validate_weight(self, value):
+        """Weight must be positive if provided"""
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Weight must be positive")
+        return value
+
+    def validate_breed_confidence(self, value):
+        """Confidence must be between 0 and 1"""
+        if value is not None and not (0 <= value <= 1):
+            raise serializers.ValidationError("Confidence must be between 0 and 1")
+        return value
+
+
+class PetCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating pets (minimal required fields)"""
+
+    class Meta:
+        model = Pet
+        fields = ['name', 'species']
