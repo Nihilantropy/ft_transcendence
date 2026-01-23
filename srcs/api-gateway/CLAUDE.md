@@ -81,6 +81,11 @@ Zero-touch routing - backend services add endpoints without gateway changes:
 /api/v1/recommendations/* → AI_SERVICE_URL
 ```
 
+**Cookie Forwarding:**
+- Cookies are stripped before forwarding to backend services (security/isolation)
+- Exception: `/api/v1/auth/*` endpoints preserve cookies (needed for refresh/logout)
+- Pattern: `if not path.startswith("/api/v1/auth"): forward_headers.pop("cookie", None)`
+
 ### Public Paths (no auth required)
 
 Defined in `middleware/auth_middleware.py`:
@@ -132,7 +137,9 @@ Mocking patterns:
 
 **pytest warnings:** Configure pytest.ini with custom markers and `asyncio_default_fixture_loop_scope = function`
 
-**Cookie forwarding:** Multiple `Set-Cookie` headers require ProxyResponse class with `raw_headers` parameter
+**Cookie forwarding (multiple Set-Cookie):** Multiple `Set-Cookie` headers require ProxyResponse class with `raw_headers` parameter
+
+**Cookie forwarding (auth endpoints):** Auth service endpoints require cookies for refresh/logout operations - cookies are preserved for `/api/v1/auth/*` paths only
 
 ## Key Files
 

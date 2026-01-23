@@ -8,6 +8,8 @@ Django REST Framework microservice handling user profiles and pet management. Pa
 
 **Port:** 3002 (internal, accessed via API Gateway)
 
+**Django Configuration:** API-only service with `APPEND_SLASH = False` and `DefaultRouter(trailing_slash=False)` for RESTful conventions (no trailing slashes)
+
 ## Commands
 
 ### Testing
@@ -56,6 +58,21 @@ apps/
     middleware.py  # UserContextMiddleware (X-User-ID extraction)
     utils.py       # Standardized API responses
 tests/           # pytest-django tests
+```
+
+### Response Utilities
+
+**IMPORTANT:** `success_response()` and `error_response()` in `apps/profiles/utils.py` already return `Response` objects.
+
+**Correct usage:**
+```python
+return success_response(serializer.data)  # ✓ Correct
+return error_response('NOT_FOUND', 'Pet not found', status=404)  # ✓ Correct
+```
+
+**Incorrect usage:**
+```python
+return Response(success_response(serializer.data))  # ✗ Double-wrapping causes serialization error
 ```
 
 ### Models
@@ -132,3 +149,5 @@ Environment variables loaded via `python-decouple` from `.env`:
 - Permissions: 5 tests
 - Serializers: 11 tests
 - Views: 9 tests
+
+**Note:** Model/serializer/view tests may fail in test DB (auth_schema doesn't exist for FK constraints). This is expected behavior. Middleware and permission tests pass reliably.

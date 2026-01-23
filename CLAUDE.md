@@ -275,6 +275,20 @@ Services use environment variables from `.env` files:
 3. **E2E tests**: Use NGINX proxy (localhost/api) for full stack
 4. **Load tests**: Test through NGINX to validate both rate limiting layers
 
+**Test Script Organization:**
+```bash
+# Run specific test suites
+./scripts/run-unit-tests.sh           # Unit tests only (API Gateway, Auth, User services)
+./scripts/run-integration-tests.sh    # Integration tests only (E2E via API Gateway)
+./scripts/init-and-test.sh [--all|--unit|--integration] [--skip-init]  # Orchestrator with flags
+```
+
+**Flags:**
+- `--all` (default): Run both unit and integration tests
+- `--unit`: Unit tests only
+- `--integration`: Integration tests only
+- `--skip-init`: Skip build/start/migrations (services already running)
+
 ## Security Considerations
 
 - **JWT Tokens**: HS256 algorithm, stored in HTTP-only cookies
@@ -321,6 +335,16 @@ Services use environment variables from `.env` files:
 **Ollama GPU not detected:**
 - Verify NVIDIA runtime: `docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi`
 - Check docker-compose.yml: `runtime: nvidia` and `deploy.resources.reservations.devices`
+
+**Django trailing slash conflicts:**
+- DRF `DefaultRouter` adds trailing slashes by default (Django convention)
+- For API-only services, use `APPEND_SLASH = False` in settings.py and `DefaultRouter(trailing_slash=False)` in urls.py
+- This matches RESTful conventions (no trailing slashes)
+
+**Response object double-wrapping:**
+- Utility functions that return `Response` objects should NOT be wrapped in `Response()` again
+- Symptoms: `TypeError: Object of type Response is not JSON serializable`
+- Fix: `return success_response(data)` NOT `return Response(success_response(data))`
 
 ## Reference Documentation
 
