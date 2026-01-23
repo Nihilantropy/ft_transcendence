@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from apps.authentication.models import User, RefreshToken
 from apps.authentication.serializers import LoginSerializer, RegisterSerializer, UserSerializer
-from apps.authentication.utils import success_response, error_response, issue_auth_tokens
+from apps.authentication.utils import success_response, error_response, issue_auth_tokens, clear_auth_cookies
 from apps.authentication.jwt_utils import decode_token, hash_token
 
 
@@ -234,5 +234,37 @@ class RefreshView(APIView):
 
         # Issue new tokens and set cookies
         response = issue_auth_tokens(user, response)
+
+        return response
+
+
+class LogoutView(APIView):
+    """
+    POST /api/v1/auth/logout
+
+    Revoke refresh token and clear authentication cookies.
+    Always succeeds - gracefully handles missing/invalid/expired tokens.
+    """
+
+    def post(self, request):
+        # Try to revoke token if present and valid
+        refresh_token = request.COOKIES.get('refresh_token')
+        if refresh_token:
+            try:
+                payload = decode_token(refresh_token)
+                if payload.get('token_type') == 'refresh':
+                    token_id = payload.get('token_id')
+                    if token_id:
+                        RefreshToken.objects.filter(id=token_id).update(is_revoked=True)
+            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                # Token invalid/expired - still proceed with logout
+                pass
+
+        # Always return success and clear cookies
+        response = success_response(
+            data={'message': 'Successfully logged out'},
+            status=200
+        )
+        response = clear_auth_cookies(response)
 
         return response
