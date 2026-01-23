@@ -720,3 +720,145 @@ class TestRefreshView:
         assert data['success'] is False
         assert data['error']['code'] == 'INVALID_TOKEN'
         assert data['error']['message'] == 'Invalid refresh token'
+
+
+@pytest.mark.django_db
+class TestLogoutView:
+    """Tests for POST /api/v1/auth/logout"""
+
+    @pytest.fixture
+    def user_with_refresh_token(self, user):
+        """Create a user with a valid refresh token and return (user, token_cookie_value)"""
+        refresh_token_record = RefreshToken.objects.create(
+            user=user,
+            token_hash='placeholder',
+            expires_at=timezone.now() + timedelta(days=7)
+        )
+        token = generate_refresh_token(user, refresh_token_record.id)
+        refresh_token_record.token_hash = hash_token(token)
+        refresh_token_record.save(update_fields=['token_hash'])
+        return user, token, refresh_token_record
+
+    def test_logout_with_valid_token_returns_200(self, client, user_with_refresh_token):
+        """Successful logout returns 200 with success message"""
+        user, token, _ = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['data']['message'] == 'Successfully logged out'
+
+    def test_logout_revokes_refresh_token(self, client, user_with_refresh_token):
+        """Logout revokes the refresh token in database"""
+        user, token, record = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        record.refresh_from_db()
+        assert record.is_revoked is True
+
+    def test_logout_clears_access_token_cookie(self, client, user_with_refresh_token):
+        """Logout clears the access_token cookie"""
+        user, token, _ = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert 'access_token' in response.cookies
+        cookie = response.cookies['access_token']
+        assert cookie.value == ''
+        assert cookie['max-age'] == 0
+
+    def test_logout_clears_refresh_token_cookie(self, client, user_with_refresh_token):
+        """Logout clears the refresh_token cookie"""
+        user, token, _ = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert 'refresh_token' in response.cookies
+        cookie = response.cookies['refresh_token']
+        assert cookie.value == ''
+        assert cookie['max-age'] == 0
+        assert cookie['path'] == '/api/v1/auth/refresh'
+
+    def test_logout_without_cookie_still_succeeds(self, client):
+        """Logout without refresh_token cookie still returns 200"""
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['data']['message'] == 'Successfully logged out'
+
+    def test_logout_with_invalid_jwt_still_succeeds(self, client):
+        """Logout with invalid JWT still returns 200 and clears cookies"""
+        client.cookies['refresh_token'] = 'not-a-valid-jwt'
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        # Cookies should still be cleared
+        assert response.cookies['access_token'].value == ''
+        assert response.cookies['refresh_token'].value == ''
+
+    def test_logout_with_expired_jwt_still_succeeds(self, client, user):
+        """Logout with expired JWT still returns 200"""
+        import jwt
+        from django.conf import settings as s
+        payload = {
+            'user_id': str(user.id),
+            'token_id': str(user.id),  # Fake token_id
+            'token_type': 'refresh',
+            'iat': int((timezone.now() - timedelta(days=8)).timestamp()),
+            'exp': int((timezone.now() - timedelta(days=1)).timestamp())
+        }
+        expired_token = jwt.encode(payload, s.JWT_KEYS['private'], algorithm=s.JWT_ALGORITHM)
+        client.cookies['refresh_token'] = expired_token
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+
+    def test_logout_with_revoked_token_still_succeeds(self, client, user_with_refresh_token):
+        """Logout with already-revoked token still returns 200"""
+        user, token, record = user_with_refresh_token
+        record.is_revoked = True
+        record.save(update_fields=['is_revoked'])
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+
+    def test_logout_with_token_not_in_database_still_succeeds(self, client, user):
+        """Logout with token not in database still returns 200"""
+        import uuid
+        import jwt
+        from django.conf import settings as s
+        payload = {
+            'user_id': str(user.id),
+            'token_id': str(uuid.uuid4()),  # Non-existent ID
+            'token_type': 'refresh',
+            'iat': int(timezone.now().timestamp()),
+            'exp': int((timezone.now() + timedelta(days=7)).timestamp())
+        }
+        fake_token = jwt.encode(payload, s.JWT_KEYS['private'], algorithm=s.JWT_ALGORITHM)
+        client.cookies['refresh_token'] = fake_token
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
