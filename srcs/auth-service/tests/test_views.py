@@ -2,10 +2,12 @@
 Tests for authentication views
 """
 import pytest
+from datetime import timedelta
 from django.test import Client
 from django.conf import settings
+from django.utils import timezone
 from apps.authentication.models import User, RefreshToken
-from apps.authentication.jwt_utils import decode_token, hash_token
+from apps.authentication.jwt_utils import decode_token, hash_token, generate_refresh_token, generate_access_token
 
 
 @pytest.fixture
@@ -475,3 +477,246 @@ class TestRegisterView:
         assert response.status_code == 409
         data = response.json()
         assert data['error']['code'] == 'EMAIL_ALREADY_EXISTS'
+
+
+@pytest.mark.django_db
+class TestRefreshView:
+    """Tests for POST /api/v1/auth/refresh"""
+
+    @pytest.fixture
+    def user_with_refresh_token(self, user):
+        """Create a user with a valid refresh token and return (user, token_cookie_value)"""
+        # Create refresh token record
+        refresh_token_record = RefreshToken.objects.create(
+            user=user,
+            token_hash='placeholder',
+            expires_at=timezone.now() + timedelta(days=7)
+        )
+        # Generate the actual token
+        token = generate_refresh_token(user, refresh_token_record.id)
+        # Update hash
+        refresh_token_record.token_hash = hash_token(token)
+        refresh_token_record.save(update_fields=['token_hash'])
+        return user, token, refresh_token_record
+
+    def test_refresh_with_valid_token_returns_200(self, client, user_with_refresh_token):
+        """Successful refresh returns 200 with user data"""
+        user, token, _ = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['data']['user']['email'] == user.email
+        assert data['data']['user']['id'] == str(user.id)
+
+    def test_refresh_sets_new_access_token_cookie(self, client, user_with_refresh_token):
+        """Successful refresh sets new access_token cookie"""
+        user, token, _ = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert 'access_token' in response.cookies
+        cookie = response.cookies['access_token']
+        assert cookie['httponly'] is True
+
+        # Verify token is valid JWT for the user
+        new_token = cookie.value
+        payload = decode_token(new_token)
+        assert payload['user_id'] == str(user.id)
+        assert payload['token_type'] == 'access'
+
+    def test_refresh_sets_new_refresh_token_cookie(self, client, user_with_refresh_token):
+        """Successful refresh sets new refresh_token cookie (rotation)"""
+        user, token, _ = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert 'refresh_token' in response.cookies
+        cookie = response.cookies['refresh_token']
+        assert cookie['httponly'] is True
+        assert cookie['path'] == '/api/v1/auth/refresh'
+
+        # Verify new token is different from old token
+        new_token = cookie.value
+        assert new_token != token
+
+        # Verify token is valid JWT for the user
+        payload = decode_token(new_token)
+        assert payload['user_id'] == str(user.id)
+        assert payload['token_type'] == 'refresh'
+
+    def test_refresh_creates_new_refresh_token_record(self, client, user_with_refresh_token):
+        """Successful refresh creates new RefreshToken in database"""
+        user, token, old_record = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 200
+        # Should have one new active token (old one revoked)
+        active_tokens = RefreshToken.objects.filter(user=user, is_revoked=False)
+        assert active_tokens.count() == 1
+        # The active token should be different from the old one
+        assert active_tokens.first().id != old_record.id
+
+    def test_refresh_revokes_old_token(self, client, user_with_refresh_token):
+        """Successful refresh revokes the old RefreshToken (rotation)"""
+        user, token, old_record = user_with_refresh_token
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 200
+        old_record.refresh_from_db()
+        assert old_record.is_revoked is True
+
+    def test_refresh_without_cookie_returns_401(self, client):
+        """Missing refresh_token cookie returns 401 MISSING_TOKEN"""
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'MISSING_TOKEN'
+        assert data['error']['message'] == 'Refresh token is required'
+
+    def test_refresh_with_invalid_jwt_returns_401(self, client):
+        """Invalid/malformed JWT returns 401 INVALID_TOKEN"""
+        client.cookies['refresh_token'] = 'not-a-valid-jwt'
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'INVALID_TOKEN'
+        assert data['error']['message'] == 'Invalid refresh token'
+
+    def test_refresh_with_expired_jwt_returns_401(self, client, user):
+        """Expired JWT returns 401 TOKEN_EXPIRED"""
+        # Create an expired refresh token record
+        refresh_token_record = RefreshToken.objects.create(
+            user=user,
+            token_hash='placeholder',
+            expires_at=timezone.now() - timedelta(days=1)  # Already expired
+        )
+        # Generate token (the JWT itself will have exp in past too)
+        # We need to create a token with exp in the past - use a workaround
+        import jwt
+        from django.conf import settings as s
+        payload = {
+            'user_id': str(user.id),
+            'token_id': str(refresh_token_record.id),
+            'token_type': 'refresh',
+            'iat': int((timezone.now() - timedelta(days=8)).timestamp()),
+            'exp': int((timezone.now() - timedelta(days=1)).timestamp())  # Expired
+        }
+        expired_token = jwt.encode(payload, s.JWT_KEYS['private'], algorithm=s.JWT_ALGORITHM)
+        refresh_token_record.token_hash = hash_token(expired_token)
+        refresh_token_record.save(update_fields=['token_hash'])
+
+        client.cookies['refresh_token'] = expired_token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'TOKEN_EXPIRED'
+        assert data['error']['message'] == 'Refresh token has expired'
+
+    def test_refresh_with_token_not_in_database_returns_401(self, client, user):
+        """Token not found in database returns 401 INVALID_TOKEN"""
+        import uuid
+        # Generate a valid JWT but with a non-existent token_id
+        import jwt
+        from django.conf import settings as s
+        payload = {
+            'user_id': str(user.id),
+            'token_id': str(uuid.uuid4()),  # Non-existent ID
+            'token_type': 'refresh',
+            'iat': int(timezone.now().timestamp()),
+            'exp': int((timezone.now() + timedelta(days=7)).timestamp())
+        }
+        fake_token = jwt.encode(payload, s.JWT_KEYS['private'], algorithm=s.JWT_ALGORITHM)
+
+        client.cookies['refresh_token'] = fake_token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'INVALID_TOKEN'
+        assert data['error']['message'] == 'Invalid refresh token'
+
+    def test_refresh_with_revoked_token_returns_401(self, client, user_with_refresh_token):
+        """Already revoked token returns 401 TOKEN_REVOKED"""
+        user, token, record = user_with_refresh_token
+        # Revoke the token
+        record.is_revoked = True
+        record.save(update_fields=['is_revoked'])
+
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'TOKEN_REVOKED'
+        assert data['error']['message'] == 'Refresh token has been revoked'
+
+    def test_refresh_with_deleted_user_returns_401(self, client, user_with_refresh_token):
+        """Token for deleted user returns 401 INVALID_TOKEN"""
+        user, token, _ = user_with_refresh_token
+        user_id = user.id
+        # Delete the user
+        user.delete()
+
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'INVALID_TOKEN'
+        assert data['error']['message'] == 'Invalid refresh token'
+
+    def test_refresh_with_disabled_user_returns_403(self, client, user_with_refresh_token):
+        """Token for disabled user returns 403 ACCOUNT_DISABLED"""
+        user, token, _ = user_with_refresh_token
+        # Disable the user
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+
+        client.cookies['refresh_token'] = token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'ACCOUNT_DISABLED'
+        assert data['error']['message'] == 'Account is disabled'
+
+    def test_refresh_with_access_token_returns_401(self, client, user):
+        """Using access token as refresh token returns 401 INVALID_TOKEN"""
+        # Generate an access token instead of refresh token
+        access_token = generate_access_token(user)
+
+        client.cookies['refresh_token'] = access_token
+
+        response = client.post('/api/v1/auth/refresh')
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'INVALID_TOKEN'
+        assert data['error']['message'] == 'Invalid refresh token'
