@@ -204,6 +204,8 @@ All services use **custom Dockerfiles that bake in requirements** during build:
 
 **Implication:** Changes to `requirements.txt` require `make build` to rebuild images.
 
+**Django Version:** Django 6.x requires Python >=3.12. Use Django 5.1.x for Python 3.11 compatibility.
+
 ### Middleware Stack (API Gateway)
 
 Order of execution (bottom to top):

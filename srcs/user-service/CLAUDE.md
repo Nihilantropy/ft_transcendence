@@ -26,6 +26,8 @@ docker exec ft_transcendence_user_service python -m pytest tests/test_models.py:
 docker exec ft_transcendence_user_service python -m pytest tests/ --cov=apps --cov-report=html
 ```
 
+**Test Limitations:** Model/serializer/view tests fail in test DB (auth_schema doesn't exist for FK constraints). Middleware and permission tests pass. This is expected behavior.
+
 ### Database Migrations
 
 ```bash
