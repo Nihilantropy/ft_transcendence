@@ -253,6 +253,10 @@ All microservices communicate via **synchronous REST APIs** over HTTP. This prov
 - **CSRF Protection**: Combined with SameSite attribute
 - **Stateless**: JWT contains all user context, no server-side sessions
 
+### JWT Generation & Validation (RS256)
+- **Signing**: Auth Service signs JWTs with private key (RS256)
+- **Validation**: API Gateway verifies JWTs with public key
+
 ### JWT Token Structure
 
 **Payload:**
@@ -862,7 +866,8 @@ make fclean         # Full clean (containers + volumes)
 make re             # Rebuild and restart everything
 
 # Database commands
-make db-migrate     # Run database migrations
+make db-migrate     # Run database 
+s
 make db-backup      # Backup PostgreSQL database
 
 # Health & monitoring

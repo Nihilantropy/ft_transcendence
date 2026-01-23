@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import httpx
 from config import settings
 from datetime import datetime
 from typing import Dict, Any
+import json
 
 router = APIRouter()
 
@@ -92,7 +93,8 @@ async def forward_request(
         return {
             "status_code": response.status_code,
             "content": response.json() if response.content else None,
-            "headers": dict(response.headers)
+            "headers": dict(response.headers),
+            "raw_response": response  # Keep raw response for Set-Cookie handling
         }
 
     except httpx.RequestError as e:
@@ -128,8 +130,27 @@ async def proxy_handler(request: Request, path: str):
         method=request.method
     )
 
-    # Return backend response
-    return JSONResponse(
+    # Build response headers, including Set-Cookie from backend
+    response_headers = {}
+    set_cookie_headers = []
+
+    # Extract Set-Cookie headers from raw response (preserves multiple cookies)
+    raw_response = backend_response.get("raw_response")
+    if raw_response:
+        for header_name, header_value in raw_response.raw_headers:
+            if header_name.lower() == b"set-cookie":
+                set_cookie_headers.append(header_value.decode('utf-8'))
+
+    # Return backend response with Set-Cookie headers
+    response = Response(
+        content=json.dumps(backend_response["content"]),
         status_code=backend_response["status_code"],
-        content=backend_response["content"]
+        media_type="application/json"
     )
+
+    # Add Set-Cookie headers (FastAPI Response supports multiple set-cookie via raw_headers)
+    if set_cookie_headers:
+        for cookie in set_cookie_headers:
+            response.headers.append("set-cookie", cookie)
+
+    return response

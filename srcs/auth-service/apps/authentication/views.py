@@ -268,3 +268,18 @@ class LogoutView(APIView):
         response = clear_auth_cookies(response)
 
         return response
+
+
+class HealthView(APIView):
+    """
+    GET /health
+
+    Health check endpoint for Docker healthcheck and monitoring.
+    Returns 200 OK if service is running.
+    """
+
+    def get(self, request):
+        return success_response(
+            data={'status': 'healthy', 'service': 'auth-service'},
+            status=200
+        )
