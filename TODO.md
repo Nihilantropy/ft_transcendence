@@ -106,6 +106,7 @@ The SmartBreeds platform has a solid foundation with core infrastructure fully o
        - [ ] Use qwen3-vl:8b multimodal model via Ollama
      - [ ] Set up ChromaDB vector store with HuggingFace embeddings
      - [ ] Implement RAG system:
+       - [ ] Analysis for llamaindex framework integration (if applicable)
        - [ ] Document ingestion pipeline for pet health knowledge
        - [ ] Query endpoint for pet health questions (GET/POST /api/v1/rag/query)
      - [ ] Implement ML recommendations:
