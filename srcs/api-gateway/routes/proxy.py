@@ -81,10 +81,13 @@ async def forward_request(
     # Get user context headers from middleware
     backend_headers = getattr(request.state, "backend_headers", {})
 
-    # Forward original headers (except host, cookie)
+    # Forward original headers (except host)
     forward_headers = dict(request.headers)
     forward_headers.pop("host", None)
-    forward_headers.pop("cookie", None)
+
+    # Strip cookies for non-auth endpoints (auth service needs cookies for refresh/logout)
+    if not path.startswith("/api/v1/auth"):
+        forward_headers.pop("cookie", None)
 
     # Merge with user context headers
     forward_headers.update(backend_headers)
@@ -155,7 +158,7 @@ async def proxy_handler(request: Request, path: str):
         return ProxyResponse(
             content=raw_response.content,
             status_code=raw_response.status_code,
-            raw_headers=list(raw_response.raw_headers)  # Preserve all headers as-is
+            raw_headers=list(raw_response.headers.raw)  # Preserve all headers as-is
         )
     else:
         # Fallback if no raw response

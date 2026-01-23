@@ -1,6 +1,5 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from apps.profiles.models import UserProfile, Pet, PetAnalysis
 from apps.profiles.serializers import (
     UserProfileSerializer, UserProfileUpdateSerializer,
@@ -28,7 +27,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         if request.method == 'GET':
             profile, created = UserProfile.objects.get_or_create(user_id=user_id)
             serializer = UserProfileSerializer(profile)
-            return Response(success_response(serializer.data))
+            return success_response(serializer.data)
 
         else:  # PUT or PATCH
             profile, created = UserProfile.objects.get_or_create(user_id=user_id)
@@ -41,12 +40,9 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             if serializer.is_valid():
                 serializer.save()
                 response_serializer = UserProfileSerializer(profile)
-                return Response(success_response(response_serializer.data))
+                return success_response(response_serializer.data)
 
-            return Response(
-                error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors),
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY
-            )
+            return error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors, status=422)
 
 
 class PetViewSet(viewsets.ModelViewSet):
@@ -66,7 +62,7 @@ class PetViewSet(viewsets.ModelViewSet):
         """GET /api/v1/pets"""
         queryset = self.get_queryset()
         serializer = PetSerializer(queryset, many=True)
-        return Response(success_response(serializer.data))
+        return success_response(serializer.data)
 
     def create(self, request):
         """POST /api/v1/pets"""
@@ -75,15 +71,9 @@ class PetViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             pet = serializer.save(user_id=request.user_id)
             response_serializer = PetSerializer(pet)
-            return Response(
-                success_response(response_serializer.data),
-                status=status.HTTP_201_CREATED
-            )
+            return success_response(response_serializer.data, status=201)
 
-        return Response(
-            error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors),
-            status=status.HTTP_422_UNPROCESSABLE_ENTITY
-        )
+        return error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors, status=422)
 
     def retrieve(self, request, pk=None):
         """GET /api/v1/pets/{id}"""
@@ -91,12 +81,9 @@ class PetViewSet(viewsets.ModelViewSet):
             pet = self.get_queryset().get(pk=pk)
             self.check_object_permissions(request, pet)
             serializer = PetSerializer(pet)
-            return Response(success_response(serializer.data))
+            return success_response(serializer.data)
         except Pet.DoesNotExist:
-            return Response(
-                error_response('NOT_FOUND', 'Pet not found'),
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('NOT_FOUND', 'Pet not found', status=404)
 
     def update(self, request, pk=None):
         """PUT /api/v1/pets/{id}"""
@@ -107,17 +94,11 @@ class PetViewSet(viewsets.ModelViewSet):
 
             if serializer.is_valid():
                 serializer.save()
-                return Response(success_response(serializer.data))
+                return success_response(serializer.data)
 
-            return Response(
-                error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors),
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY
-            )
+            return error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors, status=422)
         except Pet.DoesNotExist:
-            return Response(
-                error_response('NOT_FOUND', 'Pet not found'),
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('NOT_FOUND', 'Pet not found', status=404)
 
     def partial_update(self, request, pk=None):
         """PATCH /api/v1/pets/{id}"""
@@ -128,17 +109,11 @@ class PetViewSet(viewsets.ModelViewSet):
 
             if serializer.is_valid():
                 serializer.save()
-                return Response(success_response(serializer.data))
+                return success_response(serializer.data)
 
-            return Response(
-                error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors),
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY
-            )
+            return error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors, status=422)
         except Pet.DoesNotExist:
-            return Response(
-                error_response('NOT_FOUND', 'Pet not found'),
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('NOT_FOUND', 'Pet not found', status=404)
 
     def destroy(self, request, pk=None):
         """DELETE /api/v1/pets/{id}"""
@@ -146,12 +121,9 @@ class PetViewSet(viewsets.ModelViewSet):
             pet = self.get_queryset().get(pk=pk)
             self.check_object_permissions(request, pet)
             pet.delete()
-            return Response(success_response({'message': 'Pet deleted successfully'}))
+            return success_response({'message': 'Pet deleted successfully'})
         except Pet.DoesNotExist:
-            return Response(
-                error_response('NOT_FOUND', 'Pet not found'),
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('NOT_FOUND', 'Pet not found', status=404)
 
     @action(detail=True, methods=['get'])
     def analyses(self, request, pk=None):
@@ -162,12 +134,9 @@ class PetViewSet(viewsets.ModelViewSet):
 
             analyses = PetAnalysis.objects.filter(pet_id=pet.id)
             serializer = PetAnalysisSerializer(analyses, many=True)
-            return Response(success_response(serializer.data))
+            return success_response(serializer.data)
         except Pet.DoesNotExist:
-            return Response(
-                error_response('NOT_FOUND', 'Pet not found'),
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('NOT_FOUND', 'Pet not found', status=404)
 
 
 class PetAnalysisViewSet(viewsets.ModelViewSet):
@@ -188,7 +157,7 @@ class PetAnalysisViewSet(viewsets.ModelViewSet):
         """GET /api/v1/analyses"""
         queryset = self.get_queryset()
         serializer = PetAnalysisSerializer(queryset, many=True)
-        return Response(success_response(serializer.data))
+        return success_response(serializer.data)
 
     def create(self, request):
         """POST /api/v1/analyses"""
@@ -197,15 +166,9 @@ class PetAnalysisViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             analysis = serializer.save()
             response_serializer = PetAnalysisSerializer(analysis)
-            return Response(
-                success_response(response_serializer.data),
-                status=status.HTTP_201_CREATED
-            )
+            return success_response(response_serializer.data, status=201)
 
-        return Response(
-            error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors),
-            status=status.HTTP_422_UNPROCESSABLE_ENTITY
-        )
+        return error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors, status=422)
 
     def retrieve(self, request, pk=None):
         """GET /api/v1/analyses/{id}"""
@@ -213,9 +176,6 @@ class PetAnalysisViewSet(viewsets.ModelViewSet):
             analysis = self.get_queryset().get(pk=pk)
             self.check_object_permissions(request, analysis)
             serializer = PetAnalysisSerializer(analysis)
-            return Response(success_response(serializer.data))
+            return success_response(serializer.data)
         except PetAnalysis.DoesNotExist:
-            return Response(
-                error_response('NOT_FOUND', 'Analysis not found'),
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('NOT_FOUND', 'Analysis not found', status=404)

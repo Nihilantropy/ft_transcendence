@@ -45,6 +45,11 @@ docker exec -it CONTAINER sh    # Shell into container
 
 ### Testing
 
+**Critical Docker Workflow:**
+- Code changes require rebuild: `make build` or `docker compose build SERVICE`
+- Preferred test command: `docker compose run --rm SERVICE pytest` (works even when container stopped)
+- Direct exec only works when container running: `docker exec CONTAINER pytest`
+
 **API Gateway Tests** (32 tests total: 28 unit + 4 integration):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)

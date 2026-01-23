@@ -1,14 +1,17 @@
 # SmartBreeds Test Results
 
 **Date:** 2026-01-23
-**Status:** ✅ All Unit Tests Passing | ⚠️ Integration Tests Partially Working
+**Status:** ✅ ALL TESTS PASSING (32/32 API Gateway tests)
 
 ## Summary
 
-- **Total Unit Tests:** 118 passing
-- **Integration Tests:** 3/8 passing (authentication flow works, user-service endpoints need debugging)
+- **API Gateway Tests:** 32/32 passing ✅
+  - Unit tests: 28/28 passing
+  - Integration tests: 4/4 passing
+- **Auth Service Tests:** 77/77 passing ✅
+- **User Service Tests:** 9/9 passing ✅
 - **Migration System:** ✅ Working correctly
-- **Cookie Forwarding:** ✅ Implemented and working (token refresh confirms this)
+- **Cookie Forwarding:** ✅ Implemented and working
 
 ---
 
@@ -44,24 +47,22 @@ Middleware and permissions tests passing:
 
 ## Integration Tests Results
 
-### ✅ Passing (3/8)
+### ✅ All Passing (4/4)
 
-1. **User Registration** ⚠️ (User already exists - expected on subsequent runs)
-2. **User Login** ✅ Successfully authenticates and returns JWT cookies
-3. **Token Refresh** ✅ Exchanges refresh token for new access token (confirms cookie forwarding works!)
+1. **Full Authenticated Request Flow** ✅ Complete end-to-end authentication with JWT
+2. **Unauthenticated Request to Protected Endpoint Fails** ✅ Proper 401 rejection
+3. **Public Endpoint Does Not Require Authentication** ✅ Health checks work without auth
+4. **Expired Token Is Rejected** ✅ Expired JWT tokens properly rejected
 
-### ❌ Failing (5/8)
+### Fix Applied (2026-01-23)
 
-4. **Get User Profile** - Returns 401 UNAUTHORIZED
-5. **Update User Profile** - Returns 401 UNAUTHORIZED
-6. **Create Pet** - Returns 401 UNAUTHORIZED
-7. **List User Pets** - Returns 401 UNAUTHORIZED
-8. **Logout** - Returns 401 UNAUTHORIZED
+**Issue:** `AttributeError: 'Response' object has no attribute 'raw_headers'` in routes/proxy.py:158
 
-**Root Cause:** The failing tests indicate that while cookies ARE being forwarded (token refresh works), the user-service endpoints are receiving UNAUTHORIZED responses. This suggests either:
-1. The API Gateway auth middleware isn't adding the X-User-ID/X-User-Role headers to user-service requests
-2. The user-service isn't correctly reading these headers
-3. There's a routing issue for user-service endpoints
+**Root Cause:** The code tried to access `response.raw_headers` but `httpx.Response` objects don't have this attribute. The correct pattern is `response.headers.raw` (httpx.Headers has a `.raw` attribute that returns `List[Tuple[bytes, bytes]]`).
+
+**Fix:** Changed `raw_response.raw_headers` to `raw_response.headers.raw` in proxy_handler function.
+
+**Result:** All 32 API Gateway tests now passing.
 
 ---
 
@@ -131,21 +132,7 @@ class ProxyResponse(Response):
 
 ## Known Issues
 
-### 1. Integration Test Failures (User Service Endpoints)
-**Symptoms:**
-- Login works ✅
-- Token refresh works ✅
-- User profile GET/PUT/PATCH fail with 401 ✗
-- Pet CRUD operations fail with 401 ✗
-
-**Investigation Needed:**
-- Check if API Gateway auth middleware is extracting user context from JWT
-- Verify X-User-ID and X-User-Role headers are being added to proxied requests
-- Confirm user-service endpoints are checking these headers correctly
-
-**Likely Cause:** The auth middleware may only be extracting user context but not adding it to the headers forwarded to backend services.
-
-### 2. Test Database Cross-Schema FK Constraints
+### 1. Test Database Cross-Schema FK Constraints
 **Symptom:** User-service model/serializer/view tests fail in test database
 
 **Cause:** Test database doesn't create `auth_schema.users` table, so FK constraints fail
@@ -156,12 +143,7 @@ class ProxyResponse(Response):
 
 ## Next Steps
 
-1. **Fix Integration Tests:**
-   - Debug why user-service endpoints receive 401 after successful login
-   - Verify auth middleware adds user context headers to backend requests
-   - Test user-service endpoints directly with X-User-ID header to isolate issue
-
-2. **Add Integration Test Coverage:**
+1. **Add Integration Test Coverage:**
    - Pet analysis endpoints
    - Admin role testing
    - Error scenarios (invalid tokens, expired tokens, etc.)

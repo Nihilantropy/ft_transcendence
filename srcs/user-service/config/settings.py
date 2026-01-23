@@ -37,6 +37,10 @@ MIDDLEWARE = [
     'apps.profiles.middleware.UserContextMiddleware',
 ]
 
+# Disable trailing slash for API-only service
+# This allows URLs without trailing slashes (RESTful convention)
+APPEND_SLASH = False
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
