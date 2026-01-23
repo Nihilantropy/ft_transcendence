@@ -87,3 +87,25 @@ class PetCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pet
         fields = ['name', 'species']
+
+
+class PetAnalysisSerializer(serializers.ModelSerializer):
+    """Serializer for pet analysis history"""
+
+    class Meta:
+        model = PetAnalysis
+        fields = [
+            'id', 'pet_id', 'user_id', 'image_url',
+            'breed_detected', 'confidence', 'traits',
+            'raw_response', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class PetAnalysisCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating analysis records (from AI service results)"""
+
+    class Meta:
+        model = PetAnalysis
+        fields = ['pet_id', 'user_id', 'image_url', 'breed_detected',
+                  'confidence', 'traits', 'raw_response']

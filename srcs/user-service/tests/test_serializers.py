@@ -1,6 +1,6 @@
 import pytest
-from apps.profiles.serializers import UserProfileSerializer, UserProfileUpdateSerializer, PetSerializer, PetCreateSerializer
-from apps.profiles.models import UserProfile, Pet
+from apps.profiles.serializers import UserProfileSerializer, UserProfileUpdateSerializer, PetSerializer, PetCreateSerializer, PetAnalysisSerializer, PetAnalysisCreateSerializer
+from apps.profiles.models import UserProfile, Pet, PetAnalysis
 import uuid
 
 
@@ -88,4 +88,40 @@ class TestPetSerializer:
         """Test PetCreateSerializer with minimal fields"""
         data = {'name': 'Buddy', 'species': 'dog'}
         serializer = PetCreateSerializer(data=data)
+        assert serializer.is_valid()
+
+
+@pytest.mark.django_db
+class TestPetAnalysisSerializer:
+    def test_serialize_pet_analysis(self):
+        """Test serializing pet analysis"""
+        user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+        analysis = PetAnalysis.objects.create(
+            pet_id=pet_id,
+            user_id=user_id,
+            image_url='/media/test.jpg',
+            breed_detected='Labrador',
+            confidence=0.88,
+            traits={'size': 'large'}
+        )
+
+        serializer = PetAnalysisSerializer(analysis)
+        data = serializer.data
+
+        assert data['breed_detected'] == 'Labrador'
+        assert data['confidence'] == 0.88
+        assert data['traits'] == {'size': 'large'}
+
+    def test_pet_analysis_create_serializer(self):
+        """Test PetAnalysisCreateSerializer"""
+        data = {
+            'pet_id': str(uuid.uuid4()),
+            'user_id': str(uuid.uuid4()),
+            'image_url': '/media/test.jpg',
+            'breed_detected': 'Beagle',
+            'confidence': 0.92,
+            'traits': {}
+        }
+        serializer = PetAnalysisCreateSerializer(data=data)
         assert serializer.is_valid()
