@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from apps.profiles.models import UserProfile
+from apps.profiles.models import UserProfile, Pet
 
 
 @pytest.mark.django_db
@@ -49,3 +49,69 @@ class TestUserProfileModel:
         profile = UserProfile.objects.create(user_id=user_id)
 
         assert str(profile) == f"Profile for {user_id}"
+
+
+@pytest.mark.django_db
+class TestPetModel:
+    def test_create_pet_with_required_fields(self):
+        """Test creating pet with minimum required fields"""
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(
+            user_id=user_id,
+            name='Buddy',
+            species='dog'
+        )
+
+        assert pet.id is not None
+        assert pet.user_id == user_id
+        assert pet.name == 'Buddy'
+        assert pet.species == 'dog'
+        assert pet.breed == ''
+        assert pet.breed_confidence is None
+        assert pet.age is None
+        assert pet.weight is None
+        assert pet.health_conditions == []
+        assert pet.image_url is None
+
+    def test_create_pet_with_all_fields(self):
+        """Test creating pet with all fields"""
+        user_id = uuid.uuid4()
+        health_conditions = ['hip dysplasia', 'allergies']
+
+        pet = Pet.objects.create(
+            user_id=user_id,
+            name='Max',
+            breed='Golden Retriever',
+            breed_confidence=0.95,
+            species='dog',
+            age=24,
+            weight=30.5,
+            health_conditions=health_conditions,
+            image_url='/media/pets/test.jpg'
+        )
+
+        assert pet.breed == 'Golden Retriever'
+        assert pet.breed_confidence == 0.95
+        assert pet.age == 24
+        assert pet.weight == 30.5
+        assert pet.health_conditions == health_conditions
+        assert pet.image_url == '/media/pets/test.jpg'
+
+    def test_pet_species_choices(self):
+        """Test species field accepts valid choices"""
+        user_id = uuid.uuid4()
+
+        dog = Pet.objects.create(user_id=user_id, name='Dog', species='dog')
+        cat = Pet.objects.create(user_id=user_id, name='Cat', species='cat')
+        other = Pet.objects.create(user_id=user_id, name='Other', species='other')
+
+        assert dog.species == 'dog'
+        assert cat.species == 'cat'
+        assert other.species == 'other'
+
+    def test_pet_string_representation(self):
+        """Test __str__ method"""
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(user_id=user_id, name='Buddy', species='dog')
+
+        assert str(pet) == 'Buddy (dog)'
