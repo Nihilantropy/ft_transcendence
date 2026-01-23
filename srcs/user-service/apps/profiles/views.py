@@ -171,6 +171,51 @@ class PetViewSet(viewsets.ModelViewSet):
 
 
 class PetAnalysisViewSet(viewsets.ModelViewSet):
-    """ViewSet for pet analysis history"""
-    queryset = PetAnalysis.objects.all()
+    """ViewSet for pet analysis history - read + create only"""
     serializer_class = PetAnalysisSerializer
+    permission_classes = [IsOwnerOrAdmin]
+    http_method_names = ['get', 'post']  # No update/delete
+
+    def get_queryset(self):
+        user_id = self.request.user_id
+        user_role = self.request.user_role
+
+        if user_role == 'admin':
+            return PetAnalysis.objects.all()
+        return PetAnalysis.objects.filter(user_id=user_id)
+
+    def list(self, request):
+        """GET /api/v1/analyses"""
+        queryset = self.get_queryset()
+        serializer = PetAnalysisSerializer(queryset, many=True)
+        return Response(success_response(serializer.data))
+
+    def create(self, request):
+        """POST /api/v1/analyses"""
+        serializer = PetAnalysisCreateSerializer(data=request.data)
+
+        if serializer.is_valid():
+            analysis = serializer.save()
+            response_serializer = PetAnalysisSerializer(analysis)
+            return Response(
+                success_response(response_serializer.data),
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors),
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+
+    def retrieve(self, request, pk=None):
+        """GET /api/v1/analyses/{id}"""
+        try:
+            analysis = self.get_queryset().get(pk=pk)
+            self.check_object_permissions(request, analysis)
+            serializer = PetAnalysisSerializer(analysis)
+            return Response(success_response(serializer.data))
+        except PetAnalysis.DoesNotExist:
+            return Response(
+                error_response('NOT_FOUND', 'Analysis not found'),
+                status=status.HTTP_404_NOT_FOUND
+            )

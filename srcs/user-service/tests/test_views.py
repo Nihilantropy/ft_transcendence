@@ -1,7 +1,7 @@
 import pytest
 from django.test import RequestFactory
-from apps.profiles.views import UserProfileViewSet, PetViewSet
-from apps.profiles.models import UserProfile, Pet
+from apps.profiles.views import UserProfileViewSet, PetViewSet, PetAnalysisViewSet
+from apps.profiles.models import UserProfile, Pet, PetAnalysis
 import uuid
 import json
 
@@ -141,3 +141,62 @@ class TestPetViewSet:
 
         assert response.status_code == 200
         assert len(response.data['data']) == 2
+
+
+@pytest.mark.django_db
+class TestPetAnalysisViewSet:
+    def test_list_analyses_filters_by_user_id(self):
+        """Test GET /analyses filters by user_id"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        other_user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+
+        PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=user_id,
+            image_url='/test.jpg', breed_detected='Lab', confidence=0.9, traits={}
+        )
+        PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=other_user_id,
+            image_url='/test2.jpg', breed_detected='Poodle', confidence=0.85, traits={}
+        )
+
+        request = factory.get('/api/v1/analyses/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetAnalysisViewSet.as_view({'get': 'list'})
+        response = view(request)
+
+        assert response.status_code == 200
+        assert len(response.data['data']) == 1
+        assert response.data['data'][0]['breed_detected'] == 'Lab'
+
+    def test_create_analysis(self):
+        """Test POST /analyses"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+
+        data = {
+            'pet_id': str(pet_id),
+            'user_id': str(user_id),
+            'image_url': '/test.jpg',
+            'breed_detected': 'Beagle',
+            'confidence': 0.92,
+            'traits': {'size': 'medium'}
+        }
+
+        request = factory.post(
+            '/api/v1/analyses/',
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetAnalysisViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 201
+        assert PetAnalysis.objects.filter(breed_detected='Beagle').exists()
