@@ -11,8 +11,9 @@ This is the API Gateway for the SmartBreeds microservices platform. It's a FastA
 ### Running Tests
 
 ```bash
-# All tests (31 total: 27 unit + 4 integration)
-docker exec ft_transcendence_api_gateway python -m pytest tests/ -v
+# All tests (32 total: 28 unit + 4 integration)
+# Use `run --rm` - works even if container not running
+docker compose run --rm api-gateway python -m pytest tests/ -v
 
 # Integration tests only
 docker exec ft_transcendence_api_gateway python -m pytest tests/integration/ -v
@@ -108,6 +109,13 @@ Tests use dynamically generated RSA key pairs (see `conftest.py`):
 - `test_private_key` fixture - for signing test tokens
 - `test_public_key` fixture - for verification
 - Environment variables set automatically in conftest
+
+**CRITICAL:** All JWT tokens in tests MUST use RS256 with `TEST_PRIVATE_KEY_PEM`:
+```python
+from conftest import TEST_PRIVATE_KEY_PEM
+jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm="RS256")
+```
+Never use HS256 with hardcoded secrets - the auth middleware validates RS256 only.
 
 Mocking patterns:
 - Redis: `unittest.mock.patch`

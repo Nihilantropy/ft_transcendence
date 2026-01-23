@@ -54,29 +54,29 @@ services:
       - backend-network
     restart: unless-stopped
 
-  # open-webui:
-  #   container_name: open-webui
-  #   image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
-  #   environment:
-  #     - MODEL_DOWNLOAD_DIR=/models
-  #     - OLLAMA_BASE_URL=http://ollama:11434
-  #     - WEBUI_SECRET_KEY=your_secret_key_here  # Add this to prevent logouts after updates
-  #   volumes:
-  #     - open-webui:/app/backend/data
-  #   ports:
-  #     - ${OPEN_WEBUI_PORT-3000}:8080
-  #   logging:
-  #     driver: json-file
-  #     options:
-  #       max-size: "5m"
-  #       max-file: "2"
-  #   depends_on:
-  #     - ollama
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   networks:
-  #     - backend-network
-  #   restart: unless-stopped
+  open-webui:
+    container_name: open-webui
+    image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
+    environment:
+      - MODEL_DOWNLOAD_DIR=/models
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=your_secret_key_here  # Add this to prevent logouts after updates
+    volumes:
+      - open-webui:/app/backend/data
+    ports:
+      - ${OPEN_WEBUI_PORT-3000}:8080
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    depends_on:
+      - ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - backend-network
+    restart: unless-stopped
 
 ### FRONTEND ###
   # frontend:
@@ -210,6 +210,8 @@ services:
     volumes:
       # Mount source code for development hot reload
       - ./srcs/api-gateway/src:/app/src:rw
+      # Mount tests for development
+      - ./srcs/api-gateway/tests:/app/tests:rw
       # Share JWT public key from auth-service (RS256 verification)
       - ./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     networks:

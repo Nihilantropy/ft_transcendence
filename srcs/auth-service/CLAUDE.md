@@ -12,8 +12,8 @@ Django REST Framework microservice handling user authentication via JWT tokens w
 
 ### Testing
 ```bash
-# Run all tests (inside container)
-docker exec ft_transcendence_auth_service python -m pytest tests/ -v
+# Run all tests (77 tests) - use `run --rm` for reliability
+docker compose run --rm auth-service python -m pytest tests/ -v
 
 # Run specific test file
 docker exec ft_transcendence_auth_service python -m pytest tests/test_models.py -v
@@ -120,14 +120,16 @@ Custom markers defined in `pytest.ini`:
 
 ## Current State
 
-**Implemented:**
+**Fully Implemented (77 tests passing):**
 - User model with email auth, Argon2 hashing
 - RefreshToken model with hash storage
 - JWT utilities (generate/decode/hash)
 - Password validator (letter + number requirement)
 - Serializers (User, Register, Login)
 - Response utilities
+- Login endpoint (POST /api/v1/auth/login)
+- Register endpoint (POST /api/v1/auth/register)
+- Refresh endpoint (POST /api/v1/auth/refresh) with token rotation
+- Logout endpoint (POST /api/v1/auth/logout) with graceful error handling
 
-**Pending:**
-- View endpoints (register, login, refresh, logout)
-- URL routing for endpoints
+**Service Status:** Complete - all authentication endpoints implemented

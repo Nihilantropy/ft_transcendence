@@ -45,13 +45,13 @@ docker exec -it CONTAINER sh    # Shell into container
 
 ### Testing
 
-**API Gateway Tests** (31 tests total: 27 unit + 4 integration):
+**API Gateway Tests** (32 tests total: 28 unit + 4 integration):
 ```bash
-# Run all tests
-docker exec ft_transcendence_api_gateway python -m pytest tests/ -v
+# Run all tests - use `run --rm` (works even if container not running)
+docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Run integration tests
-docker exec ft_transcendence_api_gateway python -m pytest tests/integration/ -v
+# Auth Service tests (77 tests)
+docker compose run --rm auth-service python -m pytest tests/ -v
 
 # Specific test file
 docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middleware.py -v

@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from main import app
 import logging
+from conftest import TEST_PRIVATE_KEY_PEM
 
 client = TestClient(app)
 
@@ -36,9 +37,7 @@ def test_logging_includes_user_context(caplog):
     from unittest.mock import AsyncMock
     from httpx import Response as HttpxResponse
 
-    # Create test JWT token
-    TEST_SECRET = "your-secret-key-here-change-in-production"
-    TEST_ALGORITHM = "HS256"
+    # Create test JWT token using RS256
     payload = {
         "user_id": "user123",
         "email": "test@example.com",
@@ -46,7 +45,7 @@ def test_logging_includes_user_context(caplog):
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1)
     }
-    token = jwt.encode(payload, TEST_SECRET, algorithm=TEST_ALGORITHM)
+    token = jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm="RS256")
 
     # Mock backend response
     mock_backend_response = HttpxResponse(200, json={"success": True, "data": {}})

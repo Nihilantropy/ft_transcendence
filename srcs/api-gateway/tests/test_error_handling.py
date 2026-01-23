@@ -3,14 +3,13 @@ from fastapi.testclient import TestClient
 from main import app
 from jose import jwt
 from datetime import datetime, timedelta
+from conftest import TEST_PRIVATE_KEY_PEM
 
 client = TestClient(app)
 
-TEST_SECRET = "your-secret-key-here-change-in-production"
-TEST_ALGORITHM = "HS256"
 
 def create_test_token(user_id: str, role: str = "user"):
-    """Helper to create test JWT tokens"""
+    """Helper to create test JWT tokens using RS256"""
     payload = {
         "user_id": user_id,
         "email": "test@example.com",
@@ -18,7 +17,7 @@ def create_test_token(user_id: str, role: str = "user"):
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1)
     }
-    return jwt.encode(payload, TEST_SECRET, algorithm=TEST_ALGORITHM)
+    return jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm="RS256")
 
 def test_404_returns_standardized_error():
     """Test that 404 errors return standardized format"""

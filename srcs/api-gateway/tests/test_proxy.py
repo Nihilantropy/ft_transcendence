@@ -5,15 +5,13 @@ from main import app
 from httpx import Response
 from jose import jwt
 from datetime import datetime, timedelta
+from conftest import TEST_PRIVATE_KEY_PEM
 
 client = TestClient(app)
 
-# Test configuration
-TEST_SECRET = "your-secret-key-here-change-in-production"  # Match .env
-TEST_ALGORITHM = "HS256"
 
 def create_test_token(user_id: str, role: str = "user"):
-    """Helper to create test JWT tokens"""
+    """Helper to create test JWT tokens using RS256"""
     payload = {
         "user_id": user_id,
         "email": "test@example.com",
@@ -21,7 +19,7 @@ def create_test_token(user_id: str, role: str = "user"):
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1)
     }
-    return jwt.encode(payload, TEST_SECRET, algorithm=TEST_ALGORITHM)
+    return jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm="RS256")
 
 @pytest.mark.asyncio
 async def test_proxy_forwards_to_auth_service():

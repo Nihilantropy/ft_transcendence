@@ -16,7 +16,7 @@ The SmartBreeds platform has a solid foundation with core infrastructure fully o
 ### Infrastructure
 - [x] Docker Compose orchestration with multi-network isolation
 - [x] PostgreSQL 15 with schema initialization (auth_schema, user_schema, ai_schema)
-- [x] Redis 7 for caching and rate limiting
+- [x] Redis 8 for caching and rate limiting
 - [x] Nginx reverse proxy with TLS termination
 - [x] Ollama GPU container configured (requires NVIDIA runtime)
 - [x] Makefile with all management commands
