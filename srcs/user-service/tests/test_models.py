@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from apps.profiles.models import UserProfile, Pet
+from apps.profiles.models import UserProfile, Pet, PetAnalysis
 
 
 @pytest.mark.django_db
@@ -115,3 +115,80 @@ class TestPetModel:
         pet = Pet.objects.create(user_id=user_id, name='Buddy', species='dog')
 
         assert str(pet) == 'Buddy (dog)'
+
+
+@pytest.mark.django_db
+class TestPetAnalysisModel:
+    def test_create_pet_analysis(self):
+        """Test creating pet analysis record"""
+        user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+        traits = {'size': 'large', 'energy': 'high'}
+
+        analysis = PetAnalysis.objects.create(
+            pet_id=pet_id,
+            user_id=user_id,
+            image_url='/media/analysis/test.jpg',
+            breed_detected='Golden Retriever',
+            confidence=0.95,
+            traits=traits
+        )
+
+        assert analysis.id is not None
+        assert analysis.pet_id == pet_id
+        assert analysis.user_id == user_id
+        assert analysis.image_url == '/media/analysis/test.jpg'
+        assert analysis.breed_detected == 'Golden Retriever'
+        assert analysis.confidence == 0.95
+        assert analysis.traits == traits
+        assert analysis.raw_response is None
+        assert analysis.created_at is not None
+
+    def test_pet_analysis_with_raw_response(self):
+        """Test analysis with full AI response"""
+        user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+        raw_response = {'model': 'qwen3-vl', 'full_output': '...'}
+
+        analysis = PetAnalysis.objects.create(
+            pet_id=pet_id,
+            user_id=user_id,
+            image_url='/media/test.jpg',
+            breed_detected='Labrador',
+            confidence=0.88,
+            traits={},
+            raw_response=raw_response
+        )
+
+        assert analysis.raw_response == raw_response
+
+    def test_pet_analysis_ordering(self):
+        """Test that analyses are ordered by created_at descending"""
+        user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+
+        analysis1 = PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=user_id, image_url='1.jpg',
+            breed_detected='Breed1', confidence=0.9, traits={}
+        )
+        analysis2 = PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=user_id, image_url='2.jpg',
+            breed_detected='Breed2', confidence=0.8, traits={}
+        )
+
+        analyses = list(PetAnalysis.objects.all())
+        assert analyses[0].id == analysis2.id  # Most recent first
+        assert analyses[1].id == analysis1.id
+
+    def test_pet_analysis_string_representation(self):
+        """Test __str__ method"""
+        user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+
+        analysis = PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=user_id, image_url='test.jpg',
+            breed_detected='Beagle', confidence=0.92, traits={}
+        )
+
+        assert 'Beagle' in str(analysis)
+        assert '0.92' in str(analysis)
