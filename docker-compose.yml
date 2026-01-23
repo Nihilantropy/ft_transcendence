@@ -125,31 +125,33 @@ services:
       db:
         condition: service_healthy
 ### USER SERVICE ###
-  # user-service:
-  #   container_name: ft_transcendence_user_service
-  #   image: ft_transcendence_user_service:local
-  #   build:
-  #     context: ./srcs/user-service
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ./srcs/user-service/.env
-  #   volumes:
-  #     # Mount source code for development hot reload
-  #     - ./srcs/user-service/src:/app/src:rw
-  #     # Mount database volume (shared with backend)
-  #     - db-data:/app/db-data:rw
-  #   networks:
-  #     - backend-network
-  #   restart: on-failure
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
-  #   depends_on:
-  #     db:
-  #       condition: service_started
+  user-service:
+    container_name: ft_transcendence_user_service
+    image: ft_transcendence_user_service:local
+    build:
+      context: ./srcs/user-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./srcs/user-service/.env
+    ports:
+      - "3002:3002"
+    volumes:
+      # Mount source code for development hot reload
+      - ./srcs/user-service:/app:rw
+    networks:
+      - backend-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3002/api/v1/users/me/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
 ### REDIS ###
   redis:
     container_name: ft_transcendence_redis
