@@ -102,3 +102,39 @@ def error_response(code, message, details=None, status=400):
         },
         'timestamp': datetime.utcnow().isoformat() + 'Z'
     }, status=status)
+
+
+def clear_auth_cookies(response):
+    """
+    Clear authentication cookies (for logout).
+
+    Args:
+        response: Response object to clear cookies on
+
+    Returns:
+        response: Response with cookies cleared
+    """
+    # Clear access_token
+    response.set_cookie(
+        key='access_token',
+        value='',
+        max_age=0,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.COOKIE_SAMESITE,
+        domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN != 'localhost' else None
+    )
+
+    # Clear refresh_token
+    response.set_cookie(
+        key='refresh_token',
+        value='',
+        max_age=0,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.COOKIE_SAMESITE,
+        path='/api/v1/auth/refresh',
+        domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN != 'localhost' else None
+    )
+
+    return response
