@@ -1,13 +1,13 @@
 # SmartBreeds - Project Status & Roadmap
 
 **Last Updated:** 2026-01-23
-**Overall Completion:** ~50-55%
+**Overall Completion:** ~65-70%
 
 ---
 
 ## Current State Summary
 
-The SmartBreeds platform has a solid foundation with core infrastructure fully operational. The API Gateway is production-ready with comprehensive test coverage (35 tests). The Auth Service is **fully complete** with all authentication endpoints implemented (login, register, refresh, logout) and 77 passing tests. The User Service is **fully complete** with full CRUD operations for user profiles and pets (41 passing tests). AI Service and Frontend remain unimplemented.
+The SmartBreeds platform has a solid foundation with core infrastructure fully operational. The API Gateway is production-ready with comprehensive test coverage (35 tests). The Auth Service is **fully complete** with all authentication endpoints implemented (login, register, refresh, logout) and 77 passing tests. The User Service is **fully complete** with full CRUD operations for user profiles and pets (41 passing tests). The AI Service **Phase 1 (Vision Analysis) is complete** with breed identification via Ollama's qwen3-vl:8b model (28 passing tests). Frontend remains unimplemented.
 
 ---
 
@@ -76,10 +76,36 @@ The SmartBreeds platform has a solid foundation with core infrastructure fully o
 - [x] Docker integration (Dockerfile, Gunicorn, health checks)
 - [x] Service running in docker-compose.yml (port 3002)
 
-### Recent Bug Fixes
+### AI Service (FastAPI) - Phase 1: Vision Analysis COMPLETE
+- [x] FastAPI application structure with lifecycle management
+- [x] Pydantic Settings with environment variable validation
+- [x] Pydantic models (VisionAnalysisRequest, VisionAnalysisResponse, BreedTraits)
+- [x] Standardized response utilities (success_response, error_response)
+- [x] Image processing service (Pillow-based validation, resizing, optimization)
+  - [x] Format validation (JPEG, PNG, WebP)
+  - [x] Size validation (5MB max)
+  - [x] Dimension validation (224-1024px)
+- [x] Ollama HTTP client (direct API integration, NO LlamaIndex)
+  - [x] Vision analysis with qwen3-vl:8b multimodal model
+  - [x] Structured JSON prompt for breed identification
+  - [x] Parse JSON from response or markdown code blocks
+  - [x] Low-confidence warning notes
+- [x] Vision analysis endpoint:
+  - [x] POST /api/v1/vision/analyze (accepts base64 image, returns breed info)
+  - [x] Error handling (422 validation, 503 service unavailable, 500 internal)
+- [x] Structured JSON logging
+- [x] Health check endpoint (GET /health)
+- [x] Docker integration (Dockerfile with httpx, added to docker-compose.yml on port 3003)
+- [x] Comprehensive test suite (39 tests total, all passing):
+  - [x] Unit tests (28 tests): Config, image processor, models, Ollama client, responses, vision route
+  - [x] Integration tests (11 tests): Real Ollama integration, health check, image validation, concurrent requests
+  - [x] Test script with --unit, --integration, --all options
+
+### Recent Bug Fixes & Architectural Decisions
 - [x] Django trailing slash conflicts (APPEND_SLASH = False, router trailing_slash=False)
 - [x] Response object double-wrapping in utility functions
 - [x] Cookie forwarding logic in API Gateway (conditional preservation for auth endpoints)
+- [x] AI Service: Direct Ollama HTTP API instead of LlamaIndex (LlamaIndex doesn't support Ollama multimodal models)
 
 ### Documentation
 - [x] CLAUDE.md project guidance
@@ -87,35 +113,39 @@ The SmartBreeds platform has a solid foundation with core infrastructure fully o
 - [x] API Gateway design document
 - [x] Auth Service design document
 - [x] Login/Register/Refresh/Logout endpoint specifications
+- [x] AI Service vision analysis design document
+- [x] AI Service implementation plan (revised for direct Ollama HTTP API)
 
 ---
 
 ## Next Steps
 
-### Priority 1 - Critical (AI Service)
+### Priority 1 - Critical (AI Service Phase 2)
 
-1. **Implement AI Service** (Core feature - enables breed identification)
+1. **Extend AI Service - RAG & Recommendations** (Advanced AI features)
    - Location: `srcs/ai/`
-   - Current State: Stub only (placeholder with syntax error)
-   - Tasks:
-     - [ ] Fix syntax error in main.py (`func` → `def`)
-     - [ ] Set up FastAPI application structure
-     - [ ] Configure LlamaIndex with Ollama backend
-     - [ ] Implement vision analysis endpoint:
-       - [ ] POST /api/v1/vision/analyze (accepts image, returns breed info)
-       - [ ] Use qwen3-vl:8b multimodal model via Ollama
+   - Current State: Phase 1 (Vision Analysis) complete, Phase 2 pending
+   - Phase 1 Complete ✅:
+     - [x] FastAPI application structure
+     - [x] Direct Ollama HTTP API integration (no LlamaIndex - not compatible with Ollama multimodal)
+     - [x] Vision analysis endpoint: POST /api/v1/vision/analyze
+     - [x] Breed identification with qwen3-vl:8b multimodal model
+     - [x] Image validation and processing (Pillow)
+     - [x] Comprehensive test suite (28 tests, TDD approach)
+     - [x] Docker integration in docker-compose.yml (port 3003)
+     - [x] Service running and operational
+   - Phase 2 Tasks (RAG & Recommendations):
      - [ ] Set up ChromaDB vector store with HuggingFace embeddings
      - [ ] Implement RAG system:
-       - [ ] Analysis for llamaindex framework integration (if applicable)
+       - [ ] Analysis for RAG framework (LlamaIndex, LangChain, Haystack, RAGflow)
        - [ ] Document ingestion pipeline for pet health knowledge
        - [ ] Query endpoint for pet health questions (GET/POST /api/v1/rag/query)
      - [ ] Implement ML recommendations:
        - [ ] Product scoring based on breed traits (scikit-learn)
-       - [ ] Natural language explanations via LlamaIndex
+       - [ ] Natural language explanations via LLM
        - [ ] Endpoints: GET/POST /api/v1/recommendations/*
-     - [ ] Write comprehensive test suite with TDD approach
-     - [ ] Add service to docker-compose.yml (port 3003)
-     - [ ] Integration testing with Ollama (verify GPU acceleration)
+     - [ ] Integration testing with Ollama (verify GPU acceleration for RAG)
+     - [ ] Expand test suite for RAG and recommendations
 
 ### Priority 2 - High (Frontend)
 
@@ -180,10 +210,18 @@ docker compose run --rm auth-service python -m pytest tests/ -v
 # User Service (41 tests)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# All tests (153 tests total)
+# AI Service (39 tests: 28 unit + 11 integration)
+docker compose run --rm ai-service python -m pytest tests/ -v
+# Or use the test script:
+./scripts/run-ai-tests.sh --all          # Run all tests
+./scripts/run-ai-tests.sh --unit         # Unit tests only (fast)
+./scripts/run-ai-tests.sh --integration  # Integration tests only (requires Ollama)
+
+# All tests (192 tests total)
 docker compose run --rm api-gateway python -m pytest tests/ -v && \
 docker compose run --rm auth-service python -m pytest tests/ -v && \
-docker compose run --rm user-service python -m pytest tests/ -v
+docker compose run --rm user-service python -m pytest tests/ -v && \
+docker compose run --rm ai-service python -m pytest tests/ -v
 ```
 
 ### Common Commands
@@ -191,20 +229,21 @@ docker compose run --rm user-service python -m pytest tests/ -v
 make all          # Build and start everything
 make logs         # Follow all logs
 make logs-auth-service  # Auth service logs only
+make logs-ai-service    # AI service logs only
 make restart      # Restart all services
 ```
 
 ### Service Ports
-| Service | Internal Port | External Port |
-|---------|---------------|---------------|
-| Nginx | 80, 443 | 80, 443 |
-| API Gateway | 8001 | 8001 |
-| Auth Service | 3001 | - |
-| User Service | 3002 | - |
-| AI Service | 3003 | - |
-| PostgreSQL | 5432 | 5432 |
-| Redis | 6379 | - |
-| Ollama | 11434 | 11434 |
+| Service | Internal Port | External Port | Notes |
+|---------|---------------|---------------|-------|
+| Nginx | 80, 443 | 80, 443 | Public entry point |
+| API Gateway | 8001 | 8001 | Development testing only |
+| Auth Service | 3001 | - | ⚠️ Backend only - use API Gateway |
+| User Service | 3002 | - | ⚠️ Backend only - use API Gateway |
+| AI Service | 3003 | - | ⚠️ Backend only - use API Gateway |
+| PostgreSQL | 5432 | - | Internal only |
+| Redis | 6379 | - | Internal only |
+| Ollama | 11434 | 11434 | For external tools/testing |
 
 ---
 
@@ -215,18 +254,18 @@ make restart      # Restart all services
 | **API Gateway** | 9 | 35 (27 unit + 8 integration) | ✅ All Passing |
 | **Auth Service** | 5 | 77 | ✅ All Passing |
 | **User Service** | 5 | 41 | ✅ All Passing |
-| **AI Service** | 0 | 0 | ❌ Not Implemented |
+| **AI Service** | 7 | 39 (28 unit + 11 integration) | ✅ All Passing |
 | **Frontend** | 0 | 0 | ❌ Not Implemented |
-| **TOTAL** | **19** | **153** | **✅ 153 Passing** |
+| **TOTAL** | **26** | **192** | **✅ 192 Passing** |
 
 ---
 
 ## Implementation Status Overview
 
 ```
-✅ Complete: API Gateway, Auth Service, User Service, Infrastructure
+✅ Complete: API Gateway, Auth Service, User Service, AI Service Phase 1 (Vision), Infrastructure
 🚧 In Progress: None
-❌ Not Started: AI Service, Frontend
+❌ Not Started: AI Service Phase 2 (RAG & Recommendations), Frontend
 ```
 
-**Next Critical Path:** AI Service implementation (enables core breed identification feature)
+**Next Critical Path:** Frontend implementation (user interface) OR AI Service Phase 2 (RAG & ML recommendations)

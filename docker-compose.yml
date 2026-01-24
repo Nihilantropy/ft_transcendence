@@ -54,6 +54,27 @@ services:
       - backend-network
     restart: unless-stopped
 
+  ai-service:
+    build:
+      context: ./srcs/ai
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_ai_service
+    env_file:
+      - ./srcs/ai/.env
+    networks:
+      - backend-network
+    volumes:
+      - ./srcs/ai/src:/app/src
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   open-webui:
     container_name: open-webui
     image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
@@ -133,8 +154,6 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./srcs/user-service/.env
-    ports:
-      - "3002:3002"
     volumes:
       # Mount source code for development hot reload
       - ./srcs/user-service:/app:rw
@@ -187,7 +206,7 @@ services:
       - backend-network
     restart: on-failure
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER-smartbreeds_user} -d ${POSTGRES_DB-smartbreeds}"]
       interval: 10s
       timeout: 5s
       retries: 5

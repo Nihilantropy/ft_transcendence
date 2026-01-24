@@ -1,11 +1,32 @@
-FROM python:3.14-trixie
+FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    gcc \
+    g++ \
+    build-essential \
+    libjpeg-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy and install requirements (baked into image)
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy application code
+COPY src/ ./src/
+COPY tests/ ./tests/
+COPY pytest.ini .
 
-CMD ["python", "main.py"]
+# Create non-root user
+RUN useradd -m -u 1000 aiuser && \
+    chown -R aiuser:aiuser /app
+
+USER aiuser
+
+EXPOSE 3003
+
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3003", "--workers", "2"]

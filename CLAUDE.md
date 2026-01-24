@@ -70,9 +70,16 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-r
 
 **Auth Service Tests** (Django/pytest):
 ```bash
-docker exec ft_transcendence_auth_service python -m pytest tests/ -v
+docker compose run --rm auth-service python -m pytest tests/ -v
 docker exec ft_transcendence_auth_service python manage.py makemigrations
 docker exec ft_transcendence_auth_service python manage.py migrate
+```
+
+**AI Service Tests** (39 tests: 28 unit + 11 integration):
+```bash
+./scripts/run-ai-tests.sh --unit         # Fast unit tests only (~14s)
+./scripts/run-ai-tests.sh --integration  # Real Ollama integration (~2.5min)
+./scripts/run-ai-tests.sh --all          # All tests (default)
 ```
 
 ### API Testing
@@ -102,6 +109,9 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
   -c cookies.txt
 ```
 
+**⚠️ Backend Services (DO NOT ACCESS DIRECTLY):**
+Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **NOT exposed to localhost**. All requests must go through API Gateway or Nginx to ensure authentication, rate limiting, and security boundaries are enforced.
+
 ## Architecture Key Concepts
 
 ### Microservices Communication
@@ -119,6 +129,12 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
 5. Backend services trust API Gateway validation (network isolation ensures security)
 
 **Why HTTP-Only Cookies:** XSS protection (JavaScript cannot access), automatic transmission, CSRF protection via SameSite attribute.
+
+**Backend Service Isolation:**
+- ⚠️ **Backend services are NOT exposed to localhost** (no direct port access)
+- Auth Service (3001), User Service (3002), AI Service (3003) are **internal only**
+- All requests MUST go through API Gateway (8001) or Nginx (80/443)
+- This enforces security boundaries and ensures authentication/rate limiting are applied
 
 ### Service Responsibilities
 
@@ -145,10 +161,11 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI + LlamaIndex - port 3003):**
-- Vision analysis via Ollama (qwen3-vl:8b multimodal model)
-- RAG system (ChromaDB + HuggingFace embeddings)
-- ML product recommendations (scikit-learn)
+**AI Service (FastAPI - internal port 3003):**
+- Vision analysis via Ollama HTTP API (qwen3-vl:8b multimodal model)
+- Direct HTTP integration (NOT LlamaIndex - doesn't support Ollama multimodal)
+- Endpoint: POST /api/v1/vision/analyze (base64 image → breed info)
+- Phase 2 (pending): RAG system + ML recommendations
 - Location: `srcs/ai/`
 
 **Ollama (port 11434):**
@@ -270,10 +287,12 @@ Services use environment variables from `.env` files:
 
 ### Testing Strategy
 
-1. **Unit tests**: Test components in isolation
-2. **Integration tests**: Use direct API Gateway access (localhost:8001)
-3. **E2E tests**: Use NGINX proxy (localhost/api) for full stack
+1. **Unit tests**: Test components in isolation with mocked dependencies
+2. **Integration tests**: Use API Gateway (localhost:8001) - backend services are NOT directly accessible
+3. **E2E tests**: Use NGINX proxy (localhost/api) for full production-like stack
 4. **Load tests**: Test through NGINX to validate both rate limiting layers
+
+**⚠️ Important:** Backend services (auth:3001, user:3002, ai:3003) have NO external port exposure. All API requests must go through API Gateway (8001) or Nginx (80/443).
 
 **Test Script Organization:**
 ```bash
