@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Frontend: React 19.2 + Vite + Tailwind CSS
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
 - Backend Services: Django 6.0.1 (auth-service, user-service - currently stubs)
-- AI Services: FastAPI + LlamaIndex + Ollama (qwen3-vl:8b model)
+- AI Services: FastAPI + Ollama HTTP API (qwen3-vl:8b model) + RAG (ChromaDB + sentence-transformers)
 - Database: PostgreSQL 15+
 - Cache: Redis 7
 - Infrastructure: Docker Compose, Nginx reverse proxy
