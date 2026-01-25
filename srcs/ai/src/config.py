@@ -24,6 +24,25 @@ class Settings(BaseSettings):
     # Vision Analysis
     LOW_CONFIDENCE_THRESHOLD: float = 0.5
 
+    # RAG - ChromaDB
+    CHROMA_PERSIST_DIR: str = "./data/chroma"
+    CHROMA_COLLECTION_NAME: str = "pet_knowledge"
+
+    # RAG - Embeddings
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    EMBEDDING_DIMENSION: int = 384
+
+    # RAG - Document Processing
+    CHUNK_SIZE: int = 500
+    CHUNK_OVERLAP: int = 50
+
+    # RAG - Query
+    RAG_TOP_K: int = 5
+    RAG_MIN_RELEVANCE: float = 0.3
+
+    # RAG - Knowledge Base
+    KNOWLEDGE_BASE_DIR: str = "./data/knowledge_base"
+
     class Config:
         env_file = ".env"
         case_sensitive = False

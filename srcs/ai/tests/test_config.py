@@ -28,3 +28,27 @@ def test_settings_from_env(monkeypatch):
     assert settings.OLLAMA_BASE_URL == "http://custom:11434"
     assert settings.MAX_IMAGE_SIZE_MB == 10
     assert settings.LOW_CONFIDENCE_THRESHOLD == 0.6
+
+
+def test_rag_settings_defaults():
+    """Test RAG configuration has expected defaults."""
+    settings = Settings()
+
+    # ChromaDB settings
+    assert settings.CHROMA_PERSIST_DIR == "./data/chroma"
+    assert settings.CHROMA_COLLECTION_NAME == "pet_knowledge"
+
+    # Embeddings settings
+    assert settings.EMBEDDING_MODEL == "all-MiniLM-L6-v2"
+    assert settings.EMBEDDING_DIMENSION == 384
+
+    # Document processing settings
+    assert settings.CHUNK_SIZE == 500
+    assert settings.CHUNK_OVERLAP == 50
+
+    # RAG query settings
+    assert settings.RAG_TOP_K == 5
+    assert settings.RAG_MIN_RELEVANCE == 0.3
+
+    # Knowledge base path
+    assert settings.KNOWLEDGE_BASE_DIR == "./data/knowledge_base"
