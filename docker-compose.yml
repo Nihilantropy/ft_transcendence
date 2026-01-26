@@ -65,6 +65,9 @@ services:
       - backend-network
     volumes:
       - ./srcs/ai/src:/app/src
+      - ./srcs/ai/tests:/app/tests
+      - ./srcs/ai/data/knowledge_base:/app/data/knowledge_base:ro
+      - ai-chroma-data:/app/data/chroma
     depends_on:
       - ollama
     restart: unless-stopped
@@ -216,7 +219,19 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-
+  pgadmin:
+    container_name: ft_transcendence_pgadmin
+    image: dpage/pgadmin4:9.11.0
+    ports:
+      - "8080:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: user-name@domain-name.com
+      PGADMIN_DEFAULT_PASSWORD: strong-password
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - backend-network
+    restart: on-failure
 ### API GATEWAY ###
   api-gateway:
     container_name: ft_transcendence_api_gateway
@@ -266,6 +281,8 @@ volumes:
     driver: local
   db-data:
     driver: local
+  pgadmin-data:
+    driver: local
   redis-data:
     driver: local
   ollama:
@@ -273,4 +290,6 @@ volumes:
   models:
     driver: local
   open-webui:
+    driver: local
+  ai-chroma-data:
     driver: local
