@@ -183,3 +183,36 @@ class TestRAGResponseModel:
         assert response.answer == "Test answer"
         assert len(response.sources) == 1
         assert response.model == "qwen3-vl:8b"
+
+
+class TestEnrichBreed:
+    @pytest.mark.asyncio
+    async def test_enrich_breed_returns_structured_info(self, rag_service):
+        """Test enrich_breed returns description and care summary."""
+        result = await rag_service.enrich_breed("Golden Retriever")
+
+        assert "description" in result
+        assert "care_summary" in result
+        assert "sources" in result
+
+    @pytest.mark.asyncio
+    async def test_enrich_breed_filters_by_breed(self, rag_service, mock_collection):
+        """Test enrich_breed filters by breed name."""
+        await rag_service.enrich_breed("Golden Retriever")
+
+        call_kwargs = mock_collection.query.call_args[1]
+        assert call_kwargs["where"]["breed"] == "golden_retriever"
+
+    @pytest.mark.asyncio
+    async def test_enrich_breed_handles_unknown(self, rag_service, mock_collection):
+        """Test enrich_breed handles breeds not in knowledge base."""
+        mock_collection.query.return_value = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]]
+        }
+
+        result = await rag_service.enrich_breed("Unknown Breed")
+
+        assert result["description"] == "No detailed information available for this breed."
