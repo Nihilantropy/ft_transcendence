@@ -122,3 +122,28 @@ class TestRAGModels:
         )
         assert data.answer == "The answer is..."
         assert len(data.sources) == 1
+
+
+class TestVisionEnrichment:
+    def test_vision_options_has_enrich_field(self):
+        """Test VisionAnalysisOptions includes enrich field."""
+        from src.models.requests import VisionAnalysisOptions
+        options = VisionAnalysisOptions(enrich=True)
+        assert options.enrich is True
+
+    def test_vision_options_enrich_default_false(self):
+        """Test enrich defaults to False."""
+        from src.models.requests import VisionAnalysisOptions
+        options = VisionAnalysisOptions()
+        assert options.enrich is False
+
+    def test_enriched_info_structure(self):
+        """Test EnrichedInfo model structure."""
+        from src.models.responses import EnrichedInfo
+        info = EnrichedInfo(
+            description="Golden Retrievers are friendly...",
+            care_summary="Regular exercise needed...",
+            sources=["breeds/golden_retriever.md"]
+        )
+        assert info.description is not None
+        assert len(info.sources) == 1

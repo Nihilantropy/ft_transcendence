@@ -6,6 +6,7 @@ class VisionAnalysisOptions(BaseModel):
     """Options for vision analysis."""
     return_traits: bool = True
     return_health_info: bool = True
+    enrich: bool = False  # Fetch RAG context for breed
 
 
 class VisionAnalysisRequest(BaseModel):

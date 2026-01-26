@@ -9,6 +9,13 @@ class BreedTraits(BaseModel):
     temperament: str = Field(..., description="Brief temperament description")
 
 
+class EnrichedInfo(BaseModel):
+    """RAG-enriched breed information."""
+    description: str
+    care_summary: str
+    sources: List[str]
+
+
 class VisionAnalysisData(BaseModel):
     """Vision analysis result data."""
     breed: str
@@ -16,6 +23,7 @@ class VisionAnalysisData(BaseModel):
     traits: BreedTraits
     health_considerations: List[str]
     note: Optional[str] = None
+    enriched_info: Optional[EnrichedInfo] = None  # RAG-enriched details
 
 
 class VisionAnalysisResponse(BaseModel):
