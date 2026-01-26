@@ -37,6 +37,10 @@ __pycache__/
 **/*.sqlite3
 **/*.db
 
+# ChromaDB data (generated at runtime)
+srcs/ai/data/chroma/*
+!srcs/ai/data/chroma/.gitkeep
+
 # Logs
 *.log
 **/*.log
