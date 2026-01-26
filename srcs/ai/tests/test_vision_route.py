@@ -105,3 +105,59 @@ class TestVisionEndpoint:
         assert response.status_code == 500
         data = response.json()
         assert "INTERNAL_ERROR" in str(data)
+
+
+class TestVisionEnrichment:
+    @pytest.mark.asyncio
+    async def test_analyze_with_enrich_returns_enriched_info(self, valid_image_base64, mock_ollama_response):
+        """Test vision analysis with enrich=True returns enriched_info."""
+        with patch('src.routes.vision.image_processor') as mock_processor, \
+             patch('src.routes.vision.ollama_client') as mock_ollama, \
+             patch('src.routes.vision.rag_service') as mock_rag:
+
+            mock_processor.process_image.return_value = "base64data"
+            mock_ollama.analyze_breed = AsyncMock(return_value=mock_ollama_response)
+            mock_rag.enrich_breed = AsyncMock(return_value={
+                "description": "Golden Retrievers are friendly dogs...",
+                "care_summary": "Regular exercise needed...",
+                "sources": ["breeds/golden_retriever.md"]
+            })
+
+            response = client.post("/api/v1/vision/analyze", json={
+                "image": valid_image_base64,
+                "options": {
+                    "return_traits": True,
+                    "return_health_info": True,
+                    "enrich": True
+                }
+            })
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["data"]["enriched_info"] is not None
+            assert "description" in data["data"]["enriched_info"]
+            mock_rag.enrich_breed.assert_called_once_with("Golden Retriever")
+
+    @pytest.mark.asyncio
+    async def test_analyze_without_enrich_no_enriched_info(self, valid_image_base64, mock_ollama_response):
+        """Test vision analysis with enrich=False has no enriched_info."""
+        with patch('src.routes.vision.image_processor') as mock_processor, \
+             patch('src.routes.vision.ollama_client') as mock_ollama:
+
+            mock_processor.process_image.return_value = "base64data"
+            mock_ollama.analyze_breed = AsyncMock(return_value=mock_ollama_response)
+
+            response = client.post("/api/v1/vision/analyze", json={
+                "image": valid_image_base64,
+                "options": {
+                    "return_traits": True,
+                    "return_health_info": True,
+                    "enrich": False
+                }
+            })
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["data"].get("enriched_info") is None

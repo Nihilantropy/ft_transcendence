@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException, status
 import logging
 
 from src.models.requests import VisionAnalysisRequest
-from src.models.responses import VisionAnalysisResponse, VisionAnalysisData, BreedTraits
+from src.models.responses import VisionAnalysisData, BreedTraits, EnrichedInfo
 from src.services.image_processor import ImageProcessor
 from src.services.ollama_client import OllamaVisionClient
+from src.services.rag_service import RAGService
 from src.utils.responses import success_response, error_response
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,8 @@ router = APIRouter(prefix="/api/v1/vision", tags=["vision"])
 # Service instances (injected at startup)
 image_processor: ImageProcessor = None
 ollama_client: OllamaVisionClient = None
+rag_service: RAGService = None
+
 
 @router.post("/analyze", response_model=dict)
 async def analyze_image(request: VisionAnalysisRequest):
@@ -22,7 +25,7 @@ async def analyze_image(request: VisionAnalysisRequest):
         request: Vision analysis request with image and options
 
     Returns:
-        Standardized response with breed data
+        Standardized response with breed data and optional enrichment
 
     Raises:
         HTTPException: For validation errors (422), service unavailable (503), or internal errors (500)
@@ -36,7 +39,7 @@ async def analyze_image(request: VisionAnalysisRequest):
         result = await ollama_client.analyze_breed(processed_image)
         logger.info(f"Breed identified: {result['breed']} (confidence: {result['confidence']})")
 
-        # Build response
+        # Build base response
         data = VisionAnalysisData(
             breed=result["breed"],
             confidence=result["confidence"],
@@ -45,7 +48,17 @@ async def analyze_image(request: VisionAnalysisRequest):
             note=result.get("note")
         )
 
-        return success_response(data.dict())
+        # Enrich with RAG if requested
+        if request.options.enrich and rag_service is not None:
+            logger.info(f"Enriching breed info for: {result['breed']}")
+            enriched = await rag_service.enrich_breed(result["breed"])
+            data.enriched_info = EnrichedInfo(
+                description=enriched["description"],
+                care_summary=enriched["care_summary"],
+                sources=enriched["sources"]
+            )
+
+        return success_response(data.model_dump())
 
     except ValueError as e:
         # Image validation errors
