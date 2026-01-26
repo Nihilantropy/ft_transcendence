@@ -21,7 +21,10 @@ COPY src/ ./src/
 COPY tests/ ./tests/
 COPY pytest.ini .
 
-# Create non-root user
+# Create data directories for ChromaDB and knowledge base
+RUN mkdir -p /app/data/chroma /app/data/knowledge_base
+
+# Create non-root user and set permissions
 RUN useradd -m -u 1000 aiuser && \
     chown -R aiuser:aiuser /app
 
