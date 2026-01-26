@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
-from src.models.requests import VisionAnalysisRequest, VisionAnalysisOptions
-from src.models.responses import BreedTraits, VisionAnalysisData, VisionAnalysisResponse
+from src.models.requests import VisionAnalysisRequest, VisionAnalysisOptions, RAGQueryRequest, RAGIngestRequest
+from src.models.responses import BreedTraits, VisionAnalysisData, VisionAnalysisResponse, RAGQueryResponse, RAGSourceData, RAGIngestResponse, RAGStatusResponse
 
 class TestRequestModels:
     def test_vision_analysis_request_valid(self):
@@ -63,3 +63,62 @@ class TestResponseModels:
                 traits=BreedTraits(size="medium", energy_level="medium", temperament="test"),
                 health_considerations=[]
             )
+
+
+class TestRAGModels:
+    def test_rag_query_request_valid(self):
+        """Test valid RAG query request."""
+        request = RAGQueryRequest(
+            question="What health issues affect Golden Retrievers?",
+            filters={"species": "dog", "breed": "golden_retriever"},
+            top_k=5
+        )
+        assert request.question == "What health issues affect Golden Retrievers?"
+        assert request.filters["breed"] == "golden_retriever"
+        assert request.top_k == 5
+
+    def test_rag_query_request_defaults(self):
+        """Test RAG query request has sensible defaults."""
+        request = RAGQueryRequest(question="General question")
+        assert request.filters is None
+        assert request.top_k == 5
+
+    def test_rag_query_request_empty_question_fails(self):
+        """Test empty question raises validation error."""
+        with pytest.raises(ValueError):
+            RAGQueryRequest(question="")
+
+    def test_rag_ingest_request_valid(self):
+        """Test valid RAG ingest request."""
+        request = RAGIngestRequest(
+            content="# Golden Retriever\n\nFriendly dogs...",
+            metadata={"doc_type": "breed", "species": "dog"},
+            source_name="golden_retriever.md"
+        )
+        assert "Golden Retriever" in request.content
+        assert request.metadata["doc_type"] == "breed"
+
+    def test_rag_source_data_structure(self):
+        """Test RAGSourceData has required fields."""
+        source = RAGSourceData(
+            content="Some content",
+            source_file="breeds/dog.md",
+            relevance_score=0.89
+        )
+        assert source.content == "Some content"
+        assert source.relevance_score == 0.89
+
+    def test_rag_query_response_structure(self):
+        """Test RAGQueryResponse structure."""
+        source = RAGSourceData(
+            content="Test",
+            source_file="test.md",
+            relevance_score=0.9
+        )
+        data = RAGQueryResponse(
+            answer="The answer is...",
+            sources=[source],
+            model="qwen3-vl:8b"
+        )
+        assert data.answer == "The answer is..."
+        assert len(data.sources) == 1
