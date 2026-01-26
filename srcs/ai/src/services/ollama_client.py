@@ -134,3 +134,37 @@ Return ONLY valid JSON in this exact format:
 
             logger.error(f"Failed to parse response: {response_text[:200]}")
             raise ValueError("Failed to parse JSON from response")
+
+    async def generate(self, prompt: str) -> str:
+        """Generate text response from prompt (no image).
+
+        Args:
+            prompt: Text prompt for generation
+
+        Returns:
+            Generated text response
+
+        Raises:
+            ConnectionError: If Ollama is unreachable
+        """
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ],
+                        "stream": False,
+                        "options": {"temperature": self.temperature}
+                    }
+                )
+                response.raise_for_status()
+                response_data = response.json()
+
+            return response_data.get("message", {}).get("content", "")
+
+        except httpx.HTTPError as e:
+            logger.error(f"Ollama generation failed: {str(e)}")
+            raise ConnectionError(f"Failed to connect to Ollama: {str(e)}")
