@@ -36,10 +36,10 @@ echo -e "${BLUE}║      SmartBreeds Unit Test Suite          ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
-# API Gateway tests (32 tests)
+# API Gateway tests (28 unit tests - excluding integration)
 run_test_suite "API Gateway" \
-  "docker compose run --rm api-gateway python -m pytest tests/ -v" \
-  32
+  "docker compose run --rm api-gateway python -m pytest tests/ -v --ignore=tests/integration" \
+  28
 
 # Auth Service tests (77 tests)
 run_test_suite "Auth Service" \
@@ -49,7 +49,6 @@ run_test_suite "Auth Service" \
 # User Service tests (9 passing - middleware and permissions)
 # Note: Model/serializer/view tests fail due to auth_schema not in test DB (expected)
 echo -e "${YELLOW}Testing User Service...${NC}"
-echo -e "${YELLOW}Note: Model/serializer/view tests will fail (auth_schema not in test DB - expected behavior)${NC}"
 if docker compose run --rm user-service python -m pytest tests/test_middleware.py tests/test_permissions.py -v; then
   echo -e "${GREEN}✓ User Service tests passed (9 tests - middleware & permissions)${NC}"
   TOTAL_TESTS=$((TOTAL_TESTS + 9))

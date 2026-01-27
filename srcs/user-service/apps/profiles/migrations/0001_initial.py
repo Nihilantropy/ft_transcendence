@@ -74,29 +74,6 @@ class Migration(migrations.Migration):
             },
         ),
 
-        # Add cross-schema FK constraints
-        migrations.RunSQL(
-            """
-            ALTER TABLE user_schema.user_profiles
-            ADD CONSTRAINT fk_user_profiles_user
-            FOREIGN KEY (user_id)
-            REFERENCES auth_schema.users(id)
-            ON DELETE CASCADE;
-            """,
-            reverse_sql="ALTER TABLE user_schema.user_profiles DROP CONSTRAINT IF EXISTS fk_user_profiles_user;"
-        ),
-
-        migrations.RunSQL(
-            """
-            ALTER TABLE user_schema.pets
-            ADD CONSTRAINT fk_pets_user
-            FOREIGN KEY (user_id)
-            REFERENCES auth_schema.users(id)
-            ON DELETE CASCADE;
-            """,
-            reverse_sql="ALTER TABLE user_schema.pets DROP CONSTRAINT IF EXISTS fk_pets_user;"
-        ),
-
         # Add indexes
         migrations.AddIndex(
             model_name='userprofile',

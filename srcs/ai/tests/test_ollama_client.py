@@ -47,6 +47,40 @@ def mock_low_confidence_response():
         "health_considerations": []
     }
 
+@pytest.fixture
+def mock_crossbreed_response():
+    """Mock crossbreed detection response."""
+    return {
+        "breed_probabilities": [
+            {"breed": "golden_retriever", "probability": 0.55},
+            {"breed": "poodle", "probability": 0.48},
+            {"breed": "labrador_retriever", "probability": 0.10}
+        ],
+        "traits": {
+            "size": "large",
+            "energy_level": "high",
+            "temperament": "intelligent, friendly"
+        },
+        "health_considerations": ["hip_dysplasia", "ear_infections"]
+    }
+
+@pytest.fixture
+def mock_purebred_response():
+    """Mock purebred (high confidence) response."""
+    return {
+        "breed_probabilities": [
+            {"breed": "golden_retriever", "probability": 0.89},
+            {"breed": "labrador_retriever", "probability": 0.08},
+            {"breed": "irish_setter", "probability": 0.03}
+        ],
+        "traits": {
+            "size": "large",
+            "energy_level": "high",
+            "temperament": "friendly, intelligent"
+        },
+        "health_considerations": ["hip_dysplasia", "cancer"]
+    }
+
 class TestOllamaClient:
     @pytest.mark.asyncio
     @patch('httpx.AsyncClient.post')
@@ -122,7 +156,7 @@ class TestOllamaClient:
         }
         mock_post.return_value = mock_response
 
-        with pytest.raises(ValueError, match="Failed to parse JSON"):
+        with pytest.raises(RuntimeError, match="Failed to parse JSON"):
             await ollama_client.analyze_breed(mock_image_base64)
 
     def test_build_analysis_prompt(self, ollama_client):
@@ -133,3 +167,83 @@ class TestOllamaClient:
         assert "breed" in prompt.lower()
         assert "JSON" in prompt
         assert "confidence" in prompt
+
+    def test_build_crossbreed_prompt(self, ollama_client):
+        """Test crossbreed detection prompt building."""
+        prompt = ollama_client._build_crossbreed_prompt(top_n=3)
+
+        assert "PUREBRED or CROSS-BREED" in prompt
+        assert "breed_probabilities" in prompt
+        assert "TOP 3" in prompt
+
+    @pytest.mark.asyncio
+    @patch('httpx.AsyncClient.post')
+    async def test_crossbreed_detection(self, mock_post, ollama_client,
+                                       mock_image_base64, mock_crossbreed_response):
+        """Test crossbreed detection with multi-breed probabilities."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "message": {
+                "content": json.dumps(mock_crossbreed_response)
+            }
+        }
+        mock_post.return_value = mock_response
+
+        result = await ollama_client.analyze_breed(
+            mock_image_base64,
+            detect_crossbreed=True
+        )
+
+        assert "breed_analysis" in result
+        breed_analysis = result["breed_analysis"]
+        
+        assert breed_analysis["is_likely_crossbreed"] is True
+        assert "goldendoodle" in breed_analysis["primary_breed"].lower()
+        assert len(breed_analysis["breed_probabilities"]) == 3
+        assert breed_analysis["crossbreed_analysis"] is not None
+        assert breed_analysis["crossbreed_analysis"]["common_name"] == "Goldendoodle"
+
+    @pytest.mark.asyncio
+    @patch('httpx.AsyncClient.post')
+    async def test_purebred_detection(self, mock_post, ollama_client,
+                                     mock_image_base64, mock_purebred_response):
+        """Test purebred detection with high confidence."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "message": {
+                "content": json.dumps(mock_purebred_response)
+            }
+        }
+        mock_post.return_value = mock_response
+
+        result = await ollama_client.analyze_breed(
+            mock_image_base64,
+            detect_crossbreed=True
+        )
+
+        assert "breed_analysis" in result
+        breed_analysis = result["breed_analysis"]
+        
+        assert breed_analysis["is_likely_crossbreed"] is False
+        assert breed_analysis["primary_breed"] == "golden_retriever"
+        assert breed_analysis["confidence"] == 0.89
+        assert breed_analysis["crossbreed_analysis"] is None
+
+    def test_identify_crossbreed_name(self, ollama_client):
+        """Test crossbreed name identification."""
+        assert ollama_client._identify_crossbreed_name(
+            ["Golden Retriever", "Poodle"]
+        ) == "Goldendoodle"
+        
+        assert ollama_client._identify_crossbreed_name(
+            ["Poodle", "Golden Retriever"]
+        ) == "Goldendoodle"
+        
+        assert ollama_client._identify_crossbreed_name(
+            ["Chihuahua", "Dachshund"]
+        ) == "Chiweenie"
+        
+        # Unknown crossbreed
+        assert ollama_client._identify_crossbreed_name(
+            ["Unknown Breed 1", "Unknown Breed 2"]
+        ) is None

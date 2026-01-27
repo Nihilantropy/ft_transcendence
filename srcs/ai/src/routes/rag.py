@@ -27,6 +27,14 @@ async def query(request: RAGQueryRequest):
     Returns:
         Standardized response with answer and sources
     """
+    if rag_service is None:
+        logger.error("RAG service not initialized")
+        return error_response(
+            "SERVICE_UNAVAILABLE",
+            "RAG service is not initialized. Please restart the service.",
+            status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    
     try:
         response = await rag_service.query(
             question=request.question,
@@ -79,6 +87,14 @@ async def ingest(request: RAGIngestRequest):
     Returns:
         Standardized response with ingestion stats
     """
+    if document_processor is None or rag_service is None:
+        logger.error("RAG services not initialized")
+        return error_response(
+            "SERVICE_UNAVAILABLE",
+            "RAG services are not initialized. Please restart the service.",
+            status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    
     try:
         # Process document into chunks
         chunks = document_processor.process(
@@ -129,6 +145,14 @@ async def status_check():
     Returns:
         Standardized response with collection stats
     """
+    if rag_service is None:
+        logger.error("RAG service not initialized")
+        return error_response(
+            "SERVICE_UNAVAILABLE",
+            "RAG service is not initialized. Please restart the service.",
+            status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    
     try:
         stats = rag_service.get_stats()
 

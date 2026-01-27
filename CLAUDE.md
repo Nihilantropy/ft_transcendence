@@ -68,6 +68,9 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middle
 docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-report=html
 ```
 
+### IMPORTANT!
+All unit tests and integration tests runned via pytest must point to the test databases test_smartbreeds.
+
 **Auth Service Tests** (Django/pytest):
 ```bash
 docker compose run --rm auth-service python -m pytest tests/ -v
@@ -75,11 +78,12 @@ docker exec ft_transcendence_auth_service python manage.py makemigrations
 docker exec ft_transcendence_auth_service python manage.py migrate
 ```
 
-**AI Service Tests** (39 tests: 28 unit + 11 integration):
+**AI Service Tests** (90 tests total):
 ```bash
+docker compose run --rm ai-service python -m pytest tests/ -v
+docker compose run --rm ai-service python -m pytest tests/test_ollama_client.py -v  # OllamaVisionClient tests
 ./scripts/run-ai-tests.sh --unit         # Fast unit tests only (~14s)
 ./scripts/run-ai-tests.sh --integration  # Real Ollama integration (~2.5min)
-./scripts/run-ai-tests.sh --all          # All tests (default)
 ```
 
 ### API Testing
@@ -164,8 +168,9 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 **AI Service (FastAPI - internal port 3003):**
 - Vision analysis via Ollama HTTP API (qwen3-vl:8b multimodal model)
 - Direct HTTP integration (NOT LlamaIndex - doesn't support Ollama multimodal)
+- OllamaVisionClient supports both simple breed detection and optional crossbreed detection
 - Endpoint: POST /api/v1/vision/analyze (base64 image → breed info)
-- Phase 2 (pending): RAG system + ML recommendations
+- RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
 - Location: `srcs/ai/`
 
 **Ollama (port 11434):**

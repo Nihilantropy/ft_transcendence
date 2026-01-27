@@ -270,6 +270,148 @@ class LogoutView(APIView):
         return response
 
 
+class VerifyView(APIView):
+    """
+    GET /api/v1/auth/verify
+
+    Verify if the current access token is valid.
+    Returns user information if token is valid, 401 if invalid/expired.
+    """
+
+    def get(self, request):
+        # Extract access_token from cookies
+        access_token = request.COOKIES.get('access_token')
+        if not access_token:
+            return error_response(
+                code='MISSING_TOKEN',
+                message='Access token is required',
+                status=401
+            )
+
+        # Decode and validate token
+        try:
+            payload = decode_token(access_token)
+        except jwt.ExpiredSignatureError:
+            return error_response(
+                code='TOKEN_EXPIRED',
+                message='Access token has expired',
+                status=401
+            )
+        except jwt.InvalidTokenError:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Check token_type is 'access'
+        if payload.get('token_type') != 'access':
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Find user by user_id
+        user_id = payload.get('user_id')
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Check if account is active
+        if not user.is_active:
+            return error_response(
+                code='ACCOUNT_DISABLED',
+                message='Account is disabled',
+                status=403
+            )
+
+        # Return user data
+        user_serializer = UserSerializer(user)
+        return success_response(
+            data={'user': user_serializer.data, 'valid': True},
+            status=200
+        )
+
+
+class DeleteUserView(APIView):
+    """
+    DELETE /api/v1/auth/delete
+    
+    Delete the currently authenticated user account.
+    Requires valid access token in cookies.
+    Cascades: deletes user, all refresh tokens, and user profile (via database cascade).
+    """
+    
+    def delete(self, request):
+        # Get access token from cookies
+        access_token = request.COOKIES.get('access_token')
+        if not access_token:
+            return error_response(
+                code='UNAUTHORIZED',
+                message='Authentication required',
+                status=401
+            )
+        
+        # Decode and validate access token
+        try:
+            payload = decode_token(access_token)
+        except jwt.ExpiredSignatureError:
+            return error_response(
+                code='TOKEN_EXPIRED',
+                message='Access token has expired',
+                status=401
+            )
+        except jwt.InvalidTokenError:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+        
+        # Verify token type
+        if payload.get('token_type') != 'access':
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+        
+        # Get user
+        user_id = payload.get('user_id')
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='User not found',
+                status=401
+            )
+        
+        # Store email for confirmation message
+        email = user.email
+        
+        # Delete all refresh tokens for this user
+        RefreshToken.objects.filter(user_id=user_id).delete()
+        
+        # Delete the user (this will cascade to user_profile in user-service via soft reference)
+        user.delete()
+        
+        # Clear auth cookies
+        response = success_response(
+            data={'message': f'User account {email} deleted successfully'},
+            status=200
+        )
+        clear_auth_cookies(response)
+        
+        return response
+
+
 class HealthView(APIView):
     """
     GET /health

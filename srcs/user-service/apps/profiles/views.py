@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from apps.profiles.models import UserProfile, Pet, PetAnalysis
 from apps.profiles.serializers import (
     UserProfileSerializer, UserProfileUpdateSerializer,
@@ -8,6 +9,13 @@ from apps.profiles.serializers import (
 )
 from apps.profiles.permissions import IsOwnerOrAdmin
 from apps.profiles.utils import success_response, error_response
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """Health check endpoint for Docker healthcheck"""
+    return success_response({"status": "healthy"})
 
 
 class UserProfileViewSet(viewsets.ModelViewSet):

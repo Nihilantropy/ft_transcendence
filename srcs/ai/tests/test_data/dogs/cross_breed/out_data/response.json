@@ -1,0 +1,57 @@
+{
+  "description": "Expected response template for cross breed (German Shepherd × Golden Retriever)",
+  "breed_analysis": {
+    "is_likely_crossbreed": {
+      "expected": true,
+      "allow_false": true,
+      "description": "Should ideally be true, but false is acceptable if confidence is high for one breed"
+    },
+    "confidence": {
+      "min": 0.30,
+      "max": 0.85,
+      "description": "Moderate confidence expected for crossbreeds"
+    },
+    "breed_probabilities": {
+      "min_count": 2,
+      "top_two_breeds_contain_any": [
+        ["german", "shepherd"],
+        ["golden", "retriever"]
+      ],
+      "description": "Top 2 breeds should include shepherd or retriever",
+      "multi_modal_check": {
+        "enabled": true,
+        "second_probability_min": 0.25,
+        "description": "Second breed should have significant probability"
+      }
+    },
+    "crossbreed_analysis": {
+      "required_if_is_crossbreed": true,
+      "fields": {
+        "detected_breeds": {
+          "min_count": 2,
+          "should_contain_any": ["german_shepherd", "golden_retriever", "shepherd", "retriever"]
+        },
+        "confidence_reasoning": {
+          "min_length": 10
+        }
+      }
+    }
+  },
+  "traits": {
+    "required_fields": ["size", "energy_level", "temperament"],
+    "size": {
+      "expected_values": ["large", "medium-large", "medium", "medium-small"]
+    },
+    "energy_level": {
+      "expected_values": ["high", "medium"]
+    }
+  },
+  "health_considerations": {
+    "is_array": true,
+    "min_count": 0
+  },
+  "structure_validation": {
+    "required_top_level": ["breed_analysis", "traits", "health_considerations"],
+    "breed_analysis_required": ["primary_breed", "confidence", "is_likely_crossbreed", "breed_probabilities"]
+  }
+}

@@ -200,3 +200,308 @@ class TestPetAnalysisViewSet:
 
         assert response.status_code == 201
         assert PetAnalysis.objects.filter(breed_detected='Beagle').exists()
+
+
+# Additional tests for missing coverage
+
+@pytest.mark.django_db
+class TestUserProfileViewSetAdditional:
+    """Additional tests for UserProfile endpoints"""
+    
+    def test_put_me_full_update(self):
+        """Test PUT /users/me performs full update"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        UserProfile.objects.create(user_id=user_id, phone='+1111111111')
+        
+        request = factory.put(
+            '/api/v1/users/me/',
+            data=json.dumps({
+                'phone': '+9999999999',
+                'address': {'city': 'NYC', 'country': 'USA'},
+                'preferences': {'theme': 'light'}
+            }),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = UserProfileViewSet.as_view({'put': 'me'})
+        response = view(request)
+        
+        assert response.status_code == 200
+        profile = UserProfile.objects.get(user_id=user_id)
+        assert profile.phone == '+9999999999'
+        assert profile.address == {'city': 'NYC', 'country': 'USA'}
+    
+    def test_validation_error_on_invalid_phone(self):
+        """Test validation error with invalid phone format"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        
+        request = factory.patch(
+            '/api/v1/users/me/',
+            data=json.dumps({'phone': 'invalid-phone-format'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = UserProfileViewSet.as_view({'patch': 'me'})
+        response = view(request)
+        
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert response.data['error']['code'] == 'VALIDATION_ERROR'
+
+
+@pytest.mark.django_db
+class TestPetViewSetAdditional:
+    """Additional tests for Pet CRUD operations"""
+    
+    def test_update_pet_put(self):
+        """Test PUT /pets/{id} updates pet"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(
+            user_id=user_id, name='OldName', species='dog', age=12
+        )
+        
+        request = factory.put(
+            f'/api/v1/pets/{pet.id}/',
+            data=json.dumps({
+                'name': 'NewName',
+                'species': 'dog',
+                'breed': 'Labrador',
+                'age': 24,
+                'weight': 35.0
+            }),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetViewSet.as_view({'put': 'update'})
+        response = view(request, pk=pet.id)
+        
+        assert response.status_code == 200
+        pet.refresh_from_db()
+        assert pet.name == 'NewName'
+        assert pet.breed == 'Labrador'
+        assert pet.age == 24
+    
+    def test_partial_update_pet_patch(self):
+        """Test PATCH /pets/{id} partially updates pet"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(
+            user_id=user_id, name='Buddy', species='dog', age=12
+        )
+        
+        request = factory.patch(
+            f'/api/v1/pets/{pet.id}/',
+            data=json.dumps({'age': 24}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetViewSet.as_view({'patch': 'partial_update'})
+        response = view(request, pk=pet.id)
+        
+        assert response.status_code == 200
+        pet.refresh_from_db()
+        assert pet.age == 24
+        assert pet.name == 'Buddy'  # Unchanged
+    
+    def test_delete_pet(self):
+        """Test DELETE /pets/{id} deletes pet"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(
+            user_id=user_id, name='ToDelete', species='cat'
+        )
+        pet_id = pet.id
+        
+        request = factory.delete(f'/api/v1/pets/{pet_id}/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetViewSet.as_view({'delete': 'destroy'})
+        response = view(request, pk=pet_id)
+        
+        assert response.status_code == 200
+        assert not Pet.objects.filter(id=pet_id).exists()
+    
+    def test_get_pet_analyses(self):
+        """Test GET /pets/{id}/analyses returns pet's analysis history"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(user_id=user_id, name='Buddy', species='dog')
+        
+        # Create analyses for this pet
+        PetAnalysis.objects.create(
+            pet_id=pet.id, user_id=user_id,
+            image_url='/test1.jpg', breed_detected='Lab', confidence=0.9, traits={}
+        )
+        PetAnalysis.objects.create(
+            pet_id=pet.id, user_id=user_id,
+            image_url='/test2.jpg', breed_detected='Retriever', confidence=0.85, traits={}
+        )
+        
+        request = factory.get(f'/api/v1/pets/{pet.id}/analyses/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetViewSet.as_view({'get': 'analyses'})
+        response = view(request, pk=pet.id)
+        
+        assert response.status_code == 200
+        assert len(response.data['data']) == 2
+    
+    def test_validation_error_on_invalid_age(self):
+        """Test validation error with negative age"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({'name': 'Test', 'species': 'dog', 'age': -5}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+        
+        assert response.status_code == 422
+        assert response.data['success'] is False
+    
+    def test_permission_denied_delete_other_user_pet(self):
+        """Test non-owner cannot delete another user's pet"""
+        factory = RequestFactory()
+        owner_id = uuid.uuid4()
+        other_user_id = uuid.uuid4()
+        
+        pet = Pet.objects.create(
+            user_id=owner_id, name='NotYours', species='dog'
+        )
+        
+        request = factory.delete(f'/api/v1/pets/{pet.id}/')
+        request.user_id = str(other_user_id)
+        request.user_role = 'user'
+        
+        view = PetViewSet.as_view({'delete': 'destroy'})
+        response = view(request, pk=pet.id)
+        
+        # Should return 404 (pet filtered out by queryset)
+        assert response.status_code == 404
+        # Pet should still exist
+        assert Pet.objects.filter(id=pet.id).exists()
+    
+    def test_404_on_nonexistent_pet(self):
+        """Test 404 when pet doesn't exist"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        fake_id = uuid.uuid4()
+        
+        request = factory.get(f'/api/v1/pets/{fake_id}/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetViewSet.as_view({'get': 'retrieve'})
+        response = view(request, pk=fake_id)
+        
+        assert response.status_code == 404
+        assert response.data['error']['code'] == 'NOT_FOUND'
+
+
+@pytest.mark.django_db
+class TestPetAnalysisViewSetAdditional:
+    """Additional tests for PetAnalysis endpoints"""
+    
+    def test_retrieve_analysis(self):
+        """Test GET /analyses/{id} returns single analysis"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+        
+        analysis = PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=user_id,
+            image_url='/test.jpg', breed_detected='Poodle',
+            confidence=0.87, traits={'size': 'small'}
+        )
+        
+        request = factory.get(f'/api/v1/analyses/{analysis.id}/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetAnalysisViewSet.as_view({'get': 'retrieve'})
+        response = view(request, pk=analysis.id)
+        
+        assert response.status_code == 200
+        assert response.data['data']['breed_detected'] == 'Poodle'
+    
+    def test_validation_error_on_create(self):
+        """Test validation error with invalid data"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        
+        # Missing required fields
+        request = factory.post(
+            '/api/v1/analyses/',
+            data=json.dumps({'breed_detected': 'Lab'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetAnalysisViewSet.as_view({'post': 'create'})
+        response = view(request)
+        
+        assert response.status_code == 422
+        assert response.data['success'] is False
+    
+    def test_admin_can_view_all_analyses(self):
+        """Test admin role can view all analyses"""
+        factory = RequestFactory()
+        admin_id = uuid.uuid4()
+        user1_id = uuid.uuid4()
+        user2_id = uuid.uuid4()
+        pet_id = uuid.uuid4()
+        
+        PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=user1_id,
+            image_url='/1.jpg', breed_detected='A', confidence=0.9, traits={}
+        )
+        PetAnalysis.objects.create(
+            pet_id=pet_id, user_id=user2_id,
+            image_url='/2.jpg', breed_detected='B', confidence=0.8, traits={}
+        )
+        
+        request = factory.get('/api/v1/analyses/')
+        request.user_id = str(admin_id)
+        request.user_role = 'admin'
+        
+        view = PetAnalysisViewSet.as_view({'get': 'list'})
+        response = view(request)
+        
+        assert response.status_code == 200
+        assert len(response.data['data']) == 2
+    
+    def test_404_on_nonexistent_analysis(self):
+        """Test 404 when analysis doesn't exist"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        fake_id = uuid.uuid4()
+        
+        request = factory.get(f'/api/v1/analyses/{fake_id}/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        
+        view = PetAnalysisViewSet.as_view({'get': 'retrieve'})
+        response = view(request, pk=fake_id)
+        
+        assert response.status_code == 404
+        assert response.data['error']['code'] == 'NOT_FOUND'

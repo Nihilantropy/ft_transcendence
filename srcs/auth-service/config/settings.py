@@ -33,6 +33,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.authentication.middleware.Custom404Middleware',  # Custom 404 JSON handler
 ]
 
 # Disable trailing slash for API-only service

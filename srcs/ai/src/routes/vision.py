@@ -61,7 +61,7 @@ async def analyze_image(request: VisionAnalysisRequest):
         return success_response(data.model_dump())
 
     except ValueError as e:
-        # Image validation errors
+        # Image validation errors (user input issues)
         logger.warning(f"Image validation failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -79,6 +79,17 @@ async def analyze_image(request: VisionAnalysisRequest):
             detail=error_response(
                 code="VISION_SERVICE_UNAVAILABLE",
                 message="Vision analysis temporarily unavailable, please try again"
+            )
+        )
+
+    except RuntimeError as e:
+        # Ollama response parsing errors (service issues, not user input)
+        logger.error(f"Ollama processing failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response(
+                code="VISION_PROCESSING_ERROR",
+                message="Failed to process vision analysis response"
             )
         )
 

@@ -22,9 +22,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def validate_address(self, value):
         """Validate address structure if provided"""
         if value:
-            allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
-            if not set(value.keys()).issubset(allowed_keys):
-                raise serializers.ValidationError("Invalid address fields")
+            # Accept both string and dict formats
+            if isinstance(value, dict):
+                allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
+                if not set(value.keys()).issubset(allowed_keys):
+                    raise serializers.ValidationError("Invalid address fields")
+            elif not isinstance(value, str):
+                raise serializers.ValidationError("Address must be a string or object")
         return value
 
 
@@ -44,9 +48,13 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def validate_address(self, value):
         """Validate address structure if provided"""
         if value:
-            allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
-            if not set(value.keys()).issubset(allowed_keys):
-                raise serializers.ValidationError("Invalid address fields")
+            # Accept both string and dict formats
+            if isinstance(value, dict):
+                allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
+                if not set(value.keys()).issubset(allowed_keys):
+                    raise serializers.ValidationError("Invalid address fields")
+            elif not isinstance(value, str):
+                raise serializers.ValidationError("Address must be a string or object")
         return value
 
 
@@ -86,7 +94,15 @@ class PetCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Pet
-        fields = ['name', 'species']
+        fields = ['name', 'species', 'breed']
+    
+    def validate(self, data):
+        """Ensure required fields are provided"""
+        if not data.get('species'):
+            raise serializers.ValidationError({"species": "This field is required"})
+        if not data.get('breed'):
+            raise serializers.ValidationError({"breed": "This field is required"})
+        return data
 
 
 class PetAnalysisSerializer(serializers.ModelSerializer):

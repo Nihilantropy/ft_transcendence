@@ -106,10 +106,13 @@ SmartBreeds uses a **microservices architecture** with clear separation of conce
 
 **Technology Stack**:
 - **FastAPI**: REST API framework (async, high-performance)
+----
+TODO review this section. Not using llamaindex (direct ollama calls) for vision. For RAG we are using sentence-transformers directly with ChromaDB. Adjust accordingly.
 - **LlamaIndex Core**: Orchestration framework for all AI operations
 - **llama-index-llms-ollama**: Connect to Ollama for LLM and vision queries
 - **llama-index-embeddings-huggingface**: Generate embeddings (e.g., `sentence-transformers/all-MiniLM-L6-v2`)
 - **llama-index-readers-file**: Ingest PDFs, docs, markdown for RAG
+----
 - **ChromaDB**: Vector storage for embeddings
 - **scikit-learn**: ML algorithms for product scoring
 - **pandas/numpy**: Data processing

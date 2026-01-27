@@ -12,8 +12,9 @@ from src.main import app
 
 @pytest.fixture
 def client():
-    """Test client for integration tests."""
-    return TestClient(app)
+    """Test client for integration tests with lifespan context."""
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.mark.integration
@@ -85,16 +86,17 @@ class TestVisionWithEnrichment:
         # This test verifies the endpoint accepts the option
         # Full integration requires Ollama + real image
         import base64
+        from PIL import Image
+        import io
 
-        # Create minimal test image (1x1 red pixel PNG)
-        test_image = base64.b64encode(
-            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
-            b'\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00'
-            b'\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82'
-        ).decode()
+        # Create valid test image (512x512 brown dog-like image)
+        img = Image.new('RGB', (512, 512), color=(139, 90, 43))
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG')
+        test_image = base64.b64encode(buffer.getvalue()).decode()
 
         response = client.post("/api/v1/vision/analyze", json={
-            "image": f"data:image/png;base64,{test_image}",
+            "image": f"data:image/jpeg;base64,{test_image}",
             "options": {
                 "return_traits": True,
                 "return_health_info": True,

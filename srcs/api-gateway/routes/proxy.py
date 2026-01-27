@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from starlette.responses import Response
 from starlette.datastructures import MutableHeaders
 import httpx
+import json
 from config import settings
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
@@ -110,9 +111,18 @@ async def forward_request(
             params=dict(request.query_params)
         )
 
+        # Try to parse JSON, fallback to raw content
+        content = None
+        if response.content:
+            try:
+                content = response.json()
+            except Exception:
+                # Non-JSON response (e.g., HTML error pages)
+                content = None
+
         return {
             "status_code": response.status_code,
-            "content": response.json() if response.content else None,
+            "content": content,
             "headers": dict(response.headers),
             "raw_response": response  # Keep raw response for Set-Cookie handling
         }
@@ -154,6 +164,67 @@ async def proxy_handler(request: Request, path: str):
     raw_response = backend_response.get("raw_response")
 
     if raw_response:
+        # Centralized error response normalization
+        # Convert HTML error pages (404, 500, etc.) to standardized JSON format
+        content_type = raw_response.headers.get('content-type', '')
+        status_code = raw_response.status_code
+        
+        # Handle 404 Not Found errors
+        if status_code == 404 and 'text/html' in content_type:
+            error_response = {
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "NOT_FOUND",
+                    "message": "The requested resource was not found",
+                    "details": {}
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            return Response(
+                content=json.dumps(error_response),
+                status_code=404,
+                media_type="application/json"
+            )
+        
+        # Handle 500 Internal Server Error (often caused by invalid route params)
+        if status_code == 500 and 'text/html' in content_type:
+            # Check if it's a Django "Not Found" error disguised as 500
+            # (happens when URL patterns don't match - e.g., invalid UUID)
+            if b'Not Found' in raw_response.content or b'DoesNotExist' in raw_response.content:
+                error_response = {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "NOT_FOUND",
+                        "message": "The requested resource was not found",
+                        "details": {}
+                    },
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                return Response(
+                    content=json.dumps(error_response),
+                    status_code=404,
+                    media_type="application/json"
+                )
+            else:
+                # Generic 500 error
+                error_response = {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "An internal server error occurred",
+                        "details": {}
+                    },
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                return Response(
+                    content=json.dumps(error_response),
+                    status_code=500,
+                    media_type="application/json"
+                )
+        
         # Use ProxyResponse with raw_headers to preserve all headers including duplicates
         return ProxyResponse(
             content=raw_response.content,

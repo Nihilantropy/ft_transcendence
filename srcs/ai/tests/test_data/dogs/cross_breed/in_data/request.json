@@ -1,0 +1,9 @@
+{
+  "description": "Request template for cross breed (German Shepherd × Golden Retriever) test",
+  "image": "<BASE64_IMAGE_DATA>",
+  "options": {
+    "return_traits": true,
+    "return_health_info": true,
+    "enrich": false
+  }
+}

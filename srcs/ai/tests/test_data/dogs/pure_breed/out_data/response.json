@@ -1,0 +1,38 @@
+{
+  "description": "Expected response template for pure breed Golden Retriever",
+  "breed_analysis": {
+    "is_likely_crossbreed": false,
+    "confidence": {
+      "min": 0.70,
+      "max": 1.0,
+      "description": "High confidence expected for purebred"
+    },
+    "primary_breed": {
+      "expected_keywords": ["golden", "retriever"],
+      "description": "Should contain 'golden' or 'retriever'"
+    },
+    "breed_probabilities": {
+      "min_count": 2,
+      "top_breed_contains": ["golden", "retriever"],
+      "top_probability_min": 0.65
+    }
+  },
+  "traits": {
+    "required_fields": ["size", "energy_level", "temperament"],
+    "size": {
+      "expected_values": ["large", "medium-large"]
+    },
+    "energy_level": {
+      "expected_values": ["high", "medium"]
+    }
+  },
+  "health_considerations": {
+    "is_array": true,
+    "min_count": 0
+  },
+  "structure_validation": {
+    "required_top_level": ["breed_analysis", "traits", "health_considerations"],
+    "breed_analysis_required": ["primary_breed", "confidence", "is_likely_crossbreed", "breed_probabilities"],
+    "crossbreed_analysis_present": false
+  }
+}

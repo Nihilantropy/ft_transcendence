@@ -111,8 +111,11 @@ fclean:
 	@docker image prune -f --filter "label=project=$(PROJECT_NAME)" 2>/dev/null || true
 	@echo "✅ Full cleanup completed!"
 
+# Rebuild everything soft
+re: clean all
+
 # Rebuild everything
-re: fclean all
+ref: fclean all
 
 # Development helpers
 dev:
@@ -122,6 +125,14 @@ dev:
 # Execute commands in containers
 exec-%:
 	@docker exec -it $(PROJECT_NAME)_$* /bin/sh
+
+migration:
+	@echo "Running database migrations..."
+	@scripts/run-migrations.sh
+
+test:
+	@echo "Running tests..."
+	@scripts/init-and-test.sh
 
 # Help target
 help:
@@ -147,7 +158,8 @@ help:
 	@echo "Clean targets:"
 	@echo "  clean        - Remove containers and networks"
 	@echo "  fclean       - Full cleanup (images, volumes, etc.)"
-	@echo "  re           - Full rebuild (fclean + all)"
+	@echo "  re           - Soft rebuild (clean + all)"
+	@echo "  ref          - Full rebuild (fclean + all)"
 	@echo ""
 	@echo "Development targets:"
 	@echo "  dev          - Start in development mode (foreground)"

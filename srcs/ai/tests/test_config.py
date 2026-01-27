@@ -8,7 +8,7 @@ def test_settings_defaults():
     assert settings.SERVICE_NAME == "ai-service"
     assert settings.OLLAMA_BASE_URL == "http://ollama:11434"
     assert settings.OLLAMA_MODEL == "qwen3-vl:8b"
-    assert settings.OLLAMA_TIMEOUT == 60
+    assert settings.OLLAMA_TIMEOUT == 300  # Increased for complex crossbreed detection
     assert settings.OLLAMA_TEMPERATURE == 0.1
     assert settings.MAX_IMAGE_SIZE_MB == 5
     assert settings.MAX_IMAGE_DIMENSION == 1024

@@ -1,9 +1,14 @@
 import uuid
 from django.db import models
+from django.conf import settings
 
 
 class UserProfile(models.Model):
-    """Extended user profile data"""
+    """Extended user profile data
+    
+    Note: user_id is a soft reference to auth_schema.users.
+    Validation should be done at the API/view layer, not database level.
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user_id = models.UUIDField(unique=True, db_index=True)
@@ -27,7 +32,11 @@ class UserProfile(models.Model):
 
 
 class Pet(models.Model):
-    """Pet profile owned by a user"""
+    """Pet profile owned by a user
+    
+    Note: user_id is a soft reference to auth_schema.users.
+    Validation should be done at the API/view layer, not database level.
+    """
 
     SPECIES_CHOICES = [
         ('dog', 'Dog'),
@@ -64,7 +73,11 @@ class Pet(models.Model):
 
 
 class PetAnalysis(models.Model):
-    """History of breed identification analyses"""
+    """History of breed identification analyses
+    
+    Note: pet_id and user_id are soft references.
+    Validation should be done at the API/view layer, not database level.
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     pet_id = models.UUIDField(db_index=True)

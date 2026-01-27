@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # Ollama
     OLLAMA_BASE_URL: str = "http://ollama:11434"
     OLLAMA_MODEL: str = "qwen3-vl:8b"
-    OLLAMA_TIMEOUT: int = 60
+    OLLAMA_TIMEOUT: int = 300  # Increased for complex crossbreed detection (can take 120-180s)
     OLLAMA_TEMPERATURE: float = 0.1
 
     # Image Processing
