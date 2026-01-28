@@ -159,3 +159,6 @@ except FileNotFoundError as e:
         raise
     print(f"Warning: {e}")
     JWT_KEYS = {'private': '', 'public': ''}
+
+# Microservices URLs
+USER_SERVICE_URL = config('USER_SERVICE_URL', default='http://user-service:3002')

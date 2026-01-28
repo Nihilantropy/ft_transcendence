@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
 from rest_framework.response import Response
+import httpx
+import uuid
 
 from apps.authentication.jwt_utils import generate_access_token, generate_refresh_token, hash_token
 
@@ -138,3 +140,68 @@ def clear_auth_cookies(response):
     )
 
     return response
+
+
+# TODO this will be replaced with a message queue in the future
+def delete_user_cascade(user_id, user_role='user'):
+    """
+    Delete user data across all microservices in cascade.
+    
+    First deletes user profile data from user-service, then deletes auth user.
+    This ensures data consistency and follows microservice deletion best practices.
+    
+    NOTE: This function assumes that the user-service exposes an API endpoint
+    for deleting user profiles given a user ID.
+
+    Args:
+        user_id: UUID of user to delete
+        user_role: Role of user (default: 'user')
+    
+    Returns:
+        dict: Deletion summary with counts from each service
+        
+    Raises:
+        Exception: If user-service deletion fails
+    """
+    from apps.authentication.models import User, RefreshToken
+    
+    # Step 1: Delete user profile data from user-service
+    user_service_url = settings.USER_SERVICE_URL
+    headers = {
+        'X-User-ID': str(user_id),
+        'X-User-Role': user_role,
+        'X-Request-ID': str(uuid.uuid4())
+    }
+    
+    deletion_summary = {}
+    
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.delete(
+                f"{user_service_url}/api/v1/users/delete",
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                if response_data.get('success') and 'data' in response_data:
+                    deletion_summary['user_service'] = response_data['data'].get('deleted', {})
+            else:
+                raise Exception(
+                    f"User-service deletion failed with status {response.status_code}: {response.text}"
+                )
+    except httpx.RequestError as e:
+        raise Exception(f"Failed to connect to user-service: {str(e)}")
+    
+    # Step 2: Delete auth data (refresh tokens and user)
+    # refresh_token_count = RefreshToken.objects.filter(user_id=user_id).count()
+    # RefreshToken.objects.filter(user_id=user_id).delete()
+    
+    user_deleted = User.objects.filter(id=user_id).delete()
+    
+    deletion_summary['auth_service'] = {
+        'users': user_deleted[0] if user_deleted else 0
+        # 'refresh_tokens': refresh_token_count
+    }
+    
+    return deletion_summary

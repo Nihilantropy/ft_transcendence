@@ -101,7 +101,6 @@ services:
     networks:
       - backend-network
     restart: unless-stopped
-
 ### FRONTEND ###
   # frontend:
   #   container_name: ft_transcendence_frontend
@@ -195,7 +194,6 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-
 ### DATABASE ###
   db:
     container_name: ft_transcendence_db
@@ -219,16 +217,19 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+### PGADMIN ###
   pgadmin:
     container_name: ft_transcendence_pgadmin
     image: dpage/pgadmin4:9.11.0
     ports:
       - "8080:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: user-name@domain-name.com
-      PGADMIN_DEFAULT_PASSWORD: strong-password
+      PGADMIN_DEFAULT_EMAIL: smartbreeds_user@email.com
+      PGADMIN_DEFAULT_PASSWORD: smartbreeds_password
+      PGADMIN_SERVER_JSON_FILE: "/pgadmin4/servers.json"
     volumes:
       - pgadmin-data:/var/lib/pgadmin
+      - ./srcs/db/config/servers.json:/pgadmin4/servers.json:ro
     networks:
       - backend-network
     restart: on-failure

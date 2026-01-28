@@ -1466,7 +1466,7 @@ pytest-asyncio==0.21.1
 pytest-cov==4.1.0
 
 # Utilities
-python-multipart==0.0.6
+python-multipart==0.0.22
 ```
 
 **Step 2: Create Dockerfile**

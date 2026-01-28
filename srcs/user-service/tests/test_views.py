@@ -63,6 +63,92 @@ class TestUserProfileViewSet:
         profile = UserProfile.objects.get(user_id=user_id)
         assert profile.phone == '+9999999999'
 
+    def test_delete_user_data_removes_all_user_records(self):
+        """Test DELETE /users/delete removes profile, pets, and analyses"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        
+        # Create user data
+        profile = UserProfile.objects.create(user_id=user_id, phone='+1234567890')
+        pet1 = Pet.objects.create(user_id=user_id, name='Dog1', species='dog')
+        pet2 = Pet.objects.create(user_id=user_id, name='Cat1', species='cat')
+        analysis1 = PetAnalysis.objects.create(
+            user_id=user_id,
+            pet_id=pet1.id,
+            image_url='http://example.com/img1.jpg',
+            breed_detected='Golden Retriever',
+            confidence=0.95
+        )
+        analysis2 = PetAnalysis.objects.create(
+            user_id=user_id,
+            pet_id=pet2.id,
+            image_url='http://example.com/img2.jpg',
+            breed_detected='Persian Cat',
+            confidence=0.88
+        )
+
+        request = factory.delete('/api/v1/users/delete/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = UserProfileViewSet.as_view({'delete': 'delete_user_data'})
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data['success'] is True
+        assert 'deleted' in response.data['data']
+        assert response.data['data']['deleted']['profiles'] == 1
+        assert response.data['data']['deleted']['pets'] == 2
+        assert response.data['data']['deleted']['analyses'] == 2
+        
+        # Verify all data is deleted
+        assert not UserProfile.objects.filter(user_id=user_id).exists()
+        assert not Pet.objects.filter(user_id=user_id).exists()
+        assert not PetAnalysis.objects.filter(user_id=user_id).exists()
+
+    def test_delete_user_data_without_user_id(self):
+        """Test DELETE /users/delete returns 401 if no user_id in request"""
+        factory = RequestFactory()
+        request = factory.delete('/api/v1/users/delete/')
+        request.user_id = None
+        request.user_role = 'user'
+
+        view = UserProfileViewSet.as_view({'delete': 'delete_user_data'})
+        response = view(request)
+
+        assert response.status_code == 401
+        assert response.data['success'] is False
+        assert response.data['error']['code'] == 'UNAUTHORIZED'
+
+    def test_delete_user_data_only_deletes_own_data(self):
+        """Test DELETE /users/delete doesn't affect other users' data"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        other_user_id = uuid.uuid4()
+        
+        # Create data for both users
+        UserProfile.objects.create(user_id=user_id, phone='+1111111111')
+        UserProfile.objects.create(user_id=other_user_id, phone='+2222222222')
+        Pet.objects.create(user_id=user_id, name='MyDog', species='dog')
+        Pet.objects.create(user_id=other_user_id, name='OtherDog', species='dog')
+
+        request = factory.delete('/api/v1/users/delete/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = UserProfileViewSet.as_view({'delete': 'delete_user_data'})
+        response = view(request)
+
+        assert response.status_code == 200
+        
+        # Verify only user_id data is deleted
+        assert not UserProfile.objects.filter(user_id=user_id).exists()
+        assert not Pet.objects.filter(user_id=user_id).exists()
+        
+        # Verify other user's data remains
+        assert UserProfile.objects.filter(user_id=other_user_id).exists()
+        assert Pet.objects.filter(user_id=other_user_id).exists()
+
 
 @pytest.mark.django_db
 class TestPetViewSet:

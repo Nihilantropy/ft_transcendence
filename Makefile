@@ -69,9 +69,22 @@ down:
 	@echo "Stopping and removing ft_transcendence containers..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 
+downv:
+	@echo "Stopping and removing ft_transcendence containers and volumes..."
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v
+
+downv-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v $*
+
+down-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down $*
+
 restart:
 	@echo "Restarting ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart
+
+restart-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart $*
 
 # Logs management
 logs:
@@ -83,7 +96,7 @@ logs-%:
 # Clean operations
 clean:
 	@echo "Cleaning ft_transcendence containers and networks..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 	@echo "✅ Containers and networks cleaned!"
 
 fclean:
@@ -116,11 +129,6 @@ re: clean all
 
 # Rebuild everything
 ref: fclean all
-
-# Development helpers
-dev:
-	@echo "Starting ft_transcendence in development mode..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up
 
 # Execute commands in containers
 exec-%:

@@ -7,7 +7,13 @@ from rest_framework.views import APIView
 
 from apps.authentication.models import User, RefreshToken
 from apps.authentication.serializers import LoginSerializer, RegisterSerializer, UserSerializer
-from apps.authentication.utils import success_response, error_response, issue_auth_tokens, clear_auth_cookies
+from apps.authentication.utils import (
+    success_response, 
+    error_response, 
+    issue_auth_tokens, 
+    clear_auth_cookies,
+    delete_user_cascade
+)
 from apps.authentication.jwt_utils import decode_token, hash_token
 
 
@@ -343,9 +349,13 @@ class DeleteUserView(APIView):
     """
     DELETE /api/v1/auth/delete
     
-    Delete the currently authenticated user account.
+    Delete the currently authenticated user account with cascade deletion.
     Requires valid access token in cookies.
-    Cascades: deletes user, all refresh tokens, and user profile (via database cascade).
+    
+    Cascade flow:
+    1. Delete user profile data from user-service (profiles, pets, analyses)
+    2. Delete auth data from auth-service (user, refresh tokens)
+    3. Clear authentication cookies
     """
     
     def delete(self, request):
@@ -393,18 +403,26 @@ class DeleteUserView(APIView):
                 status=401
             )
         
-        # Store email for confirmation message
+        # Store email and role for response message
         email = user.email
+        user_role = payload.get('role', 'user')
         
-        # Delete all refresh tokens for this user
-        RefreshToken.objects.filter(user_id=user_id).delete()
+        # Perform cascade deletion across microservices
+        try:
+            deletion_summary = delete_user_cascade(user_id, user_role)
+        except Exception as e:
+            return error_response(
+                code='DELETION_FAILED',
+                message=f'Failed to delete user account: {str(e)}',
+                status=500
+            )
         
-        # Delete the user (this will cascade to user_profile in user-service via soft reference)
-        user.delete()
-        
-        # Clear auth cookies
+        # Clear auth cookies and return success
         response = success_response(
-            data={'message': f'User account {email} deleted successfully'},
+            data={
+                'message': f'User account {email} deleted successfully',
+                'deleted': deletion_summary
+            },
             status=200
         )
         clear_auth_cookies(response)

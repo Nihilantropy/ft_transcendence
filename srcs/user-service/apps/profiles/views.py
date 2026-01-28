@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
+from django.db import transaction
 from apps.profiles.models import UserProfile, Pet, PetAnalysis
 from apps.profiles.serializers import (
     UserProfileSerializer, UserProfileUpdateSerializer,
@@ -51,6 +52,41 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 return success_response(response_serializer.data)
 
             return error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors, status=422)
+
+    @action(detail=False, methods=['delete'], url_path='delete')
+    def delete_user_data(self, request):
+        """DELETE /api/v1/users/delete - Delete all user data (profile, pets, analyses)"""
+        user_id = request.user_id
+
+        if not user_id:
+            return error_response('UNAUTHORIZED', 'User ID not found in request', status=401)
+
+        try:
+            with transaction.atomic():
+                # Delete all pet analyses for this user
+                analyses_deleted = PetAnalysis.objects.filter(user_id=user_id).delete()[0]
+                
+                # Delete all pets for this user
+                pets_deleted = Pet.objects.filter(user_id=user_id).delete()[0]
+                
+                # Delete user profile
+                profile_deleted = UserProfile.objects.filter(user_id=user_id).delete()[0]
+
+                return success_response({
+                    'message': 'User data deleted successfully',
+                    'deleted': {
+                        'profiles': profile_deleted,
+                        'pets': pets_deleted,
+                        'analyses': analyses_deleted
+                    }
+                })
+
+        except Exception as e:
+            return error_response(
+                'INTERNAL_ERROR',
+                f'Failed to delete user data: {str(e)}',
+                status=500
+            )
 
 
 class PetViewSet(viewsets.ModelViewSet):

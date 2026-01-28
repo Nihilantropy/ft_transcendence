@@ -94,15 +94,24 @@ class PetCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Pet
-        fields = ['name', 'species', 'breed']
+        fields = ['name', 'species', 'breed', 'age', 'weight']
+        extra_kwargs = {
+            'breed': {'required': False, 'allow_blank': True},
+            'age': {'required': False},
+            'weight': {'required': False}
+        }
     
-    def validate(self, data):
-        """Ensure required fields are provided"""
-        if not data.get('species'):
-            raise serializers.ValidationError({"species": "This field is required"})
-        if not data.get('breed'):
-            raise serializers.ValidationError({"breed": "This field is required"})
-        return data
+    def validate_age(self, value):
+        """Age must be positive if provided"""
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Age cannot be negative")
+        return value
+
+    def validate_weight(self, value):
+        """Weight must be positive if provided"""
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Weight must be positive")
+        return value
 
 
 class PetAnalysisSerializer(serializers.ModelSerializer):

@@ -519,7 +519,7 @@ pytest-cov==4.1.0
 httpx==0.26.0
 
 # Utilities
-python-multipart==0.0.6
+python-multipart==0.0.22
 ```
 
 ## API Gateway Integration
