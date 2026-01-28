@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     OLLAMA_TIMEOUT: int = 300  # Increased for complex crossbreed detection (can take 120-180s)
     OLLAMA_TEMPERATURE: float = 0.1
 
+    # Classification Service (NEW)
+    CLASSIFICATION_SERVICE_URL: str = "http://classification-service:3004"
+    CLASSIFICATION_TIMEOUT: int = 30
+
     # Image Processing
     MAX_IMAGE_SIZE_MB: int = 5
     MAX_IMAGE_DIMENSION: int = 1024
