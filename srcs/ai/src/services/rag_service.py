@@ -240,3 +240,97 @@ Answer concisely and cite sources by number when applicable."""
             "care_summary": care_response.answer,
             "sources": list(set(s.source_file for s in response.sources + care_response.sources))
         }
+
+    async def get_breed_context(self, breed: str) -> Dict[str, Any]:
+        """Retrieve context for a single breed (purebred).
+
+        Args:
+            breed: Normalized breed name (e.g., "golden_retriever")
+
+        Returns:
+            Dict with breed description, care, health info, sources
+        """
+        breed_display = breed.replace("_", " ").title()
+
+        # Query ChromaDB
+        query_text = f"{breed_display} breed characteristics health care requirements"
+        query_embedding = self.embedder.embed_text(query_text)
+
+        results = self._collection.query(
+            query_embeddings=[query_embedding],
+            n_results=5
+        )
+
+        # Extract sources
+        sources = []
+        if results["metadatas"] and len(results["metadatas"]) > 0:
+            for metadata_list in results["metadatas"]:
+                for metadata in metadata_list:
+                    sources.append(metadata.get("source", "unknown"))
+
+        # Extract documents
+        documents = []
+        if results["documents"] and len(results["documents"]) > 0:
+            for doc_list in results["documents"]:
+                documents.extend(doc_list)
+
+        # Synthesize context from retrieved documents
+        description = " ".join(documents[:2]) if len(documents) >= 2 else (documents[0] if documents else "No information available")
+        care_summary = documents[2] if len(documents) > 2 else "Standard care recommended"
+        health_info = documents[3] if len(documents) > 3 else "Consult veterinarian for health information"
+
+        return {
+            "breed": breed_display,
+            "parent_breeds": None,
+            "description": description[:500],  # Limit length
+            "care_summary": care_summary[:300],
+            "health_info": health_info[:300],
+            "sources": list(set(sources))  # Deduplicate
+        }
+
+    async def get_crossbreed_context(self, parent_breeds: List[str]) -> Dict[str, Any]:
+        """Retrieve context for crossbreed parent breeds.
+
+        Args:
+            parent_breeds: List like ["Golden Retriever", "Poodle"]
+
+        Returns:
+            Dict with combined breed context
+        """
+        all_documents = []
+        all_sources = []
+
+        # Query for each parent breed
+        for breed in parent_breeds:
+            query_text = f"{breed} breed characteristics health care requirements"
+            query_embedding = self.embedder.embed_text(query_text)
+
+            results = self._collection.query(
+                query_embeddings=[query_embedding],
+                n_results=3
+            )
+
+            # Collect documents
+            if results["documents"] and len(results["documents"]) > 0:
+                for doc_list in results["documents"]:
+                    all_documents.extend(doc_list)
+
+            # Collect sources
+            if results["metadatas"] and len(results["metadatas"]) > 0:
+                for metadata_list in results["metadatas"]:
+                    for metadata in metadata_list:
+                        all_sources.append(metadata.get("source", "unknown"))
+
+        # Combine contexts
+        description = " ".join(all_documents[:3]) if len(all_documents) >= 3 else " ".join(all_documents)
+        care_summary = " ".join(all_documents[3:5]) if len(all_documents) > 3 else "Standard care recommended"
+        health_info = " ".join(all_documents[5:7]) if len(all_documents) > 5 else "Consult veterinarian for health information"
+
+        return {
+            "breed": None,
+            "parent_breeds": parent_breeds,
+            "description": description[:500],
+            "care_summary": care_summary[:300],
+            "health_info": health_info[:300],
+            "sources": list(set(all_sources))
+        }
