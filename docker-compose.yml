@@ -78,6 +78,34 @@ services:
       retries: 3
       start_period: 60s
 
+  classification-service:
+    build:
+      context: ./srcs/classification-service
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_classification_service
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface
+      - HF_HOME=/app/.cache/huggingface
+    volumes:
+      - huggingface-cache:/app/.cache/huggingface
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   open-webui:
     container_name: open-webui
     image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
@@ -171,8 +199,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      auth-service:
-        condition: service_healthy
 ### REDIS ###
   redis:
     container_name: ft_transcendence_redis
@@ -261,13 +287,10 @@ services:
       retries: 3
       start_period: 30s
     depends_on:
-      redis:
+      auth-service:
         condition: service_healthy
-    # depends_on:
-    #   auth-service:
-    #     condition: service_healthy
-    #   user-service:
-    #     condition: service_healthy
+      user-service:
+        condition: service_healthy
 
 ### NETWORKS ###
 networks:
@@ -293,4 +316,6 @@ volumes:
   open-webui:
     driver: local
   ai-chroma-data:
+    driver: local
+  huggingface-cache:
     driver: local
