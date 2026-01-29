@@ -378,3 +378,124 @@ Probabilities should sum to approximately 1.0."""
         except httpx.HTTPError as e:
             logger.error(f"Ollama generation failed: {str(e)}")
             raise ConnectionError(f"Failed to connect to Ollama: {str(e)}")
+
+    async def analyze_with_context(
+        self,
+        image_base64: str,
+        species: str,
+        breed_analysis: Dict[str, Any],
+        rag_context: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Analyze pet image with pre-classified context.
+
+        Args:
+            image_base64: Base64-encoded image (data URI or raw)
+            species: Pre-classified species (dog/cat)
+            breed_analysis: Complete breed classification result
+            rag_context: RAG-enriched breed knowledge (can be None)
+
+        Returns:
+            Dict with visual description, traits, health observations
+
+        Raises:
+            ConnectionError: If Ollama unreachable
+            RuntimeError: If response parsing fails
+        """
+        # Extract base64 part if data URI
+        if "," in image_base64:
+            image_base64 = image_base64.split(",")[1]
+
+        # Build contextual prompt
+        prompt = self._build_contextual_prompt(species, breed_analysis, rag_context)
+
+        # Call Ollama HTTP API
+        try:
+            timeout = httpx.Timeout(self.timeout, connect=self.timeout)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": prompt,
+                                "images": [image_base64]
+                            }
+                        ],
+                        "stream": False,
+                        "options": {"temperature": self.temperature}
+                    }
+                )
+                response.raise_for_status()
+                response_data = response.json()
+
+        except httpx.ConnectError as e:
+            logger.error(f"Ollama connection failed: {e}")
+            raise ConnectionError("Ollama service unavailable")
+        except httpx.TimeoutException as e:
+            logger.error(f"Ollama timeout: {e}")
+            raise ConnectionError("Ollama service timeout")
+
+        # Parse JSON response
+        content = response_data.get("message", {}).get("content", "")
+        result = self._parse_response(content)
+
+        logger.info(f"Visual analysis complete for {breed_analysis['primary_breed']}")
+        return result
+
+    def _build_contextual_prompt(
+        self,
+        species: str,
+        breed_analysis: Dict[str, Any],
+        rag_context: Optional[Dict[str, Any]]
+    ) -> str:
+        """Build focused prompt with classification context."""
+
+        is_crossbreed = breed_analysis["is_likely_crossbreed"]
+        confidence = breed_analysis["confidence"]
+
+        # Build RAG context section
+        if rag_context:
+            if is_crossbreed:
+                breed_name = (
+                    breed_analysis.get("crossbreed_analysis", {}).get("common_name") or
+                    f"{breed_analysis['crossbreed_analysis']['detected_breeds'][0]}-"
+                    f"{breed_analysis['crossbreed_analysis']['detected_breeds'][1]} mix"
+                )
+                parent_breeds = breed_analysis["crossbreed_analysis"]["detected_breeds"]
+                context_section = f"""BREED CONTEXT (from database):
+Parent breeds: {', '.join(parent_breeds)}
+Typical characteristics: {rag_context['description']}
+Common health considerations: {rag_context['health_info']}"""
+            else:
+                breed_name = breed_analysis["primary_breed"].replace("_", " ").title()
+                context_section = f"""BREED CONTEXT (from database):
+{rag_context['description']}
+Common health considerations: {rag_context['health_info']}"""
+        else:
+            breed_name = breed_analysis["primary_breed"].replace("_", " ").title()
+            context_section = "BREED CONTEXT: (unavailable)"
+
+        return f"""You are analyzing a {species} image that has been pre-classified as a {breed_name} (confidence: {confidence:.2f}).
+
+{context_section}
+
+YOUR TASK: Describe THIS SPECIFIC {species} based on what you SEE in the image:
+- Physical appearance and condition (coat quality, body condition, visible features)
+- Estimated age range based on visual cues
+- Any notable characteristics or features specific to this individual
+- Visible health indicators (if any)
+
+Return ONLY valid JSON:
+{{
+  "description": "detailed visual description of this specific {species}",
+  "traits": {{
+    "size": "small/medium/large (based on visual proportions)",
+    "energy_level": "low/medium/high (inferred from posture/expression)",
+    "temperament": "brief description based on expression and body language"
+  }},
+  "health_observations": ["visible observation 1", "visible observation 2"]
+}}
+
+Focus on describing what you SEE, not general breed knowledge."""
