@@ -24,9 +24,13 @@ async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     logger.info(f"Starting {settings.SERVICE_NAME}...")
 
-    # Detect GPU
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"Using device: {device}")
+    # Determine device
+    if settings.DEVICE == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = settings.DEVICE
+
+    logger.info(f"Using device: {device} (config: {settings.DEVICE})")
 
     # Load models (can take 60-90 seconds on first run)
     logger.info("Loading classification models...")

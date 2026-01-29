@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     SERVICE_NAME: str = "classification-service"
     SERVICE_PORT: int = 3004
     LOG_LEVEL: str = "INFO"
+    DEVICE: str = "auto"  # "auto", "cuda", or "cpu"
 
     # HuggingFace Models
     NSFW_MODEL: str = "Falconsai/nsfw_image_detection"

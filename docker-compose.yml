@@ -83,16 +83,17 @@ services:
       context: ./srcs/classification-service
       dockerfile: Dockerfile
     container_name: ft_transcendence_classification_service
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # GPU temporarily disabled due to RTX 5060 Ti (Blackwell) compatibility issue with PyTorch 2.5.1
+    # runtime: nvidia
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     environment:
-      - CUDA_VISIBLE_DEVICES=0
+      - DEVICE=cpu  # Force CPU mode (RTX 5060 Ti not supported by PyTorch 2.5.1)
       - TRANSFORMERS_CACHE=/app/.cache/huggingface
       - HF_HOME=/app/.cache/huggingface
     volumes:

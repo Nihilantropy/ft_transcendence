@@ -6,6 +6,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Species mapping from scientific names to simple labels
+SPECIES_MAPPING = {
+    "canis-lupus-familiaris": "dog",
+    "canis lupus familiaris": "dog",
+    "canis": "dog",
+    "dog": "dog",
+    "felis-catus": "cat",
+    "felis catus": "cat",
+    "felis": "cat",
+    "cat": "cat",
+}
+
 
 class SpeciesClassifier:
     """Species classification using HuggingFace model (151 animal types)."""
@@ -71,8 +83,12 @@ class SpeciesClassifier:
             for prob, idx in zip(top_probs, top_indices)
         ]
 
+        # Normalize species to "dog" or "cat" if possible
+        raw_species = top_predictions[0]["label"]
+        normalized_species = SPECIES_MAPPING.get(raw_species, raw_species)
+
         return {
-            "species": top_predictions[0]["label"],
+            "species": normalized_species,
             "confidence": top_predictions[0]["confidence"],
             "top_predictions": top_predictions
         }
