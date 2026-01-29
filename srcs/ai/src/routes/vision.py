@@ -1,105 +1,123 @@
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
 import logging
+from datetime import datetime
 
-from src.models.requests import VisionAnalysisRequest
-from src.models.responses import VisionAnalysisData, BreedTraits, EnrichedInfo
-from src.services.image_processor import ImageProcessor
-from src.services.ollama_client import OllamaVisionClient
-from src.services.rag_service import RAGService
-from src.utils.responses import success_response, error_response
+from src.models.responses import VisionAnalysisResponse, VisionAnalysisData
 
 logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/v1/vision", tags=["vision"])
 
+
+# Request model
+class VisionAnalysisRequest(BaseModel):
+    """Request for vision analysis."""
+    image: str = Field(..., description="Base64-encoded image (with or without data URI prefix)")
+
+
 # Service instances (injected at startup)
-image_processor: ImageProcessor = None
-ollama_client: OllamaVisionClient = None
-rag_service: RAGService = None
+image_processor = None
+vision_orchestrator = None  # Changed from ollama_client
 
 
-@router.post("/analyze", response_model=dict)
+@router.post("/analyze", response_model=VisionAnalysisResponse)
 async def analyze_image(request: VisionAnalysisRequest):
-    """Analyze pet image to identify breed and characteristics.
+    """Analyze pet image with multi-stage pipeline.
 
-    Args:
-        request: Vision analysis request with image and options
+    Pipeline stages:
+    1. Image processing and validation
+    2. Content safety check (NSFW)
+    3. Species detection (dog/cat)
+    4. Breed classification (with crossbreed detection)
+    5. RAG enrichment (graceful failure)
+    6. Contextual Ollama visual analysis
 
     Returns:
-        Standardized response with breed data and optional enrichment
-
-    Raises:
-        HTTPException: For validation errors (422), service unavailable (503), or internal errors (500)
+        VisionAnalysisResponse with species, breed_analysis, description,
+        traits, health_observations, and enriched_info
     """
     try:
         # Process and validate image
         processed_image = image_processor.process_image(request.image)
-        logger.info("Image processed successfully")
 
-        # Analyze with Ollama
-        result = await ollama_client.analyze_breed(processed_image)
-        logger.info(f"Breed identified: {result['breed']} (confidence: {result['confidence']})")
+        # Run orchestrated pipeline
+        result = await vision_orchestrator.analyze_image(processed_image)
 
-        # Build base response
-        data = VisionAnalysisData(
-            breed=result["breed"],
-            confidence=result["confidence"],
-            traits=BreedTraits(**result["traits"]),
-            health_considerations=result["health_considerations"],
-            note=result.get("note")
+        # Build response
+        data = VisionAnalysisData(**result)
+        return VisionAnalysisResponse(
+            success=True,
+            data=data,
+            error=None,
+            timestamp=datetime.utcnow().isoformat()
         )
 
-        # Enrich with RAG if requested
-        if request.options.enrich and rag_service is not None:
-            logger.info(f"Enriching breed info for: {result['breed']}")
-            enriched = await rag_service.enrich_breed(result["breed"])
-            data.enriched_info = EnrichedInfo(
-                description=enriched["description"],
-                care_summary=enriched["care_summary"],
-                sources=enriched["sources"]
-            )
-
-        return success_response(data.model_dump())
-
     except ValueError as e:
-        # Image validation errors (user input issues)
-        logger.warning(f"Image validation failed: {str(e)}")
+        # Classification rejection errors (422)
+        error_code = str(e)
+        error_map = {
+            "CONTENT_POLICY_VIOLATION": "Image does not meet content policy requirements",
+            "UNSUPPORTED_SPECIES": "Only dog and cat images are supported",
+            "SPECIES_DETECTION_FAILED": "Unable to identify species with sufficient confidence",
+            "BREED_DETECTION_FAILED": "Unable to identify breed with sufficient confidence",
+            "INVALID_IMAGE_FORMAT": "Invalid image format or corrupted image",
+            "IMAGE_TOO_LARGE": "Image size exceeds maximum allowed size",
+            "IMAGE_TOO_SMALL": "Image dimensions are too small for analysis"
+        }
+
+        logger.warning(f"Validation error: {error_code}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=error_response(
-                code="INVALID_IMAGE",
-                message=str(e)
-            )
+            detail={
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": error_code,
+                    "message": error_map.get(error_code, "Validation failed")
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
         )
 
     except ConnectionError as e:
-        # Ollama connection failures
-        logger.error(f"Ollama connection failed: {str(e)}")
+        # Service unavailability (503)
+        logger.error(f"Service connection failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=error_response(
-                code="VISION_SERVICE_UNAVAILABLE",
-                message="Vision analysis temporarily unavailable, please try again"
-            )
-        )
-
-    except RuntimeError as e:
-        # Ollama response parsing errors (service issues, not user input)
-        logger.error(f"Ollama processing failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code="VISION_PROCESSING_ERROR",
-                message="Failed to process vision analysis response"
-            )
+            detail={
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "VISION_SERVICE_UNAVAILABLE",
+                    "message": "Vision analysis temporarily unavailable, please try again"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
         )
 
     except Exception as e:
-        # Unexpected errors
-        logger.error(f"Unexpected error in vision analysis: {str(e)}", exc_info=True)
+        # Unexpected errors (500)
+        logger.error(f"Unexpected error during vision analysis: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code="INTERNAL_ERROR",
-                message="An unexpected error occurred during analysis"
-            )
+            detail={
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "An unexpected error occurred during analysis"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
         )
+
+
+@router.get("/health")
+async def health_check():
+    """Vision service health check."""
+    return {
+        "status": "healthy",
+        "service": "vision-analysis",
+        "pipeline": "multi-stage"
+    }

@@ -10,6 +10,8 @@ from src.services.ollama_client import OllamaVisionClient
 from src.services.embedder import Embedder
 from src.services.document_processor import DocumentProcessor
 from src.services.rag_service import RAGService
+from src.services.classification_client import ClassificationClient
+from src.services.vision_orchestrator import VisionOrchestrator
 from src.utils.logger import setup_logging
 
 # Initialize settings
@@ -28,6 +30,7 @@ async def lifespan(app: FastAPI):
     # Initialize core services
     image_processor = ImageProcessor(settings)
     ollama_client = OllamaVisionClient(settings)
+    classification_client = ClassificationClient(settings)
 
     # Initialize RAG services
     logger.info("Initializing RAG services...")
@@ -35,10 +38,16 @@ async def lifespan(app: FastAPI):
     document_processor = DocumentProcessor(settings)
     rag_service = RAGService(settings, embedder, ollama_client)
 
+    # Initialize orchestrator
+    vision_orchestrator = VisionOrchestrator(
+        classification_client,
+        ollama_client,
+        rag_service
+    )
+
     # Inject into routes
     vision.image_processor = image_processor
-    vision.ollama_client = ollama_client
-    vision.rag_service = rag_service
+    vision.vision_orchestrator = vision_orchestrator
 
     rag.rag_service = rag_service
     rag.document_processor = document_processor
@@ -56,8 +65,8 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="SmartBreeds AI Service",
-    description="AI-powered pet breed identification and analysis",
-    version="1.0.0",
+    description="Multi-stage vision analysis pipeline for pet breed identification",
+    version="2.0.0",
     lifespan=lifespan
 )
 
