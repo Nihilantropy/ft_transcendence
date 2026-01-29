@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 import httpx
 
 from src.services.classification_client import ClassificationClient
@@ -25,10 +25,16 @@ async def test_check_content_safe(client):
         "threshold": 0.7
     }
 
-    with patch.object(httpx.AsyncClient, 'post', new_callable=AsyncMock) as mock_post:
-        mock_post.return_value.json.return_value = mock_response
-        mock_post.return_value.raise_for_status = lambda: None
+    mock_http_response = Mock()  # Regular Mock, not AsyncMock
+    mock_http_response.json.return_value = mock_response
+    mock_http_response.raise_for_status = Mock()
 
+    mock_async_client = AsyncMock()
+    mock_async_client.post = AsyncMock(return_value=mock_http_response)
+    mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+    mock_async_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch('src.services.classification_client.httpx.AsyncClient', return_value=mock_async_client):
         result = await client.check_content("data:image/jpeg;base64,test123")
 
         assert result["is_safe"] is True
@@ -46,10 +52,16 @@ async def test_detect_species(client):
         ]
     }
 
-    with patch.object(httpx.AsyncClient, 'post', new_callable=AsyncMock) as mock_post:
-        mock_post.return_value.json.return_value = mock_response
-        mock_post.return_value.raise_for_status = lambda: None
+    mock_http_response = Mock()  # Regular Mock, not AsyncMock
+    mock_http_response.json.return_value = mock_response
+    mock_http_response.raise_for_status = Mock()
 
+    mock_async_client = AsyncMock()
+    mock_async_client.post = AsyncMock(return_value=mock_http_response)
+    mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+    mock_async_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch('src.services.classification_client.httpx.AsyncClient', return_value=mock_async_client):
         result = await client.detect_species("data:image/jpeg;base64,test123")
 
         assert result["species"] == "dog"
@@ -71,10 +83,16 @@ async def test_detect_breed(client):
         }
     }
 
-    with patch.object(httpx.AsyncClient, 'post', new_callable=AsyncMock) as mock_post:
-        mock_post.return_value.json.return_value = mock_response
-        mock_post.return_value.raise_for_status = lambda: None
+    mock_http_response = Mock()  # Regular Mock, not AsyncMock
+    mock_http_response.json.return_value = mock_response
+    mock_http_response.raise_for_status = Mock()
 
+    mock_async_client = AsyncMock()
+    mock_async_client.post = AsyncMock(return_value=mock_http_response)
+    mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+    mock_async_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch('src.services.classification_client.httpx.AsyncClient', return_value=mock_async_client):
         result = await client.detect_breed("data:image/jpeg;base64,test123", "dog", top_k=5)
 
         assert result["breed_analysis"]["primary_breed"] == "golden_retriever"
@@ -84,7 +102,15 @@ async def test_detect_breed(client):
 @pytest.mark.asyncio
 async def test_connection_error_handling(client):
     """Test connection error handling."""
-    with patch.object(httpx.AsyncClient, 'post', side_effect=httpx.ConnectError("Connection failed")):
+    async def raise_connect_error(*args, **kwargs):
+        raise httpx.ConnectError("Connection failed")
+
+    mock_async_client = AsyncMock()
+    mock_async_client.post = raise_connect_error  # Use async function directly
+    mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+    mock_async_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch('src.services.classification_client.httpx.AsyncClient', return_value=mock_async_client):
         with pytest.raises(ConnectionError, match="Classification service unavailable"):
             await client.check_content("data:image/jpeg;base64,test123")
 
@@ -92,6 +118,14 @@ async def test_connection_error_handling(client):
 @pytest.mark.asyncio
 async def test_timeout_handling(client):
     """Test timeout error handling."""
-    with patch.object(httpx.AsyncClient, 'post', side_effect=httpx.TimeoutException("Timeout")):
+    async def raise_timeout(*args, **kwargs):
+        raise httpx.TimeoutException("Timeout")
+
+    mock_async_client = AsyncMock()
+    mock_async_client.post = raise_timeout  # Use async function directly
+    mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+    mock_async_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch('src.services.classification_client.httpx.AsyncClient', return_value=mock_async_client):
         with pytest.raises(ConnectionError, match="Classification service timeout"):
             await client.check_content("data:image/jpeg;base64,test123")

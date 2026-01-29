@@ -94,6 +94,8 @@ async def test_get_breed_context_normalizes_name(rag_service):
 
     result = await rag_service.get_breed_context("golden_retriever")
 
-    # Query should use "Golden Retriever" not "golden_retriever"
-    call_args = rag_service._collection.query.call_args
-    assert "Golden Retriever" in call_args[1]["query_embeddings"][0] or call_args[0][0] == [0.1] * 384
+    # Verify breed name was normalized to Title Case
+    assert result["breed"] == "Golden Retriever"
+
+    # Verify query was called
+    assert rag_service._collection.query.called

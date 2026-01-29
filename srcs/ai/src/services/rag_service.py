@@ -275,9 +275,9 @@ Answer concisely and cite sources by number when applicable."""
                 documents.extend(doc_list)
 
         # Synthesize context from retrieved documents
-        description = " ".join(documents[:2]) if len(documents) >= 2 else (documents[0] if documents else "No information available")
-        care_summary = documents[2] if len(documents) > 2 else "Standard care recommended"
-        health_info = documents[3] if len(documents) > 3 else "Consult veterinarian for health information"
+        description = documents[0] if len(documents) >= 1 else "No information available"
+        care_summary = documents[1] if len(documents) > 1 else "Standard care recommended"
+        health_info = documents[2] if len(documents) > 2 else "Consult veterinarian for health information"
 
         return {
             "breed": breed_display,
