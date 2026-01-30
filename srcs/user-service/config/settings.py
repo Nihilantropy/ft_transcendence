@@ -34,6 +34,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.profiles.middleware.UserContextMiddleware',
+    'apps.profiles.middleware.Custom404Middleware',  # Must be last to intercept 404s
 ]
 
 # Disable trailing slash for API-only service

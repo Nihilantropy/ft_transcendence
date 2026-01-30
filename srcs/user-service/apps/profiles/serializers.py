@@ -22,9 +22,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def validate_address(self, value):
         """Validate address structure if provided"""
         if value:
-            allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
-            if not set(value.keys()).issubset(allowed_keys):
-                raise serializers.ValidationError("Invalid address fields")
+            # Accept both string and dict formats
+            if isinstance(value, dict):
+                allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
+                if not set(value.keys()).issubset(allowed_keys):
+                    raise serializers.ValidationError("Invalid address fields")
+            elif not isinstance(value, str):
+                raise serializers.ValidationError("Address must be a string or object")
         return value
 
 
@@ -44,9 +48,13 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def validate_address(self, value):
         """Validate address structure if provided"""
         if value:
-            allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
-            if not set(value.keys()).issubset(allowed_keys):
-                raise serializers.ValidationError("Invalid address fields")
+            # Accept both string and dict formats
+            if isinstance(value, dict):
+                allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
+                if not set(value.keys()).issubset(allowed_keys):
+                    raise serializers.ValidationError("Invalid address fields")
+            elif not isinstance(value, str):
+                raise serializers.ValidationError("Address must be a string or object")
         return value
 
 
@@ -86,7 +94,24 @@ class PetCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Pet
-        fields = ['name', 'species']
+        fields = ['name', 'species', 'breed', 'age', 'weight']
+        extra_kwargs = {
+            'breed': {'required': False, 'allow_blank': True},
+            'age': {'required': False},
+            'weight': {'required': False}
+        }
+    
+    def validate_age(self, value):
+        """Age must be positive if provided"""
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Age cannot be negative")
+        return value
+
+    def validate_weight(self, value):
+        """Weight must be positive if provided"""
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Weight must be positive")
+        return value
 
 
 class PetAnalysisSerializer(serializers.ModelSerializer):

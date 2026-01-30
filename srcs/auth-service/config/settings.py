@@ -33,6 +33,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.authentication.middleware.Custom404Middleware',  # Custom 404 JSON handler
 ]
 
 # Disable trailing slash for API-only service
@@ -158,3 +159,6 @@ except FileNotFoundError as e:
         raise
     print(f"Warning: {e}")
     JWT_KEYS = {'private': '', 'public': ''}
+
+# Microservices URLs
+USER_SERVICE_URL = config('USER_SERVICE_URL', default='http://user-service:3002')

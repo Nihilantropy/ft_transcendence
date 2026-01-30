@@ -7,7 +7,13 @@ from rest_framework.views import APIView
 
 from apps.authentication.models import User, RefreshToken
 from apps.authentication.serializers import LoginSerializer, RegisterSerializer, UserSerializer
-from apps.authentication.utils import success_response, error_response, issue_auth_tokens, clear_auth_cookies
+from apps.authentication.utils import (
+    success_response, 
+    error_response, 
+    issue_auth_tokens, 
+    clear_auth_cookies,
+    delete_user_cascade
+)
 from apps.authentication.jwt_utils import decode_token, hash_token
 
 
@@ -267,6 +273,160 @@ class LogoutView(APIView):
         )
         response = clear_auth_cookies(response)
 
+        return response
+
+
+class VerifyView(APIView):
+    """
+    GET /api/v1/auth/verify
+
+    Verify if the current access token is valid.
+    Returns user information if token is valid, 401 if invalid/expired.
+    """
+
+    def get(self, request):
+        # Extract access_token from cookies
+        access_token = request.COOKIES.get('access_token')
+        if not access_token:
+            return error_response(
+                code='MISSING_TOKEN',
+                message='Access token is required',
+                status=401
+            )
+
+        # Decode and validate token
+        try:
+            payload = decode_token(access_token)
+        except jwt.ExpiredSignatureError:
+            return error_response(
+                code='TOKEN_EXPIRED',
+                message='Access token has expired',
+                status=401
+            )
+        except jwt.InvalidTokenError:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Check token_type is 'access'
+        if payload.get('token_type') != 'access':
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Find user by user_id
+        user_id = payload.get('user_id')
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Check if account is active
+        if not user.is_active:
+            return error_response(
+                code='ACCOUNT_DISABLED',
+                message='Account is disabled',
+                status=403
+            )
+
+        # Return user data
+        user_serializer = UserSerializer(user)
+        return success_response(
+            data={'user': user_serializer.data, 'valid': True},
+            status=200
+        )
+
+
+class DeleteUserView(APIView):
+    """
+    DELETE /api/v1/auth/delete
+    
+    Delete the currently authenticated user account with cascade deletion.
+    Requires valid access token in cookies.
+    
+    Cascade flow:
+    1. Delete user profile data from user-service (profiles, pets, analyses)
+    2. Delete auth data from auth-service (user, refresh tokens)
+    3. Clear authentication cookies
+    """
+    
+    def delete(self, request):
+        # Get access token from cookies
+        access_token = request.COOKIES.get('access_token')
+        if not access_token:
+            return error_response(
+                code='UNAUTHORIZED',
+                message='Authentication required',
+                status=401
+            )
+        
+        # Decode and validate access token
+        try:
+            payload = decode_token(access_token)
+        except jwt.ExpiredSignatureError:
+            return error_response(
+                code='TOKEN_EXPIRED',
+                message='Access token has expired',
+                status=401
+            )
+        except jwt.InvalidTokenError:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+        
+        # Verify token type
+        if payload.get('token_type') != 'access':
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+        
+        # Get user
+        user_id = payload.get('user_id')
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='User not found',
+                status=401
+            )
+        
+        # Store email and role for response message
+        email = user.email
+        user_role = payload.get('role', 'user')
+        
+        # Perform cascade deletion across microservices
+        try:
+            deletion_summary = delete_user_cascade(user_id, user_role)
+        except Exception as e:
+            return error_response(
+                code='DELETION_FAILED',
+                message=f'Failed to delete user account: {str(e)}',
+                status=500
+            )
+        
+        # Clear auth cookies and return success
+        response = success_response(
+            data={
+                'message': f'User account {email} deleted successfully',
+                'deleted': deletion_summary
+            },
+            status=200
+        )
+        clear_auth_cookies(response)
+        
         return response
 
 

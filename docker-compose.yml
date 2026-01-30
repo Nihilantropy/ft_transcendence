@@ -54,6 +54,59 @@ services:
       - backend-network
     restart: unless-stopped
 
+  ai-service:
+    build:
+      context: ./srcs/ai
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_ai_service
+    env_file:
+      - ./srcs/ai/.env
+    networks:
+      - backend-network
+    volumes:
+      - ./srcs/ai/src:/app/src
+      - ./srcs/ai/tests:/app/tests
+      - ./srcs/ai/data/knowledge_base:/app/data/knowledge_base:ro
+      - ai-chroma-data:/app/data/chroma
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+### CLASSIFICATION SERVICE ###
+  classification-service:
+    build:
+      context: ./srcs/classification-service
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_classification_service
+    env_file:
+      - ./srcs/classification-service/.env
+    # GPU enabled - RTX 5060 Ti (Blackwell) support via PyTorch 2.11 nightly + CUDA 12.8
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      # DEVICE controlled via .env file (auto/cuda/cpu)
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface
+      - HF_HOME=/app/.cache/huggingface
+    volumes:
+      - huggingface-cache:/app/.cache/huggingface
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   open-webui:
     container_name: open-webui
     image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
@@ -77,7 +130,6 @@ services:
     networks:
       - backend-network
     restart: unless-stopped
-
 ### FRONTEND ###
   # frontend:
   #   container_name: ft_transcendence_frontend
@@ -116,7 +168,7 @@ services:
       - backend-network
     restart: on-failure
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -133,8 +185,6 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./srcs/user-service/.env
-    ports:
-      - "3002:3002"
     volumes:
       # Mount source code for development hot reload
       - ./srcs/user-service:/app:rw
@@ -142,15 +192,13 @@ services:
       - backend-network
     restart: on-failure
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3002/api/v1/users/me/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3002/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
     depends_on:
       db:
-        condition: service_healthy
-      auth-service:
         condition: service_healthy
 ### REDIS ###
   redis:
@@ -173,7 +221,6 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-
 ### DATABASE ###
   db:
     container_name: ft_transcendence_db
@@ -187,7 +234,7 @@ services:
       - backend-network
     restart: on-failure
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER-smartbreeds_user} -d ${POSTGRES_DB-smartbreeds}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -197,7 +244,22 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-
+### PGADMIN ###
+  pgadmin:
+    container_name: ft_transcendence_pgadmin
+    image: dpage/pgadmin4:9.11.0
+    ports:
+      - "8080:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: smartbreeds_user@email.com
+      PGADMIN_DEFAULT_PASSWORD: smartbreeds_password
+      PGADMIN_SERVER_JSON_FILE: "/pgadmin4/servers.json"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./srcs/db/config/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - backend-network
+    restart: on-failure
 ### API GATEWAY ###
   api-gateway:
     container_name: ft_transcendence_api_gateway
@@ -226,13 +288,10 @@ services:
       retries: 3
       start_period: 30s
     depends_on:
-      redis:
+      auth-service:
         condition: service_healthy
-    # depends_on:
-    #   auth-service:
-    #     condition: service_healthy
-    #   user-service:
-    #     condition: service_healthy
+      user-service:
+        condition: service_healthy
 
 ### NETWORKS ###
 networks:
@@ -247,6 +306,8 @@ volumes:
     driver: local
   db-data:
     driver: local
+  pgadmin-data:
+    driver: local
   redis-data:
     driver: local
   ollama:
@@ -254,4 +315,8 @@ volumes:
   models:
     driver: local
   open-webui:
+    driver: local
+  ai-chroma-data:
+    driver: local
+  huggingface-cache:
     driver: local

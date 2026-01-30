@@ -9,5 +9,6 @@ router.register(r'pets', views.PetViewSet, basename='pet')
 router.register(r'analyses', views.PetAnalysisViewSet, basename='pet-analysis')
 
 urlpatterns = [
+    path('health', views.health_check, name='health'),
     path('', include(router.urls)),
 ]

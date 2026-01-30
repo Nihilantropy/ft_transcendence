@@ -1,4 +1,29 @@
-llama-index-core
-llama-index-readers-file
-llama-index-llms-ollama
-llama-index-embeddings-huggingface
+# FastAPI
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# HTTP Client
+httpx==0.27.0
+
+# Image Processing
+Pillow==10.2.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Utilities
+python-multipart==0.0.22
+
+# RAG - Vector Store
+chromadb==1.4.1
+
+# RAG - Embeddings
+sentence-transformers==5.2.0
+
+# RAG - Document Processing
+pyyaml==6.0.2
+tiktoken==0.12.0
