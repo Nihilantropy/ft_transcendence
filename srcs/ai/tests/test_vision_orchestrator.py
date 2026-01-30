@@ -23,8 +23,17 @@ def mock_rag():
     return Mock()
 
 
+@pytest.fixture
+def mock_config():
+    """Mock config with threshold values."""
+    config = Mock()
+    config.SPECIES_MIN_CONFIDENCE = 0.10
+    config.BREED_MIN_CONFIDENCE = 0.05
+    return config
+
+
 @pytest.mark.asyncio
-async def test_purebred_pipeline_success(mock_classification, mock_ollama, mock_rag):
+async def test_purebred_pipeline_success(mock_classification, mock_ollama, mock_rag, mock_config):
     """Test successful purebred dog analysis."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={
@@ -60,7 +69,7 @@ async def test_purebred_pipeline_success(mock_classification, mock_ollama, mock_
         "health_observations": ["Healthy coat"]
     })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act
     result = await orchestrator.analyze_image("data:image/jpeg;base64,test123")
@@ -83,7 +92,7 @@ async def test_purebred_pipeline_success(mock_classification, mock_ollama, mock_
 
 
 @pytest.mark.asyncio
-async def test_crossbreed_pipeline_success(mock_classification, mock_ollama, mock_rag):
+async def test_crossbreed_pipeline_success(mock_classification, mock_ollama, mock_rag, mock_config):
     """Test successful crossbreed detection (Goldendoodle)."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={"is_safe": True})
@@ -121,7 +130,7 @@ async def test_crossbreed_pipeline_success(mock_classification, mock_ollama, moc
         "health_observations": []
     })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act
     result = await orchestrator.analyze_image("data:image/jpeg;base64,test123")
@@ -137,7 +146,7 @@ async def test_crossbreed_pipeline_success(mock_classification, mock_ollama, moc
 
 
 @pytest.mark.asyncio
-async def test_nsfw_rejection(mock_classification, mock_ollama, mock_rag):
+async def test_nsfw_rejection(mock_classification, mock_ollama, mock_rag, mock_config):
     """Test content policy violation rejection."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={
@@ -145,7 +154,7 @@ async def test_nsfw_rejection(mock_classification, mock_ollama, mock_rag):
         "nsfw_probability": 0.85
     })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act & Assert
     with pytest.raises(ValueError, match="CONTENT_POLICY_VIOLATION"):
@@ -156,7 +165,7 @@ async def test_nsfw_rejection(mock_classification, mock_ollama, mock_rag):
 
 
 @pytest.mark.asyncio
-async def test_unsupported_species_rejection(mock_classification, mock_ollama, mock_rag):
+async def test_unsupported_species_rejection(mock_classification, mock_ollama, mock_rag, mock_config):
     """Test rabbit image rejection."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={"is_safe": True})
@@ -165,7 +174,7 @@ async def test_unsupported_species_rejection(mock_classification, mock_ollama, m
         "confidence": 0.92
     })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act & Assert
     with pytest.raises(ValueError, match="UNSUPPORTED_SPECIES"):
@@ -176,16 +185,25 @@ async def test_unsupported_species_rejection(mock_classification, mock_ollama, m
 
 
 @pytest.mark.asyncio
-async def test_low_species_confidence_rejection(mock_classification, mock_ollama, mock_rag):
-    """Test rejection when species confidence < 0.60."""
+async def test_low_species_confidence_rejection(mock_classification, mock_ollama, mock_rag, mock_config):
+    """Test rejection when species confidence < configured threshold."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={"is_safe": True})
     mock_classification.detect_species = AsyncMock(return_value={
         "species": "dog",
-        "confidence": 0.45  # Below threshold
+        "confidence": 0.05  # Below 0.10 threshold
+    })
+    # Mock detect_breed even though we expect early rejection (in case threshold changes)
+    mock_classification.detect_breed = AsyncMock(return_value={
+        "breed_analysis": {
+            "primary_breed": "unknown",
+            "confidence": 0.0,
+            "is_likely_crossbreed": False,
+            "breed_probabilities": []
+        }
     })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act & Assert
     with pytest.raises(ValueError, match="SPECIES_DETECTION_FAILED"):
@@ -193,8 +211,8 @@ async def test_low_species_confidence_rejection(mock_classification, mock_ollama
 
 
 @pytest.mark.asyncio
-async def test_low_breed_confidence_rejection(mock_classification, mock_ollama, mock_rag):
-    """Test rejection when breed confidence < 0.40."""
+async def test_low_breed_confidence_rejection(mock_classification, mock_ollama, mock_rag, mock_config):
+    """Test rejection when breed confidence < 0.05."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={"is_safe": True})
     mock_classification.detect_species = AsyncMock(return_value={
@@ -204,13 +222,26 @@ async def test_low_breed_confidence_rejection(mock_classification, mock_ollama, 
     mock_classification.detect_breed = AsyncMock(return_value={
         "breed_analysis": {
             "primary_breed": "unknown",
-            "confidence": 0.32,  # Below threshold
+            "confidence": 0.04,  # Below 0.05 threshold
             "is_likely_crossbreed": False,
             "breed_probabilities": []
         }
     })
+    # Mock RAG and Ollama even though we expect early rejection (in case threshold changes)
+    mock_rag.get_breed_context = AsyncMock(return_value={
+        "breed": "Unknown",
+        "description": "Unknown breed",
+        "care_summary": "General care",
+        "health_info": "Unknown",
+        "sources": []
+    })
+    mock_ollama.analyze_with_context = AsyncMock(return_value={
+        "description": "Unable to analyze",
+        "traits": {},
+        "health_observations": []
+    })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act & Assert
     with pytest.raises(ValueError, match="BREED_DETECTION_FAILED"):
@@ -218,7 +249,7 @@ async def test_low_breed_confidence_rejection(mock_classification, mock_ollama, 
 
 
 @pytest.mark.asyncio
-async def test_rag_failure_graceful_degradation(mock_classification, mock_ollama, mock_rag):
+async def test_rag_failure_graceful_degradation(mock_classification, mock_ollama, mock_rag, mock_config):
     """Test pipeline continues when RAG fails."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={"is_safe": True})
@@ -241,7 +272,7 @@ async def test_rag_failure_graceful_degradation(mock_classification, mock_ollama
         "health_observations": []
     })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act
     result = await orchestrator.analyze_image("data:image/jpeg;base64,test123")
@@ -257,7 +288,7 @@ async def test_rag_failure_graceful_degradation(mock_classification, mock_ollama
 
 
 @pytest.mark.asyncio
-async def test_cat_species_pipeline(mock_classification, mock_ollama, mock_rag):
+async def test_cat_species_pipeline(mock_classification, mock_ollama, mock_rag, mock_config):
     """Test pipeline works for cats too."""
     # Arrange
     mock_classification.check_content = AsyncMock(return_value={"is_safe": True})
@@ -286,7 +317,7 @@ async def test_cat_species_pipeline(mock_classification, mock_ollama, mock_rag):
         "health_observations": []
     })
 
-    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act
     result = await orchestrator.analyze_image("data:image/jpeg;base64,test123")

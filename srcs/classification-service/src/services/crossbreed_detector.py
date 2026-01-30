@@ -16,12 +16,14 @@ class CrossbreedDetector:
         self.crossbreed_probability_threshold = config.CROSSBREED_PROBABILITY_THRESHOLD
         self.purebred_confidence_threshold = config.PUREBRED_CONFIDENCE_THRESHOLD
         self.purebred_gap_threshold = config.PUREBRED_GAP_THRESHOLD
+        self.min_second_breed = config.CROSSBREED_MIN_SECOND_BREED
 
         logger.info(
             f"CrossbreedDetector initialized: "
             f"prob_threshold={self.crossbreed_probability_threshold}, "
             f"purebred_threshold={self.purebred_confidence_threshold}, "
-            f"gap_threshold={self.purebred_gap_threshold}"
+            f"gap_threshold={self.purebred_gap_threshold}, "
+            f"min_second_breed={self.min_second_breed}"
         )
 
     def process_breed_result(self, breed_probabilities: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -69,7 +71,9 @@ class CrossbreedDetector:
             if top_breed["probability"] < self.purebred_confidence_threshold:
                 probability_gap = top_breed["probability"] - second_breed["probability"]
                 if probability_gap < self.purebred_gap_threshold:
-                    is_crossbreed = True
+                    # Ensure second breed is substantial, not just noise
+                    if second_breed["probability"] > self.min_second_breed:
+                        is_crossbreed = True
 
         # Build crossbreed analysis if detected
         if is_crossbreed and second_breed:

@@ -99,3 +99,55 @@ async def test_get_breed_context_normalizes_name(rag_service):
 
     # Verify query was called
     assert rag_service._collection.query.called
+
+
+@pytest.mark.asyncio
+async def test_get_breed_context_extracts_source_file_from_metadata(rag_service):
+    """Test that source_file metadata is correctly extracted (not 'source')."""
+    # This is the ACTUAL metadata format from document_processor
+    mock_results = {
+        "documents": [
+            ["Golden Retrievers are friendly and intelligent."],
+            ["They need regular exercise and grooming."],
+            ["Common health issues include hip dysplasia."]
+        ],
+        "metadatas": [
+            [{"source_file": "breeds/dogs/golden_retriever.md", "source_type": "knowledge_base"}],
+            [{"source_file": "care/exercise.md", "source_type": "knowledge_base"}],
+            [{"source_file": "health/hip_dysplasia.md", "source_type": "knowledge_base"}]
+        ],
+        "distances": [[0.2], [0.3], [0.4]]
+    }
+    rag_service._collection.query = Mock(return_value=mock_results)
+
+    result = await rag_service.get_breed_context("golden_retriever")
+
+    # Should extract source_file, not fall back to "unknown"
+    assert "breeds/dogs/golden_retriever.md" in result["sources"]
+    assert "care/exercise.md" in result["sources"]
+    assert "health/hip_dysplasia.md" in result["sources"]
+    assert "unknown" not in result["sources"]
+
+
+@pytest.mark.asyncio
+async def test_get_crossbreed_context_extracts_source_file_from_metadata(rag_service):
+    """Test crossbreed source extraction uses correct metadata key."""
+    mock_results = {
+        "documents": [
+            ["Golden Retrievers are friendly."],
+            ["Poodles are intelligent and hypoallergenic."]
+        ],
+        "metadatas": [
+            [{"source_file": "breeds/dogs/golden_retriever.md", "chunk_index": 0}],
+            [{"source_file": "breeds/dogs/poodle.md", "chunk_index": 0}]
+        ],
+        "distances": [[0.2], [0.3]]
+    }
+    rag_service._collection.query = Mock(return_value=mock_results)
+
+    result = await rag_service.get_crossbreed_context(["Golden Retriever", "Poodle"])
+
+    # Should extract source_file correctly
+    assert "breeds/dogs/golden_retriever.md" in result["sources"]
+    assert "breeds/dogs/poodle.md" in result["sources"]
+    assert "unknown" not in result["sources"]

@@ -37,6 +37,7 @@ class ClassificationClient:
                     f"{self.base_url}/classify/content",
                     json={"image": image}
                 )
+                logger.debug(f"Content check response: {response.json()}")
                 response.raise_for_status()
                 return response.json()
 
@@ -66,6 +67,7 @@ class ClassificationClient:
                     f"{self.base_url}/classify/species",
                     json={"image": image, "top_k": top_k}
                 )
+                logger.debug(f"Species detection response: {response.json()}")
                 response.raise_for_status()
                 return response.json()
 
@@ -105,6 +107,7 @@ class ClassificationClient:
                         "top_k": top_k
                     }
                 )
+                logger.debug(f"Breed detection response: {response.json()}")
                 response.raise_for_status()
                 return response.json()
 

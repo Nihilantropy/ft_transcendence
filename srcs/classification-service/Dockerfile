@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12.10-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -10,7 +10,8 @@ WORKDIR /app
 
 # Copy and install requirements
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --pre -r requirements.txt
+RUN pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 # Copy application code
 COPY src/ ./src/

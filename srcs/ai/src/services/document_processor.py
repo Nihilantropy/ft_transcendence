@@ -35,6 +35,31 @@ class DocumentProcessor:
         self._tokenizer = tiktoken.get_encoding("cl100k_base")
         logger.info(f"Initialized document processor: chunk_size={self.chunk_size}, overlap={self.chunk_overlap}")
 
+    def _sanitize_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize metadata for ChromaDB compatibility.
+
+        ChromaDB only accepts primitive types (str, int, float, bool, None).
+        Lists are converted to comma-separated strings.
+
+        Args:
+            metadata: Raw metadata dictionary
+
+        Returns:
+            Sanitized metadata dictionary
+        """
+        sanitized = {}
+        for key, value in metadata.items():
+            if isinstance(value, list):
+                # Convert list to comma-separated string
+                sanitized[key] = ", ".join(str(v) for v in value)
+            elif isinstance(value, (str, int, float, bool, type(None))):
+                # Pass through primitive types
+                sanitized[key] = value
+            else:
+                # Skip unsupported types
+                logger.warning(f"Skipping metadata key '{key}' with unsupported type {type(value)}")
+        return sanitized
+
     def parse_frontmatter(self, content: str) -> Tuple[Dict[str, Any], str]:
         """Extract YAML frontmatter from document.
 
@@ -139,7 +164,7 @@ class DocumentProcessor:
 
         # Extract frontmatter
         doc_metadata, body = self.parse_frontmatter(content)
-        merged_metadata = {**doc_metadata, **metadata}
+        merged_metadata = self._sanitize_metadata({**doc_metadata, **metadata})
 
         # Split by headers first
         sections = self.split_by_headers(body)

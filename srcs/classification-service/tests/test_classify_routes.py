@@ -1,25 +1,4 @@
 import pytest
-from fastapi.testclient import TestClient
-import base64
-from io import BytesIO
-from PIL import Image
-
-
-@pytest.fixture
-def sample_image_base64():
-    """Create sample base64 image."""
-    img = Image.new('RGB', (224, 224), color='red')
-    buffer = BytesIO()
-    img.save(buffer, format='JPEG')
-    encoded = base64.b64encode(buffer.getvalue()).decode()
-    return f"data:image/jpeg;base64,{encoded}"
-
-
-@pytest.fixture
-def client():
-    """Create test client."""
-    from src.main import app
-    return TestClient(app)
 
 
 def test_classify_content_endpoint(client, sample_image_base64):

@@ -23,7 +23,7 @@ def test_detect_crossbreed_high_second_probability(detector):
     result = detector.process_breed_result(probabilities)
 
     assert result["primary_breed"] == "goldendoodle"
-    assert result["confidence"] == pytest.approx(0.42, abs=0.01)  # Average of top 2
+    assert result["confidence"] == 0.41  # (0.47 + 0.36) / 2 = 0.415 → rounds to 0.41
     assert result["is_likely_crossbreed"] is True
     assert result["crossbreed_analysis"]["common_name"] == "Goldendoodle"
     assert "Golden Retriever" in result["crossbreed_analysis"]["detected_breeds"]
@@ -62,7 +62,7 @@ def test_detect_crossbreed_low_confidence_small_gap(detector):
 
     # Gap = 0.55 - 0.30 = 0.25 < 0.30, so crossbreed
     assert result["is_likely_crossbreed"] is True
-    assert result["confidence"] == pytest.approx(0.42, abs=0.01)  # Average
+    assert result["confidence"] == 0.43  # (0.55 + 0.30) / 2 = 0.425 → rounds to 0.43
 
 
 def test_identify_common_crossbreed_name(detector):
@@ -83,3 +83,28 @@ def test_empty_probabilities(detector):
     assert result["confidence"] == 0.0
     assert result["is_likely_crossbreed"] is False
     assert result["breed_probabilities"] == []
+
+
+def test_reject_crossbreed_when_second_breed_is_noise(detector):
+    """Test that low confidence with negligible second breed is NOT crossbreed.
+
+    Bug reproduction: Golden Retriever at 26%, Labrador at 2%
+    - Top < 75%: YES
+    - Gap (24%) < 30%: YES
+    - Second breed (2%) is just noise: Should NOT be crossbreed
+    """
+    probabilities = [
+        {"breed": "golden_retriever", "probability": 0.26},
+        {"breed": "labrador_retriever", "probability": 0.02},
+        {"breed": "great_pyrenees", "probability": 0.01},
+        {"breed": "tibetan_mastiff", "probability": 0.01},
+        {"breed": "newfoundland", "probability": 0.01}
+    ]
+
+    result = detector.process_breed_result(probabilities)
+
+    # Should be purebred (uncertain, but not a crossbreed)
+    assert result["primary_breed"] == "golden_retriever"
+    assert result["confidence"] == 0.26
+    assert result["is_likely_crossbreed"] is False
+    assert result["crossbreed_analysis"] is None

@@ -15,19 +15,25 @@ class VisionOrchestrator:
     5. Contextual Ollama analysis
     """
 
-    def __init__(self, classification_client, ollama_client, rag_service):
+    def __init__(self, classification_client, ollama_client, rag_service, config):
         """Initialize orchestrator with service dependencies.
 
         Args:
             classification_client: ClassificationClient instance
             ollama_client: OllamaVisionClient instance
             rag_service: RAGService instance
+            config: Settings instance with threshold configuration
         """
         self.classification = classification_client
         self.ollama = ollama_client
         self.rag = rag_service
+        self.config = config
 
-        logger.info("VisionOrchestrator initialized")
+        logger.info(
+            f"VisionOrchestrator initialized: "
+            f"species_threshold={config.SPECIES_MIN_CONFIDENCE}, "
+            f"breed_threshold={config.BREED_MIN_CONFIDENCE}"
+        )
 
     async def analyze_image(self, image: str) -> Dict[str, Any]:
         """Execute full vision analysis pipeline with early rejection.
@@ -60,7 +66,7 @@ class VisionOrchestrator:
         if species_result["species"] not in ["dog", "cat"]:
             logger.warning(f"Unsupported species: {species_result['species']}")
             raise ValueError("UNSUPPORTED_SPECIES")
-        if species_result["confidence"] < 0.60:
+        if species_result["confidence"] < self.config.SPECIES_MIN_CONFIDENCE:
             logger.warning(f"Low species confidence: {species_result['confidence']}")
             raise ValueError("SPECIES_DETECTION_FAILED")
 
@@ -72,7 +78,7 @@ class VisionOrchestrator:
             species_result["species"],
             top_k=5
         )
-        if breed_result["breed_analysis"]["confidence"] < 0.40:
+        if breed_result["breed_analysis"]["confidence"] < self.config.BREED_MIN_CONFIDENCE:
             logger.warning(f"Low breed confidence: {breed_result['breed_analysis']['confidence']}")
             raise ValueError("BREED_DETECTION_FAILED")
 
@@ -102,7 +108,7 @@ class VisionOrchestrator:
         # Stage 5: Contextual Ollama analysis
         logger.info("Starting Ollama visual analysis")
         ollama_result = await self.ollama.analyze_with_context(
-            image=image,
+            image_base64=image,
             species=species_result["species"],
             breed_analysis=breed_result["breed_analysis"],
             rag_context=rag_context

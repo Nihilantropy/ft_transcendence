@@ -25,8 +25,10 @@ class Settings(BaseSettings):
     MIN_IMAGE_DIMENSION: int = 224
     SUPPORTED_FORMATS: List[str] = ["jpeg", "jpg", "png", "webp"]
 
-    # Vision Analysis
+    # Vision Analysis Thresholds
     LOW_CONFIDENCE_THRESHOLD: float = 0.5
+    SPECIES_MIN_CONFIDENCE: float = 0.10  # Minimum confidence for species detection
+    BREED_MIN_CONFIDENCE: float = 0.05  # Minimum confidence for breed detection (lowered for crossbreeds)
 
     # RAG - ChromaDB
     CHROMA_PERSIST_DIR: str = "./data/chroma"

@@ -8,7 +8,7 @@ Three Jupyter notebooks are provided to test each service through the API Gatewa
 
 1. **`test_auth_service.ipynb`** - Authentication service testing (login, register, token refresh, logout)
 2. **`test_user_service.ipynb`** - User service testing (profile management, pet CRUD operations)
-3. **`test_ai_service.ipynb`** - AI/Ollama service testing (vision analysis, breed detection)
+3. **`test_ai_service.ipynb`** - TODO needs to be recreated based on the refactor of the ai-service, described in docs/plans/2026-01-28-multi-stage-vision-pipeline-design.md
 
 All tests send HTTP requests through the API Gateway (`http://localhost:8001`) or Nginx (`https://localhost`), following the microservices architecture security boundaries.
 

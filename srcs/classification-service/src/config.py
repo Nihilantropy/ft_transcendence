@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     CROSSBREED_PROBABILITY_THRESHOLD: float = 0.35
     PUREBRED_CONFIDENCE_THRESHOLD: float = 0.75
     PUREBRED_GAP_THRESHOLD: float = 0.30
+    CROSSBREED_MIN_SECOND_BREED: float = 0.05  # Minimum second breed probability for crossbreed detection
 
     # HuggingFace
     TRANSFORMERS_CACHE: str = "/app/.cache/huggingface"

@@ -42,7 +42,8 @@ async def lifespan(app: FastAPI):
     vision_orchestrator = VisionOrchestrator(
         classification_client,
         ollama_client,
-        rag_service
+        rag_service,
+        settings
     )
 
     # Inject into routes
@@ -93,3 +94,4 @@ async def health_check():
 # Include routers
 app.include_router(vision.router)
 app.include_router(rag.router)
+app.include_router(rag.admin_router)

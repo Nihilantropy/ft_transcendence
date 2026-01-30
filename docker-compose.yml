@@ -68,8 +68,6 @@ services:
       - ./srcs/ai/tests:/app/tests
       - ./srcs/ai/data/knowledge_base:/app/data/knowledge_base:ro
       - ai-chroma-data:/app/data/chroma
-    depends_on:
-      - ollama
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
@@ -77,23 +75,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-
+### CLASSIFICATION SERVICE ###
   classification-service:
     build:
       context: ./srcs/classification-service
       dockerfile: Dockerfile
     container_name: ft_transcendence_classification_service
-    # GPU temporarily disabled due to RTX 5060 Ti (Blackwell) compatibility issue with PyTorch 2.5.1
-    # runtime: nvidia
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    env_file:
+      - ./srcs/classification-service/.env
+    # GPU enabled - RTX 5060 Ti (Blackwell) support via PyTorch 2.11 nightly + CUDA 12.8
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     environment:
-      - DEVICE=cpu  # Force CPU mode (RTX 5060 Ti not supported by PyTorch 2.5.1)
+      # DEVICE controlled via .env file (auto/cuda/cpu)
       - TRANSFORMERS_CACHE=/app/.cache/huggingface
       - HF_HOME=/app/.cache/huggingface
     volumes:

@@ -1,5 +1,5 @@
 from PIL import Image
-from transformers import AutoModelForImageClassification, AutoProcessor
+from transformers import AutoModelForImageClassification, AutoImageProcessor
 import torch
 from typing import List, Dict
 import logging
@@ -26,7 +26,7 @@ class BreedClassifierBase:
 
         # Load model and processor
         self.model = AutoModelForImageClassification.from_pretrained(model_id)
-        self.processor = AutoProcessor.from_pretrained(model_id)
+        self.processor = AutoImageProcessor.from_pretrained(model_id)
 
         # Move model to device
         self.model.to(self.device)

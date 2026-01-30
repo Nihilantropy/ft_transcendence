@@ -30,12 +30,13 @@ class ProxyResponse(Response):
         self.raw_headers = raw_headers
 
 # Service routing map
+# NOTE: RAG endpoints are internal-only (used by vision pipeline, not exposed to users)
 SERVICE_ROUTES = {
     "/api/v1/auth": settings.AUTH_SERVICE_URL,
     "/api/v1/users": settings.USER_SERVICE_URL,
     "/api/v1/pets": settings.USER_SERVICE_URL,
     "/api/v1/vision": settings.AI_SERVICE_URL,
-    "/api/v1/rag": settings.AI_SERVICE_URL,
+    # "/api/v1/rag": Intentionally not exposed - internal use only
     "/api/v1/recommendations": settings.AI_SERVICE_URL,
 }
 

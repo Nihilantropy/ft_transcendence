@@ -48,6 +48,14 @@ run_test_suite "User Service" \
   "docker compose run --rm user-service python -m pytest tests/ -v" \
   73
 
+run_test_suite "AI Service" \
+  "docker compose run --rm ai-service python -m pytest tests/ -v" \
+  37
+
+run_test_suite "Classification Service" \
+  "docker compose run --rm classification-service python -m pytest tests/ -v" \
+  28
+
 # Summary
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║        Unit Tests Summary                  ║${NC}"

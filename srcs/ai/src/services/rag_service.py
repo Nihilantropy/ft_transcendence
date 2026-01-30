@@ -254,7 +254,7 @@ Answer concisely and cite sources by number when applicable."""
 
         # Query ChromaDB
         query_text = f"{breed_display} breed characteristics health care requirements"
-        query_embedding = self.embedder.embed_text(query_text)
+        query_embedding = self.embedder.embed(query_text)
 
         results = self._collection.query(
             query_embeddings=[query_embedding],
@@ -266,7 +266,7 @@ Answer concisely and cite sources by number when applicable."""
         if results["metadatas"] and len(results["metadatas"]) > 0:
             for metadata_list in results["metadatas"]:
                 for metadata in metadata_list:
-                    sources.append(metadata.get("source", "unknown"))
+                    sources.append(metadata.get("source_file", "unknown"))
 
         # Extract documents
         documents = []
@@ -303,7 +303,7 @@ Answer concisely and cite sources by number when applicable."""
         # Query for each parent breed
         for breed in parent_breeds:
             query_text = f"{breed} breed characteristics health care requirements"
-            query_embedding = self.embedder.embed_text(query_text)
+            query_embedding = self.embedder.embed(query_text)
 
             results = self._collection.query(
                 query_embeddings=[query_embedding],
@@ -319,7 +319,7 @@ Answer concisely and cite sources by number when applicable."""
             if results["metadatas"] and len(results["metadatas"]) > 0:
                 for metadata_list in results["metadatas"]:
                     for metadata in metadata_list:
-                        all_sources.append(metadata.get("source", "unknown"))
+                        all_sources.append(metadata.get("source_file", "unknown"))
 
         # Combine contexts
         description = " ".join(all_documents[:3]) if len(all_documents) >= 3 else " ".join(all_documents)

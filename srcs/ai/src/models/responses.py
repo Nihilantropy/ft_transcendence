@@ -87,3 +87,11 @@ class RAGStatusResponse(BaseModel):
     collection_name: str
     document_count: int
     embedding_model: str
+
+
+class RAGBulkIngestResponse(BaseModel):
+    """RAG bulk ingest response data."""
+    files_processed: int
+    total_chunks_created: int
+    files_skipped: int
+    errors: List[str]

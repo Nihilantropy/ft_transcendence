@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12.10-slim
 
 WORKDIR /app
 
@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 COPY tests/ ./tests/
+COPY scripts/ ./scripts/
 COPY pytest.ini .
 
 # Create data directories for ChromaDB and knowledge base
