@@ -81,6 +81,11 @@ Zero-touch routing - backend services add endpoints without gateway changes:
 /api/v1/recommendations/* → AI_SERVICE_URL
 ```
 
+**Cookie Forwarding:**
+- Cookies are stripped before forwarding to backend services (security/isolation)
+- Exception: `/api/v1/auth/*` endpoints preserve cookies (needed for refresh/logout)
+- Pattern: `if not path.startswith("/api/v1/auth"): forward_headers.pop("cookie", None)`
+
 ### Public Paths (no auth required)
 
 Defined in `middleware/auth_middleware.py`:
@@ -105,6 +110,8 @@ Create in `middleware/`, inherit from `BaseHTTPMiddleware`, register in `main.py
 
 ## Testing Patterns
 
+**CRITICAL:** After modifying source files, run `docker compose build api-gateway` to rebuild the image (code is baked in at build time).
+
 Tests use dynamically generated RSA key pairs (see `conftest.py`):
 - `test_private_key` fixture - for signing test tokens
 - `test_public_key` fixture - for verification
@@ -117,10 +124,22 @@ jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm="RS256")
 ```
 Never use HS256 with hardcoded secrets - the auth middleware validates RS256 only.
 
+**Preferred test command:** `docker compose run --rm api-gateway python -m pytest tests/ -v` (works even if container not running)
+
 Mocking patterns:
 - Redis: `unittest.mock.patch`
 - Backend services: `httpx` mocking with `AsyncMock`
 - Use `TestClient` from FastAPI for synchronous test requests
+
+## Common Gotchas
+
+**httpx.Response headers:** Use `response.headers.raw` (returns `List[Tuple[bytes, bytes]]`), NOT `response.raw_headers` (doesn't exist)
+
+**pytest warnings:** Configure pytest.ini with custom markers and `asyncio_default_fixture_loop_scope = function`
+
+**Cookie forwarding (multiple Set-Cookie):** Multiple `Set-Cookie` headers require ProxyResponse class with `raw_headers` parameter
+
+**Cookie forwarding (auth endpoints):** Auth service endpoints require cookies for refresh/logout operations - cookies are preserved for `/api/v1/auth/*` paths only
 
 ## Key Files
 

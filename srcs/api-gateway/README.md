@@ -45,8 +45,8 @@ Create a `.env` file in the `srcs/api-gateway` directory:
 
 ```bash
 # JWT Configuration
-JWT_SECRET_KEY=your-secret-key-here-change-in-production
-JWT_ALGORITHM=HS256
+JWT_PUBLIC_KEY_PATH=/app/keys/jwt-public.pem # from auth-service
+JWT_ALGORITHM=RS256
 
 # Backend Service URLs
 AUTH_SERVICE_URL=http://auth-service:3001

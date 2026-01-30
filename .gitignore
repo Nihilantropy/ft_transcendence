@@ -23,6 +23,8 @@ yarn-error.log*
 *.venv
 venv/
 **/venv/
+.venv/
+**/.venv/
 __pycache__/
 **/__pycache__/
 *.pyc
@@ -34,6 +36,10 @@ __pycache__/
 *.db
 **/*.sqlite3
 **/*.db
+
+# ChromaDB data (generated at runtime)
+srcs/ai/data/chroma/*
+!srcs/ai/data/chroma/.gitkeep
 
 # Logs
 *.log
@@ -64,4 +70,7 @@ build/
 *.temp
 **/*.tmp
 **/*.temp
+
+# Git worktrees
+.worktrees/
 

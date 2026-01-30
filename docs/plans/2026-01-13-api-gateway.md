@@ -33,7 +33,7 @@ redis==5.2.0
 pytest==8.3.0
 pytest-asyncio==0.24.0
 httpx==0.28.0
-python-multipart==0.0.17
+python-multipart==0.0.22
 ```
 
 **Step 2: Create basic FastAPI app with health endpoint**

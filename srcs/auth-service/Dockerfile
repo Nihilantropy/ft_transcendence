@@ -35,9 +35,5 @@ USER authuser
 # Expose port
 EXPOSE 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=60s \
-    CMD python -c "import requests; requests.get('http://localhost:3001/health')" || exit 1
-
-# Start command (will be overridden once Django is set up)
-CMD ["python", "-c", "print('Auth service container ready. Run migrations and start server.')"]
+# Start Django development server
+CMD ["python", "manage.py", "runserver", "0.0.0.0:3001"]

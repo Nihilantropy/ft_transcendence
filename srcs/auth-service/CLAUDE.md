@@ -8,6 +8,8 @@ Django REST Framework microservice handling user authentication via JWT tokens w
 
 **Port:** 3001 (internal, accessed via API Gateway)
 
+**Django Configuration:** API-only service with `APPEND_SLASH = False` for RESTful conventions (no trailing slashes)
+
 ## Commands
 
 ### Testing

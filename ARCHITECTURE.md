@@ -106,10 +106,13 @@ SmartBreeds uses a **microservices architecture** with clear separation of conce
 
 **Technology Stack**:
 - **FastAPI**: REST API framework (async, high-performance)
+----
+TODO review this section. Not using llamaindex (direct ollama calls) for vision. For RAG we are using sentence-transformers directly with ChromaDB. Adjust accordingly.
 - **LlamaIndex Core**: Orchestration framework for all AI operations
 - **llama-index-llms-ollama**: Connect to Ollama for LLM and vision queries
 - **llama-index-embeddings-huggingface**: Generate embeddings (e.g., `sentence-transformers/all-MiniLM-L6-v2`)
 - **llama-index-readers-file**: Ingest PDFs, docs, markdown for RAG
+----
 - **ChromaDB**: Vector storage for embeddings
 - **scikit-learn**: ML algorithms for product scoring
 - **pandas/numpy**: Data processing
@@ -252,6 +255,10 @@ All microservices communicate via **synchronous REST APIs** over HTTP. This prov
 - **Automatic**: Browser sends cookie with every request
 - **CSRF Protection**: Combined with SameSite attribute
 - **Stateless**: JWT contains all user context, no server-side sessions
+
+### JWT Generation & Validation (RS256)
+- **Signing**: Auth Service signs JWTs with private key (RS256)
+- **Validation**: API Gateway verifies JWTs with public key
 
 ### JWT Token Structure
 
@@ -862,7 +869,8 @@ make fclean         # Full clean (containers + volumes)
 make re             # Rebuild and restart everything
 
 # Database commands
-make db-migrate     # Run database migrations
+make db-migrate     # Run database 
+s
 make db-backup      # Backup PostgreSQL database
 
 # Health & monitoring

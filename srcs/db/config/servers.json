@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "My Local Postgres Server",
+      "Group": "Servers",
+      "Port": 5432,
+      "Username": "smartbreeds_user",
+      "Host": "db",
+      "SSLMode": "prefer",
+      "MaintenanceDB": "smartbreeds",
+      "Password": "smartbreeds_password"
+    }
+  }
+}

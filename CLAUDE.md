@@ -9,8 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Core Technologies:**
 - Frontend: React 19.2 + Vite + Tailwind CSS
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
-- Backend Services: Django 6.0.1 (auth-service, user-service - currently stubs)
-- AI Services: FastAPI + LlamaIndex + Ollama (qwen3-vl:8b model)
+- Backend Services: Django 6.0.1 (auth-service, user-service)
+- AI Services:
+  - FastAPI + Ollama HTTP API (qwen3-vl:8b model) for multimodal vision
+  - RAG (ChromaDB + sentence-transformers) for breed knowledge enrichment
+  - HuggingFace Transformers for classification (species, breed, NSFW)
 - Database: PostgreSQL 15+
 - Cache: Redis 7
 - Infrastructure: Docker Compose, Nginx reverse proxy
@@ -23,13 +26,17 @@ make all           # Build and start all services
 make build         # Build Docker images (bakes in requirements)
 make up            # Start services in detached mode
 make down          # Stop and remove containers
+make downv         # Stop and remove containers + volumes
 make restart       # Restart all services
 make logs          # Follow all logs
 make logs-SERVICE  # View specific service logs (e.g., make logs-api-gateway)
 make clean         # Remove containers and networks
 make fclean        # Full cleanup (containers + volumes + images)
-make re            # Full rebuild (fclean + all)
-make dev           # Start in foreground (development mode)
+make re            # Soft rebuild (clean + all)
+make ref           # Full rebuild (fclean + all)
+make show          # Show system status (containers, networks, volumes)
+make migration     # Run database migrations
+make test          # Run all tests via init-and-test.sh
 ```
 
 ### Development
@@ -45,13 +52,30 @@ docker exec -it CONTAINER sh    # Shell into container
 
 ### Testing
 
-**API Gateway Tests** (32 tests total: 28 unit + 4 integration):
+**Critical Docker Workflow:**
+- Code changes require rebuild: `make build` or `docker compose build SERVICE`
+- Preferred test command: `docker compose run --rm SERVICE pytest` (works even when container stopped)
+- Direct exec only works when container running: `docker exec CONTAINER pytest`
+
+**API Gateway Tests** (30 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (77 tests)
+# Auth Service tests (77 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
+
+# User Service tests (73 tests total)
+docker compose run --rm user-service python -m pytest tests/ -v
+
+# AI Service tests (47 tests total)
+docker compose run --rm ai-service python -m pytest tests/ -v
+
+# Classification Service tests (28 tests total)
+docker compose run --rm classification-service python -m pytest tests/ -v
+
+# Run specific test within a service
+docker compose run --rm SERVICE python -m pytest tests/test_file.py::test_function -v
 
 # Specific test file
 docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middleware.py -v
@@ -63,39 +87,25 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middle
 docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-report=html
 ```
 
-**Auth Service Tests** (Django/pytest):
+### IMPORTANT!
+All unit tests run via pytest must point to the test database `test_smartbreeds`.
+Services must only contain unit tests that are not dependent on other services.
+Integration tests are run via Jupyter notebook: `scripts/jupyter/test_ai_service.ipynb`
+
+#### Test Orchestration Scripts
 ```bash
-docker exec ft_transcendence_auth_service python -m pytest tests/ -v
-docker exec ft_transcendence_auth_service python manage.py makemigrations
-docker exec ft_transcendence_auth_service python manage.py migrate
+# Full test suite with initialization (build, start, migrations, run tests)
+./scripts/init-and-test.sh [--all|--unit|--integration] [--skip-init]
+
+# Unit tests only (API Gateway, Auth, User, AI, Classification services)
+./scripts/run-unit-tests.sh
+
+# Integration tests only (E2E via Jupyter notebook - manual for now)
+jupyter notebook scripts/jupyter/test_ai_service.ipynb
 ```
 
-### API Testing
-
-**Through NGINX (production-like):**
-```bash
-# Health check
-curl -k https://localhost/api/health
-
-# Authentication
-curl -k -X POST https://localhost/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"password123"}' \
-  -c cookies.txt
-
-# Protected endpoint
-curl -k https://localhost/api/v1/users/me -b cookies.txt
-```
-
-**Direct API Gateway (development):**
-```bash
-# Faster iteration, no NGINX overhead
-curl http://localhost:8001/health
-curl -X POST http://localhost:8001/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"password123"}' \
-  -c cookies.txt
-```
+**⚠️ Backend Services (DO NOT ACCESS DIRECTLY):**
+Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **NOT exposed to localhost**. All requests must go through API Gateway or Nginx to ensure authentication, rate limiting, and security boundaries are enforced.
 
 ## Architecture Key Concepts
 
@@ -107,13 +117,21 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
 - API Gateway bridges both networks as the sole entry point
 
 **Authentication Flow:**
-1. User logs in → Auth Service issues HTTP-only JWT cookies (24h access + 7d refresh)
+1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (24h access + 7d refresh)
 2. Browser automatically sends cookies with each request
-3. API Gateway validates JWT, extracts user context (user_id, role)
+3. API Gateway validates JWT using RS256 public key, extracts user context (user_id, role)
 4. Gateway forwards to backend services with headers: `X-User-ID`, `X-User-Role`, `X-Request-ID`
 5. Backend services trust API Gateway validation (network isolation ensures security)
 
+**Why RS256 Asymmetric Keys:** Auth Service signs tokens with private key (never leaves auth-service). API Gateway verifies with public key only (cannot forge tokens). More secure than HS256 symmetric secrets.
+
 **Why HTTP-Only Cookies:** XSS protection (JavaScript cannot access), automatic transmission, CSRF protection via SameSite attribute.
+
+**Backend Service Isolation:**
+- ⚠️ **Backend services are NOT exposed to localhost** (no direct port access)
+- Auth Service (3001), User Service (3002), AI Service (3003) are **internal only**
+- All requests MUST go through API Gateway (8001) or Nginx (80/443)
+- This enforces security boundaries and ensures authentication/rate limiting are applied
 
 ### Service Responsibilities
 
@@ -126,23 +144,36 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
 - Zero-touch routing: automatically proxies `/api/*` to backend services
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Models/utils implemented, views pending]
+**Auth Service (Django - port 3001):** [Complete - 77 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
-- User registration and login (endpoints pending)
+- User registration and login endpoints
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
 
-**User Service (Django - port 3002):** [Currently stub]
-- User profile management
-- Pet profiles (name, breed, age, weight, health conditions)
+**User Service (Django - port 3002):** [Complete - 73 passing tests]
+- User profile management (GET/PUT/PATCH /users/me)
+- Pet profiles CRUD (name, breed, species, age, weight, health conditions)
+- Pet analysis history (breed detection results from AI service)
+- Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI + LlamaIndex - port 3003):**
-- Vision analysis via Ollama (qwen3-vl:8b multimodal model)
-- RAG system (ChromaDB + HuggingFace embeddings)
-- ML product recommendations (scikit-learn)
+**AI Service (FastAPI - internal port 3003):** [Complete - 47 passing tests]
+- Multi-stage vision pipeline via VisionOrchestrator
+- Ollama HTTP API integration (qwen3-vl:8b model) for contextual analysis
+- RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
+- Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info)
+- Coordinates between Classification Service (HuggingFace models) and Ollama (LLM)
 - Location: `srcs/ai/`
+
+**Classification Service (FastAPI - internal port 3004):** [Complete - 28 passing tests]
+- HuggingFace Transformers-based classification pipeline
+- NSFW content detection (safety filter)
+- Species classification (dog/cat/other)
+- Breed classification (120 dog breeds, 70 cat breeds)
+- Crossbreed detection with intelligent thresholding
+- **GPU Support:** RTX 5060 Ti (Blackwell) via PyTorch nightly (2.11.0.dev20260128+cu128)
+- Location: `srcs/classification-service/`
 
 **Ollama (port 11434):**
 - Self-hosted LLM server (GPU-accelerated, NVIDIA runtime)
@@ -161,9 +192,11 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
 **Shared PostgreSQL with Logical Separation:**
 - `auth_schema`: users, refresh_tokens (owned by auth-service)
 - `user_schema`: user_profiles, pets, pet_analyses (owned by user-service)
-- `ai_schema`: product_catalog, recommendations, rag_documents (owned by ai-service)
+- `ai_schema`: (reserved for future features - product recommendations, user preferences)
 
 **Rule:** Services NEVER directly access other services' schemas. Cross-service data access MUST go through REST APIs via API Gateway.
+
+**Note:** AI Service (vision pipeline) is stateless - uses ChromaDB for vector storage, no PostgreSQL tables yet.
 
 **Redis Usage:**
 - Token blacklist: `blacklist:token:{hash}` (TTL: token lifetime)
@@ -172,22 +205,57 @@ curl -X POST http://localhost:8001/api/v1/auth/login \
 
 ### AI/ML Architecture
 
-**LlamaIndex Orchestration:**
-- Unified framework for all AI operations (vision, RAG, LLM queries)
-- Abstracts Ollama connection handling, retries, error handling
-- Components: `VectorStoreIndex`, `QueryEngine`, `ServiceContext`
+**Multi-Stage Vision Pipeline (VisionOrchestrator):**
+1. Classification Service analyzes image (species + breed identification via HuggingFace)
+2. RAG Service retrieves relevant breed knowledge from ChromaDB
+3. Ollama generates contextual analysis combining classification + RAG context
+4. Returns enriched breed information with health insights and recommendations
+
+**Classification Models (HuggingFace Transformers):**
+- NSFW Detector: Content safety filter (pre-classification step)
+- Species Classifier: Dog/Cat/Other identification
+- Breed Classifiers: 120 dog breeds, 70 cat breeds
+- Crossbreed Detection: Multi-rule heuristic (confidence thresholds, probability gaps)
+- Device: GPU-accelerated (RTX 5060 Ti Blackwell via PyTorch 2.11 nightly + CUDA 12.8)
 
 **ChromaDB Vector Store:**
 - Embeddings: 384-dimensional (sentence-transformers/all-MiniLM-L6-v2)
-- Collection: `pet_knowledge` (veterinary guides, breed standards, health info)
-- Workflow: Document → chunk (500 tokens) → embed → store → semantic search
+- Collection: `pet_knowledge` (species info, breed standards, health conditions)
+- Knowledge Base: Markdown documents in `srcs/ai/data/knowledge_base/`
+  - `spiecies/`: General species info (dogs.md, cats.md)
+  - Directory structure: `spiecies/{species}/{purebreeds,crossbreeds,health}/*.md`
+  - Future: breed-specific files for detailed breed standards
+- ChromaDB starts empty - use `POST /api/v1/admin/rag/initialize` to bulk ingest (localhost-only)
+- Initialization: `docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize`
+- Workflow: Document → chunk → embed → store → semantic search
+- RAG retrieval enriches Ollama context with factual breed knowledge
+- Volume mount: `/app/data/chroma` (persisted in `ai-chroma-data` volume)
 
-**ML Recommendations:**
-1. scikit-learn scores products based on breed traits (size, energy, health predispositions)
-2. LlamaIndex RAG generates natural language explanations ("Recommended because Golden Retrievers need glucosamine for joint health...")
-3. Returns: `{products: [...], scores: [...], explanations: [...]}`
+**Ollama Integration:**
+- Model: qwen3-vl:8b (multimodal - vision + text)
+- Direct HTTP API (NOT LlamaIndex - doesn't support Ollama multimodal)
+- Generates contextual breed descriptions, health insights, recommendations
+- Uses RAG-retrieved context for factually grounded responses
+
+**Model Performance Characteristics:**
+- Dog breed classifier trained ONLY on purebreds (Stanford Dogs, 120 classes) → crossbreeds naturally have low confidence (5-10%)
+- Crossbreed images show diffuse probability distributions (e.g., 8.86% top breed, 8.45% second breed) vs purebreds (20-30%+)
+- When debugging low confidence: test with both problematic image AND known-good reference to isolate model limitation vs preprocessing bug
+
+**Threshold Configuration Pattern:**
+- All confidence/rejection thresholds must be in `.env` files (never hardcoded)
+- AI Service thresholds: `SPECIES_MIN_CONFIDENCE`, `BREED_MIN_CONFIDENCE` (in `srcs/ai/src/config.py`)
+- Classification Service thresholds: `CROSSBREED_MIN_SECOND_BREED` (in `srcs/classification-service/src/config.py`)
+- Vision orchestrator and crossbreed detector accept `config` parameter for threshold access
 
 ## Important Patterns
+
+### FastAPI Access Control
+
+- APIRouter doesn't support `add_middleware()` - use `Depends()` for route-level restrictions
+- Localhost check dependency: `async def require_localhost(request: Request)` in `src/middleware/localhost.py`
+- Allow Docker internal IPs (`172.x.x.x`) for container-to-container calls
+- Test with dependency overrides: `app.dependency_overrides[require_localhost] = mock_function`
 
 ### Dockerfile Structure
 
@@ -201,6 +269,14 @@ All services use **custom Dockerfiles that bake in requirements** during build:
 - Expose port and set CMD
 
 **Implication:** Changes to `requirements.txt` require `make build` to rebuild images.
+
+**Django Version:** Django 6.x requires Python >=3.12. Use Django 5.1.x for Python 3.11 compatibility.
+
+**Classification Service PyTorch:** Uses nightly builds for RTX 5060 Ti Blackwell support:
+- PyTorch: 2.11.0.dev20260128+cu128
+- Torchvision: 0.25.0.dev20260128+cu128
+- Installed via: `pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128`
+- Pin specific nightly build in requirements.txt to avoid breaking changes
 
 ### Middleware Stack (API Gateway)
 
@@ -232,13 +308,55 @@ Common codes: `UNAUTHORIZED` (401), `RATE_LIMIT_EXCEEDED` (429), `NOT_FOUND` (40
 
 Location: `srcs/api-gateway/utils/responses.py`
 
+### Vision Pipeline Flow
+
+**End-to-End Request Flow for Image Analysis:**
+1. User uploads image → API Gateway (JWT auth, rate limiting)
+2. API Gateway → AI Service `/api/v1/vision/analyze`
+3. AI Service (VisionOrchestrator) orchestrates 3-stage pipeline:
+   - **Stage 1:** Classification Service analyzes image
+     - NSFW check (reject unsafe content)
+     - Species identification (dog/cat confidence check)
+     - Breed classification (purebred or crossbreed detection)
+   - **Stage 2:** RAG Service retrieves breed context from ChromaDB
+     - Query: species name + breed name(s)
+     - Returns: health info, breed standards, care guidelines
+   - **Stage 3:** Ollama generates contextual analysis
+     - Input: image + classification results + RAG context
+     - Output: Natural language breed description, health insights, recommendations
+4. AI Service returns enriched response to API Gateway
+5. API Gateway returns to user
+
+**Key Design Decisions:**
+- Classification Service uses HuggingFace for structured predictions (species, breed, confidence scores)
+- Ollama uses multimodal LLM for contextual, conversational analysis
+- RAG bridges the two: provides factual breed knowledge to ground Ollama responses
+- Pipeline fails fast: rejects low-confidence species/breed early to avoid hallucinations
+
+**Rejection Thresholds (VisionOrchestrator):**
+- Species confidence: < 0.1 (vision_orchestrator.py:63)
+- Breed confidence: < 0.1 (vision_orchestrator.py:75)
+- Note: Test comments may reference outdated thresholds (0.60/0.40) - trust the code
+
+### Crossbreed Detection Thresholds
+
+- **Two-stage threshold system** (both must be tuned together):
+  1. Classification Service: `CROSSBREED_MIN_SECOND_BREED` (default 0.05) - flags as crossbreed if second breed > threshold
+  2. Vision Orchestrator: `BREED_MIN_CONFIDENCE` (default 0.05) - accepts/rejects final result
+- Crossbreed confidence calculated as average of top 2 breeds: `(top + second) / 2`
+- Example: Top 8.86%, second 8.45% → crossbreed flagged, confidence 8.65% → passes 5% threshold
+
 ### Service Configuration
 
 Services use environment variables from `.env` files:
 - Pydantic Settings for validation and type safety
 - Loaded from `.env` in service directory
-- Shared secrets: `JWT_SECRET_KEY` must match across auth-service and api-gateway
+- JWT Key Pair (RS256):
+  - Auth Service: Private key at `srcs/auth-service/keys/jwt-private.pem` (signs tokens)
+  - API Gateway: Public key mounted read-only from auth-service keys directory (verifies tokens)
+  - Generated once, never regenerate in production (invalidates all tokens)
 - Service URLs use Docker Compose service names (e.g., `http://auth-service:3001`)
+- `.env.example` files provided in each service directory
 
 ## Development Workflow
 
@@ -246,10 +364,12 @@ Services use environment variables from `.env` files:
 
 1. Create service directory in `srcs/`
 2. Add `Dockerfile` that bakes in requirements
-3. Add service to `docker-compose.yml` (assign to `backend-network`)
-4. Add service URL to `srcs/api-gateway/.env`: `NEW_SERVICE_URL=http://new-service:PORT`
-5. Update `srcs/api-gateway/config.py` to include new URL
-6. API Gateway will automatically proxy `/api/*` requests
+3. Create `.env.example` with required environment variables
+4. Add service to `docker-compose.yml` (assign to `backend-network`)
+5. Add service URL to `srcs/api-gateway/.env`: `NEW_SERVICE_URL=http://new-service:PORT`
+6. Update `srcs/api-gateway/config.py` to include new URL
+7. API Gateway will automatically proxy `/api/*` requests
+8. Copy `.env.example` to `.env` and configure before first run
 
 ### Modifying API Gateway Behavior
 
@@ -261,36 +381,94 @@ Services use environment variables from `.env` files:
 
 ### Testing Strategy
 
-1. **Unit tests**: Test components in isolation
-2. **Integration tests**: Use direct API Gateway access (localhost:8001)
-3. **E2E tests**: Use NGINX proxy (localhost/api) for full stack
+1. **Unit tests**: Test components in isolation with mocked dependencies
+2. **Integration tests**: Use API Gateway (localhost:8001) - backend services are NOT directly accessible
+3. **E2E tests**: Use NGINX proxy (localhost/api) for full production-like stack
 4. **Load tests**: Test through NGINX to validate both rate limiting layers
+5. **Dependency override pattern**: Use `app.dependency_overrides[dep] = fixture` for mocking route dependencies
+6. **HTTPException detail format**: Error responses wrapped in `detail` field - test with `response.json()["detail"]`
+
+**⚠️ Important:** Backend services (auth:3001, user:3002, ai:3003) have NO external port exposure. All API requests must go through API Gateway (8001) or Nginx (80/443).
+
+**Test Script Organization:**
+```bash
+# Run specific test suites
+./scripts/run-unit-tests.sh           # Unit tests only (all services)
+./scripts/init-and-test.sh [--all|--unit|--integration] [--skip-init]  # Orchestrator with flags
+```
+
+**FastAPI Lifespan Testing Pattern:**
+- Problem: TestClient triggers lifespan startup → loads real models → overwrites mocks
+- Solution: Create app WITHOUT lifespan in conftest.py, pre-inject mocks before router inclusion
+- Example: `srcs/classification-service/tests/conftest.py` (bypasses model loading in tests)
+
+**Docker Test File Changes:**
+- Adding new test files requires: `docker compose build SERVICE` (copies into container)
+- Use `docker compose run --rm SERVICE pytest` (works even when container not running)
+- Changes to existing test files use volume mounts (no rebuild needed)
+
+**AsyncMock Defensive Pattern:**
+- Always mock ALL async methods in execution path, even when expecting early rejection
+- Prevents breakage if thresholds/conditions change in future
+- Example: Low-confidence rejection tests should still mock downstream services (RAG, Ollama)
+
+**Flags:**
+- `--all` (default): Run both unit and integration tests
+- `--unit`: Unit tests only
+- `--integration`: Integration tests only
+- `--skip-init`: Skip build/start/migrations (services already running)
+
+**Jupyter Notebook Testing (E2E Integration):**
+- Location: `scripts/jupyter/test_ai_service.ipynb`
+- Purpose: Test full vision pipeline with real images through API Gateway
+- Setup: Notebook handles JWT authentication automatically
+- Images: Place test images in `scripts/jupyter/` directory
+- Run: `jupyter notebook scripts/jupyter/test_ai_service.ipynb` (requires `make up` first)
+- Note: All requests route through API Gateway (localhost:8001) with proper JWT tokens
+- Note: notebooks uses real database transactions on `smartbreeds` database (production-like). Make sure to clean up test data as needed. Every run must use unique user accounts to avoid conflicts and leave a clean state.
+
+**Debugging ML Models in Containers:**
+- Direct `docker exec` Python commands loading large models often hang → use script approach instead
+- Pattern: Create test script locally, `docker cp script.py container:/tmp/`, then `docker exec container python /tmp/script.py`
+- For image testing: Copy test images into container with `docker cp` (test directories not mounted by default)
+- Use `timeout` command wrapper for long-running inference: `timeout 60 docker exec container python script.py`
 
 ## Security Considerations
 
-- **JWT Tokens**: HS256 algorithm, stored in HTTP-only cookies
+- **JWT Tokens**: RS256 asymmetric algorithm, stored in HTTP-only cookies
+  - Auth Service: Signs tokens with RSA private key (jwt-private.pem, never shared)
+  - API Gateway: Verifies tokens with RSA public key only (jwt-public.pem, read-only mount)
+  - Key generation: 2048-bit RSA, stored in `srcs/auth-service/keys/`
+  - Volume mount: `./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro`
 - **Network Isolation**: Backend services not exposed externally, only via API Gateway
 - **Rate Limiting**: Two layers (NGINX: 200/min, API Gateway: 60/min per user)
-- **Password Hashing**: bcrypt/argon2 in auth service
+- **Password Hashing**: argon2 in auth service
 - **HTTPS**: TLS 1.2+ via Nginx (self-signed cert in dev, replace in production)
 - **Token Blacklist**: Redis-backed for logout (optional: check in API Gateway middleware)
 
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack, tests, and documentation
+- API Gateway (FastAPI) with full middleware stack - 30 passing tests
+- Auth Service (Django) with authentication endpoints - 77 passing tests
+- User Service (Django) with profile and pet management - 73 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 47 passing tests
+- Classification Service (FastAPI) with HuggingFace models - 28 passing tests
+- Multi-stage vision pipeline (Classification → RAG → Ollama orchestration)
+- Crossbreed detection with intelligent thresholding
+- RAG system with ChromaDB for breed knowledge enrichment + bulk initialization endpoint
 - Docker infrastructure with isolated networks
 - Nginx reverse proxy configuration
 - Redis integration for rate limiting and caching
-- Ollama GPU setup for AI inference
+- Ollama GPU setup for AI inference (qwen3-vl:8b model)
+- Jupyter notebook for E2E pipeline testing
 
 **In Progress:**
-- Auth Service (User/RefreshToken models, JWT utils, validators, serializers done; views/endpoints pending)
-- AI Service (LlamaIndex + RAG + ML recommendations)
 - Frontend (React scaffolding exists, needs implementation)
+- Product recommendation system (backlog)
 
-**Planned:**
-- User Service (Django skeleton, needs profile/pet models)
+**Recently Completed:**
+- Classification Service GPU support for RTX 5060 Ti (Blackwell) using PyTorch 2.11 nightly
 
 ## Common Troubleshooting
 
@@ -304,8 +482,11 @@ Services use environment variables from `.env` files:
 - Check networks: `docker network inspect ft_transcendence_backend-network`
 
 **JWT always rejected:**
-- Ensure `JWT_SECRET_KEY` matches in auth-service and api-gateway `.env` files
+- Verify RSA key pair exists: `ls -la srcs/auth-service/keys/`
+- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem`
+- Check key permissions: Public key must be readable
 - Verify cookie is being set: `curl -v http://localhost:8001/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
+- Test token signature: Tokens signed with RS256 private key must be verifiable with RS256 public key
 
 **Rate limiting not working:**
 - Check Redis: `docker exec ft_transcendence_redis redis-cli ping`
@@ -314,6 +495,49 @@ Services use environment variables from `.env` files:
 **Ollama GPU not detected:**
 - Verify NVIDIA runtime: `docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi`
 - Check docker-compose.yml: `runtime: nvidia` and `deploy.resources.reservations.devices`
+
+**Django trailing slash conflicts:**
+- DRF `DefaultRouter` adds trailing slashes by default (Django convention)
+- For API-only services, use `APPEND_SLASH = False` in settings.py and `DefaultRouter(trailing_slash=False)` in urls.py
+- This matches RESTful conventions (no trailing slashes)
+
+**Response object double-wrapping:**
+- Utility functions that return `Response` objects should NOT be wrapped in `Response()` again
+- Symptoms: `TypeError: Object of type Response is not JSON serializable`
+- Fix: `return success_response(data)` NOT `return Response(success_response(data))`
+
+**Classification Service GPU troubleshooting:**
+- Using PyTorch 2.11 nightly (2.11.0.dev20260128+cu128) for RTX 5060 Ti Blackwell support
+- Torchvision: 0.25.0.dev20260128+cu128
+- CUDA 12.8 runtime required
+- Environment variable `DEVICE=auto` detects GPU automatically (falls back to CPU if unavailable)
+- Verify GPU: `docker exec ft_transcendence_classification_service python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"`
+- Check docker-compose.yml: `runtime: nvidia` and `deploy.resources.reservations.devices` configured
+- **Note:** Nightly PyTorch versions may have breaking changes - pin to specific nightly build in requirements.txt
+
+**Crossbreed detection returning false positives:**
+- Check confidence thresholds in `crossbreed_detector.py`
+- Minimum second breed threshold: 20% (prevents noise from triggering crossbreed)
+- Review test cases: `test_crossbreed_detector.py` for expected behavior
+- Confidence scale is 0.0-1.0 (0.26 = 26%, not 74%)
+- Note: Low confidence scores may indicate image quality issues or model limitations, need further investigation
+
+**Low breed confidence / BREED_DETECTION_FAILED:**
+- Crossbreeds naturally have lower confidence (5-10%) than purebreds (20-30%+) - this is expected
+- Test with known purebred image to confirm model is working (e.g., pure Golden Retriever should get 20%+)
+- Check thresholds: `BREED_MIN_CONFIDENCE` in `srcs/ai/.env` (default 0.05 for crossbreed support)
+- Check logs: `docker logs ft_transcendence_ai_service | grep "VisionOrchestrator initialized"` shows active thresholds
+- Adjust crossbreed detection: `CROSSBREED_MIN_SECOND_BREED` in `srcs/classification-service/.env` (default 0.05)
+
+**RAG embedder method errors:**
+- ChromaDB embedder uses `embed()` method, NOT `embed_text()`
+- Location: `srcs/ai/src/services/rag_service.py`
+- Common mistake: calling non-existent methods on embedder wrapper
+
+**Vision orchestrator parameter mismatches:**
+- Ollama client expects `image_base64` parameter, NOT `image`
+- Location: `srcs/ai/src/services/vision_orchestrator.py`
+- Parameter names must match method signatures exactly
 
 ## Reference Documentation
 

@@ -69,9 +69,22 @@ down:
 	@echo "Stopping and removing ft_transcendence containers..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 
+downv:
+	@echo "Stopping and removing ft_transcendence containers and volumes..."
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v
+
+downv-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v $*
+
+down-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down $*
+
 restart:
 	@echo "Restarting ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart
+
+restart-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart $*
 
 # Logs management
 logs:
@@ -83,7 +96,7 @@ logs-%:
 # Clean operations
 clean:
 	@echo "Cleaning ft_transcendence containers and networks..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 	@echo "✅ Containers and networks cleaned!"
 
 fclean:
@@ -111,17 +124,23 @@ fclean:
 	@docker image prune -f --filter "label=project=$(PROJECT_NAME)" 2>/dev/null || true
 	@echo "✅ Full cleanup completed!"
 
-# Rebuild everything
-re: fclean all
+# Rebuild everything soft
+re: clean all
 
-# Development helpers
-dev:
-	@echo "Starting ft_transcendence in development mode..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up
+# Rebuild everything
+ref: fclean all
 
 # Execute commands in containers
 exec-%:
 	@docker exec -it $(PROJECT_NAME)_$* /bin/sh
+
+migration:
+	@echo "Running database migrations..."
+	@scripts/run-migrations.sh
+
+test:
+	@echo "Running tests..."
+	@scripts/init-and-test.sh
 
 # Help target
 help:
@@ -147,7 +166,8 @@ help:
 	@echo "Clean targets:"
 	@echo "  clean        - Remove containers and networks"
 	@echo "  fclean       - Full cleanup (images, volumes, etc.)"
-	@echo "  re           - Full rebuild (fclean + all)"
+	@echo "  re           - Soft rebuild (clean + all)"
+	@echo "  ref          - Full rebuild (fclean + all)"
 	@echo ""
 	@echo "Development targets:"
 	@echo "  dev          - Start in development mode (foreground)"
