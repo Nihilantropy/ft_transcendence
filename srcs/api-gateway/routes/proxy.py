@@ -37,7 +37,7 @@ SERVICE_ROUTES = {
     "/api/v1/pets": settings.USER_SERVICE_URL,
     "/api/v1/vision": settings.AI_SERVICE_URL,
     # "/api/v1/rag": Intentionally not exposed - internal use only
-    "/api/v1/recommendations": settings.AI_SERVICE_URL,
+    "/api/v1/recommendations": settings.RECOMMENDATION_SERVICE_URL,
 }
 
 def get_backend_service_url(path: str) -> str:
