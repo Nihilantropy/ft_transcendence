@@ -1,6 +1,7 @@
 """Environment validation script - run before development."""
 import asyncio
 import sys
+import os
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
@@ -8,7 +9,7 @@ async def validate_database():
     """Test database connection and schema."""
     try:
         engine = create_async_engine(
-            "postgresql+asyncpg://smartbreeds_user:smartbreeds_password@db:5432/smartbreeds",
+            os.getenv("DATABASE_URL"),
             echo=False
         )
 
