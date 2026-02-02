@@ -138,6 +138,12 @@ migration:
 	@echo "Running database migrations..."
 	@scripts/run-migrations.sh
 
+migration-recommendation:
+	@echo "Running recommendation service migrations..."
+	docker exec -i ft_transcendence_db psql -U smartbreeds_user -d smartbreeds < srcs/recommendation-service/migrations/001_create_schema.sql
+	docker exec -i ft_transcendence_db psql -U smartbreeds_user -d smartbreeds < srcs/recommendation-service/migrations/002_create_tables.sql
+	@echo "Migrations complete!"
+
 test:
 	@echo "Running tests..."
 	@scripts/init-and-test.sh
