@@ -293,6 +293,28 @@ services:
       user-service:
         condition: service_healthy
 
+### RECOMMENDATION SERVICE ###
+  recommendation-service:
+    build:
+      context: ./srcs/recommendation-service
+      dockerfile: Dockerfile
+    container_name: ft_transcendence_recommendation_service
+    restart: unless-stopped
+    networks:
+      - backend-network
+    depends_on:
+      - db
+      - user-service
+    env_file:
+      - ./srcs/recommendation-service/.env
+    volumes:
+      - ./srcs/recommendation-service:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 ### NETWORKS ###
 networks:
   proxy:
