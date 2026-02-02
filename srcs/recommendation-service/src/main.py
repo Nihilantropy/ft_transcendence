@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from src.routes import recommendations
+from src.routes import recommendations, admin
 
 app = FastAPI(
     title="Recommendation Service",
@@ -9,6 +9,7 @@ app = FastAPI(
 
 # Include routers
 app.include_router(recommendations.router)
+app.include_router(admin.router)
 
 @app.get("/health")
 async def health_check():
