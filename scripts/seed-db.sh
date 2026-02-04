@@ -1,1 +1,1 @@
-docker compose run --rm recommendation-service python scripts/test_seed_products.py
+docker compose run --rm recommendation-service python scripts/seed_products.py

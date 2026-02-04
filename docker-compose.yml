@@ -31,7 +31,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - CUDA_VISIBLE_DEVICES=0
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=info
     deploy:
       resources:
         reservations:

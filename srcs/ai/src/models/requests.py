@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any
 
 
@@ -14,7 +14,8 @@ class VisionAnalysisRequest(BaseModel):
     image: str = Field(..., description="Base64-encoded image with data URI")
     options: VisionAnalysisOptions = Field(default_factory=VisionAnalysisOptions)
 
-    @validator('image')
+    @field_validator('image')
+    @classmethod
     def validate_image_format(cls, v):
         """Validate image is a data URI."""
         if not v.startswith('data:image/'):

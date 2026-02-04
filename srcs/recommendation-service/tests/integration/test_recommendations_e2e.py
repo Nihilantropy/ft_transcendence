@@ -11,8 +11,8 @@ Run separately: docker compose run --rm recommendation-service pytest tests/inte
 DO NOT run with unit tests (marked with @pytest.mark.integration)
 """
 import pytest
+import pytest_asyncio
 import httpx
-import asyncio
 from typing import Dict, Any
 
 
@@ -24,15 +24,7 @@ TEST_ADMIN_EMAIL = "test_admin@example.com"
 TEST_ADMIN_PASSWORD = "Password123!"
 
 
-@pytest.fixture(scope="module")
-def event_loop():
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def test_user_auth():
     """
     Create test user, yield authentication tokens, then clean up all user data.
@@ -77,6 +69,9 @@ async def test_user_auth():
         user_id = login_data["data"]["user"]["id"]
         cookies = dict(login_response.cookies)
 
+        # Set cookies on client so teardown request is authenticated
+        client.cookies.update(cookies)
+
         yield {
             "user_id": user_id,
             "cookies": cookies
@@ -87,11 +82,10 @@ async def test_user_auth():
         # user-service data is removed atomically.
         await client.delete(
             "/api/v1/users/delete",
-            cookies=cookies
         )
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def admin_auth() -> Dict[str, Any]:
     """Get admin authentication tokens (needed to seed products via admin API)."""
     async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
@@ -108,7 +102,7 @@ async def admin_auth() -> Dict[str, Any]:
         }
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def seeded_products(admin_auth: Dict[str, Any]):
     """Create dog + cat products via admin API. Soft-deletes all on teardown.
 
@@ -116,7 +110,7 @@ async def seeded_products(admin_auth: Dict[str, Any]):
     Cat products include skin_allergies flag (cat test pet has skin_allergies).
     """
     created = []
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         seed_data = [
             # Dog products
             {
@@ -208,7 +202,6 @@ async def seeded_products(admin_auth: Dict[str, Any]):
             resp = await client.post(
                 "/api/v1/admin/products",
                 json=data,
-                cookies=admin_auth["cookies"],
             )
             assert resp.status_code == 201, f"Seed product creation failed: {resp.text}"
             created.append(resp.json()["data"])
@@ -219,18 +212,17 @@ async def seeded_products(admin_auth: Dict[str, Any]):
         for product in created:
             await client.delete(
                 f"/api/v1/admin/products/{product['id']}",
-                cookies=admin_auth["cookies"],
             )
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def test_pet(test_user_auth: Dict[str, Any]) -> Dict[str, Any]:
     """
     Create test pet for recommendation testing.
 
     Returns pet profile dict.
     """
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         # Create pet
         pet_response = await client.post(
             "/api/v1/pets",
@@ -242,7 +234,6 @@ async def test_pet(test_user_auth: Dict[str, Any]) -> Dict[str, Any]:
                 "weight": 28.5,
                 "health_conditions": ["joint_health"]
             },
-            cookies=test_user_auth["cookies"]
         )
 
         assert pet_response.status_code == 201, f"Pet creation failed: {pet_response.text}"
@@ -254,13 +245,12 @@ async def test_pet(test_user_auth: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_get_recommendations_success(test_user_auth: Dict[str, Any], test_pet: Dict[str, Any], seeded_products):
     """Test successful recommendation retrieval through API Gateway."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={test_pet['id']}&limit=5",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200, f"Request failed: {response.text}"
@@ -311,13 +301,12 @@ async def test_get_recommendations_success(test_user_auth: Dict[str, Any], test_
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_with_health_condition_match(test_user_auth: Dict[str, Any], test_pet: Dict[str, Any], seeded_products):
     """Test that health condition matches are prioritized (40% weight)."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={test_pet['id']}&limit=10",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -338,13 +327,12 @@ async def test_recommendations_with_health_condition_match(test_user_auth: Dict[
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_respects_species(test_user_auth: Dict[str, Any], test_pet: Dict[str, Any], seeded_products):
     """Test that only products matching pet species are recommended."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={test_pet['id']}&limit=50",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -359,15 +347,14 @@ async def test_recommendations_respects_species(test_user_auth: Dict[str, Any], 
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_unauthorized_pet_access(test_user_auth: Dict[str, Any]):
     """Test that users cannot request recommendations for pets they don't own."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         # Try to access a pet ID that doesn't belong to this user
         # Use a high ID that's unlikely to exist or belong to test user
         response = await client.get(
             "/api/v1/recommendations/food?pet_id=99999",
-            cookies=test_user_auth["cookies"]
         )
 
         # Should return 404 (pet not found) or 403 (not owner)
@@ -375,7 +362,7 @@ async def test_recommendations_unauthorized_pet_access(test_user_auth: Dict[str,
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_unauthenticated():
     """Test that unauthenticated requests are rejected."""
     async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
@@ -388,14 +375,13 @@ async def test_recommendations_unauthenticated():
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_with_custom_limit(test_user_auth: Dict[str, Any], test_pet: Dict[str, Any], seeded_products):
     """Test that limit parameter controls number of recommendations."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         # Request only 3 recommendations
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={test_pet['id']}&limit=3",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -408,14 +394,13 @@ async def test_recommendations_with_custom_limit(test_user_auth: Dict[str, Any],
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_with_min_score_threshold(test_user_auth: Dict[str, Any], test_pet: Dict[str, Any], seeded_products):
     """Test that min_score parameter filters low-confidence matches."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         # Set high threshold (only very good matches)
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={test_pet['id']}&min_score=0.7",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -430,13 +415,12 @@ async def test_recommendations_with_min_score_threshold(test_user_auth: Dict[str
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_match_reasons_explainability(test_user_auth: Dict[str, Any], test_pet: Dict[str, Any], seeded_products):
     """Test that recommendations include human-readable match reasons."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={test_pet['id']}&limit=5",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -456,13 +440,12 @@ async def test_recommendations_match_reasons_explainability(test_user_auth: Dict
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_nutritional_highlights(test_user_auth: Dict[str, Any], test_pet: Dict[str, Any], seeded_products):
     """Test that nutritional highlights are included in recommendations."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={test_pet['id']}&limit=5",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -484,10 +467,10 @@ async def test_recommendations_nutritional_highlights(test_user_auth: Dict[str, 
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_recommendations_for_cat(test_user_auth: Dict[str, Any], seeded_products):
     """Test recommendations for a cat pet."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
         # Create cat pet
         cat_response = await client.post(
             "/api/v1/pets",
@@ -499,7 +482,6 @@ async def test_recommendations_for_cat(test_user_auth: Dict[str, Any], seeded_pr
                 "weight": 4.5,
                 "health_conditions": ["skin_allergies"]
             },
-            cookies=test_user_auth["cookies"]
         )
 
         assert cat_response.status_code == 201
@@ -509,7 +491,6 @@ async def test_recommendations_for_cat(test_user_auth: Dict[str, Any], seeded_pr
         # Get recommendations
         response = await client.get(
             f"/api/v1/recommendations/food?pet_id={cat_id}&limit=10",
-            cookies=test_user_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -526,5 +507,4 @@ async def test_recommendations_for_cat(test_user_auth: Dict[str, Any], seeded_pr
         # Clean up - delete test cat
         await client.delete(
             f"/api/v1/pets/{cat_id}",
-            cookies=test_user_auth["cookies"]
         )

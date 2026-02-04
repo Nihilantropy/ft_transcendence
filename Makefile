@@ -38,6 +38,14 @@ build-zero:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache --parallel
 	@echo "✅ Images built successfully with no cache!"
 
+# Build specific service
+build-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build $*
+
+# Build specific service with no cache
+build-zero-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache $*
+
 # Start all services
 up:
 	@echo "Starting ft_transcendence..."
@@ -152,10 +160,20 @@ seed:
 	@echo "Seeding initial data..."
 	@scripts/seed-db.sh
 
+# create superuser
+superuser:
+	@echo "Creating superuser..."
+	@scripts/create-superuser.sh
+
 # Run unit tests
 test:
 	@echo "Running tests..."
 	@scripts/init-and-test.sh $(foreach a,$(wordlist 2,99,$(MAKECMDGOALS)),--$(a))
+
+# Run integration tests
+test-integration:
+	@echo "Running integration tests..."
+	@scripts/run-integration-tests.sh
 
 # No-op stubs: make treats extra goals as targets; these prevent "No rule" errors.
 # They do nothing — the actual words are collected by 'test' via MAKECMDGOALS.

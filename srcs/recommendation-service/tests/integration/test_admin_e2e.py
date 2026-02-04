@@ -11,8 +11,8 @@ Run separately: docker compose run --rm recommendation-service pytest tests/inte
 DO NOT run with unit tests (marked with @pytest.mark.integration)
 """
 import pytest
+import pytest_asyncio
 import httpx
-import asyncio
 from typing import Dict, Any
 
 
@@ -22,15 +22,7 @@ TEST_ADMIN_EMAIL = "test_admin@example.com"
 TEST_ADMIN_PASSWORD = "Password123!"
 
 
-@pytest.fixture(scope="module")
-def event_loop():
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def admin_auth() -> Dict[str, Any]:
     """
     Get admin authentication tokens.
@@ -73,11 +65,11 @@ async def admin_auth() -> Dict[str, Any]:
         }
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def seeded_products(admin_auth: Dict[str, Any]):
     """Create products via admin API for tests that need pre-existing data. Soft-deletes all on teardown."""
     created = []
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         seed_data = [
             {
                 "name": "Seed Dog Food Adult",
@@ -123,7 +115,6 @@ async def seeded_products(admin_auth: Dict[str, Any]):
             resp = await client.post(
                 "/api/v1/admin/products",
                 json=data,
-                cookies=admin_auth["cookies"],
             )
             assert resp.status_code == 201, f"Seed product creation failed: {resp.text}"
             created.append(resp.json()["data"])
@@ -134,15 +125,14 @@ async def seeded_products(admin_auth: Dict[str, Any]):
         for product in created:
             await client.delete(
                 f"/api/v1/admin/products/{product['id']}",
-                cookies=admin_auth["cookies"],
             )
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_create_product_success(admin_auth: Dict[str, Any]):
     """Test creating a new product through admin API."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         product_data = {
             "name": "Test Product Integration",
             "brand": "Test Brand",
@@ -162,7 +152,6 @@ async def test_admin_create_product_success(admin_auth: Dict[str, Any]):
         response = await client.post(
             "/api/v1/admin/products",
             json=product_data,
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 201, f"Product creation failed: {response.text}"
@@ -181,18 +170,16 @@ async def test_admin_create_product_success(admin_auth: Dict[str, Any]):
         # Clean up - soft delete test product
         await client.delete(
             f"/api/v1/admin/products/{product['id']}",
-            cookies=admin_auth["cookies"]
         )
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_list_products(admin_auth: Dict[str, Any], seeded_products):
     """Test listing all products through admin API."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         response = await client.get(
             "/api/v1/admin/products",
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 200, f"Failed to list products: {response.text}"
@@ -217,14 +204,13 @@ async def test_admin_list_products(admin_auth: Dict[str, Any], seeded_products):
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_list_products_with_filters(admin_auth: Dict[str, Any]):
     """Test listing products with species filter."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         # Filter by dog species
         response = await client.get(
             "/api/v1/admin/products?species=dog",
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -238,14 +224,13 @@ async def test_admin_list_products_with_filters(admin_auth: Dict[str, Any]):
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_list_products_pagination(admin_auth: Dict[str, Any]):
     """Test product listing with limit parameter."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         # Get products with limit 5
         response = await client.get(
             "/api/v1/admin/products?limit=5",
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 200
@@ -262,14 +247,13 @@ async def test_admin_list_products_pagination(admin_auth: Dict[str, Any]):
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_get_product_by_id(admin_auth: Dict[str, Any], seeded_products):
     """Test retrieving a specific product by ID."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         # First, get list to find a valid product ID
         list_response = await client.get(
             "/api/v1/admin/products",
-            cookies=admin_auth["cookies"]
         )
 
         products = list_response.json()["data"]["products"]
@@ -280,7 +264,6 @@ async def test_admin_get_product_by_id(admin_auth: Dict[str, Any], seeded_produc
         # Now get specific product
         response = await client.get(
             f"/api/v1/admin/products/{product_id}",
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 200, f"Failed to get product {product_id}: {response.text}"
@@ -293,10 +276,10 @@ async def test_admin_get_product_by_id(admin_auth: Dict[str, Any], seeded_produc
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_update_product(admin_auth: Dict[str, Any]):
     """Test updating an existing product."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         # Create a test product first
         create_response = await client.post(
             "/api/v1/admin/products",
@@ -307,7 +290,6 @@ async def test_admin_update_product(admin_auth: Dict[str, Any]):
                 "price": "50.00",
                 "is_active": True
             },
-            cookies=admin_auth["cookies"]
         )
 
         assert create_response.status_code == 201
@@ -324,7 +306,6 @@ async def test_admin_update_product(admin_auth: Dict[str, Any]):
         update_response = await client.put(
             f"/api/v1/admin/products/{product_id}",
             json=update_data,
-            cookies=admin_auth["cookies"]
         )
 
         assert update_response.status_code == 200, f"Update failed: {update_response.text}"
@@ -341,15 +322,14 @@ async def test_admin_update_product(admin_auth: Dict[str, Any]):
         # Clean up - delete test product
         await client.delete(
             f"/api/v1/admin/products/{product_id}",
-            cookies=admin_auth["cookies"]
         )
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_delete_product_soft_delete(admin_auth: Dict[str, Any]):
     """Test soft-deleting a product (sets is_active=False)."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         # Create a test product
         create_response = await client.post(
             "/api/v1/admin/products",
@@ -360,7 +340,6 @@ async def test_admin_delete_product_soft_delete(admin_auth: Dict[str, Any]):
                 "price": "40.00",
                 "is_active": True
             },
-            cookies=admin_auth["cookies"]
         )
 
         assert create_response.status_code == 201
@@ -369,7 +348,6 @@ async def test_admin_delete_product_soft_delete(admin_auth: Dict[str, Any]):
         # Delete the product
         delete_response = await client.delete(
             f"/api/v1/admin/products/{product_id}",
-            cookies=admin_auth["cookies"]
         )
 
         # DELETE returns 204 No Content (standard REST convention)
@@ -378,7 +356,6 @@ async def test_admin_delete_product_soft_delete(admin_auth: Dict[str, Any]):
         # Verify product is soft-deleted (is_active=False)
         get_response = await client.get(
             f"/api/v1/admin/products/{product_id}",
-            cookies=admin_auth["cookies"]
         )
 
         assert get_response.status_code == 200
@@ -387,37 +364,35 @@ async def test_admin_delete_product_soft_delete(admin_auth: Dict[str, Any]):
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_delete_nonexistent_product(admin_auth: Dict[str, Any]):
     """Test deleting a product that doesn't exist."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         response = await client.delete(
             "/api/v1/admin/products/99999",
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 404, "Should return 404 for non-existent product"
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_update_nonexistent_product(admin_auth: Dict[str, Any]):
     """Test updating a product that doesn't exist."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         response = await client.put(
             "/api/v1/admin/products/99999",
             json={"name": "Updated Name"},
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 404, "Should return 404 for non-existent product"
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_create_product_invalid_species(admin_auth: Dict[str, Any]):
     """Test creating product with invalid species (validation)."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         response = await client.post(
             "/api/v1/admin/products",
             json={
@@ -426,31 +401,29 @@ async def test_admin_create_product_invalid_species(admin_auth: Dict[str, Any]):
                 "target_species": "bird",  # Invalid - only dog/cat allowed
                 "price": "50.00"
             },
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 422, "Should reject invalid species"
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_create_product_missing_required_fields(admin_auth: Dict[str, Any]):
     """Test creating product with missing required fields."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         response = await client.post(
             "/api/v1/admin/products",
             json={
                 "name": "Incomplete Product"
                 # Missing required fields: brand, target_species
             },
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 422, "Should reject product with missing required fields"
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_endpoints_require_authentication():
     """Test that admin endpoints reject unauthenticated requests."""
     async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
@@ -461,10 +434,10 @@ async def test_admin_endpoints_require_authentication():
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(scope="module")
 async def test_admin_create_product_with_all_fields(admin_auth: Dict[str, Any]):
     """Test creating a product with all optional fields populated."""
-    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=admin_auth["cookies"]) as client:
         product_data = {
             "name": "Comprehensive Test Product",
             "brand": "Premium Brand",
@@ -496,7 +469,6 @@ async def test_admin_create_product_with_all_fields(admin_auth: Dict[str, Any]):
         response = await client.post(
             "/api/v1/admin/products",
             json=product_data,
-            cookies=admin_auth["cookies"]
         )
 
         assert response.status_code == 201, f"Failed to create comprehensive product: {response.text}"
@@ -516,5 +488,4 @@ async def test_admin_create_product_with_all_fields(admin_auth: Dict[str, Any]):
         # Clean up
         await client.delete(
             f"/api/v1/admin/products/{product['id']}",
-            cookies=admin_auth["cookies"]
         )
