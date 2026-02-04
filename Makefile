@@ -11,7 +11,10 @@ TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_frontend-data
 
 TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 
-.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage
+# Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
+TEST_FLAGS = gateway auth user ai classification recommendation init
+
+.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage $(TEST_FLAGS)
 
 # Default target
 all: build up show logs
@@ -29,6 +32,11 @@ build:
 	@echo "Building ft_transcendence images..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --parallel
 	@echo "✅ Images built successfully!"
+
+build-zero:
+	@echo "Building ft_transcendence images with no cache..."
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache --parallel
+	@echo "✅ Images built successfully with no cache!"
 
 # Start all services
 up:
@@ -134,19 +142,25 @@ ref: fclean all
 exec-%:
 	@docker exec -it $(PROJECT_NAME)_$* /bin/sh
 
+# migrate database
 migration:
 	@echo "Running database migrations..."
 	@scripts/run-migrations.sh
 
-migration-recommendation:
-	@echo "Running recommendation service migrations..."
-	docker exec -i ft_transcendence_db psql -U smartbreeds_user -d smartbreeds < srcs/recommendation-service/migrations/001_create_schema.sql
-	docker exec -i ft_transcendence_db psql -U smartbreeds_user -d smartbreeds < srcs/recommendation-service/migrations/002_create_tables.sql
-	@echo "Migrations complete!"
+# seed initial data
+seed:
+	@echo "Seeding initial data..."
+	@scripts/seed-db.sh
 
+# Run unit tests
 test:
 	@echo "Running tests..."
-	@scripts/init-and-test.sh
+	@scripts/init-and-test.sh $(foreach a,$(wordlist 2,99,$(MAKECMDGOALS)),--$(a))
+
+# No-op stubs: make treats extra goals as targets; these prevent "No rule" errors.
+# They do nothing — the actual words are collected by 'test' via MAKECMDGOALS.
+$(TEST_FLAGS):
+	@:
 
 # Help target
 help:
@@ -174,6 +188,11 @@ help:
 	@echo "  fclean       - Full cleanup (images, volumes, etc.)"
 	@echo "  re           - Soft rebuild (clean + all)"
 	@echo "  ref          - Full rebuild (fclean + all)"
+	@echo ""
+	@echo "Test targets:"
+	@echo "  test         - Run all unit tests (no init)"
+	@echo "  test <flags> - Run selected suites (gateway auth user ai classification recommendation)"
+	@echo "  test init    - Build, start, migrate, then run all tests"
 	@echo ""
 	@echo "Development targets:"
 	@echo "  dev          - Start in development mode (foreground)"

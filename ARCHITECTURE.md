@@ -634,7 +634,7 @@ AI Service customizes RAG context → Better recommendations
 - Lower infrastructure overhead
 - Services communicate via APIs, not direct DB access
 
-**Future Scaling**: Can split into separate databases per service if needed (microservices best practice for large scale)
+**Production Deployment**: The same single-database setup (`smartbreeds`) is used in production — deployed on a dedicated database host with identical schema structure. No separate test or staging databases are provisioned; the database name stays `smartbreeds` across all environments.
 
 ### Database Schemas
 

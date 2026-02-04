@@ -30,19 +30,37 @@ docker exec ft_transcendence_recommendation_service python scripts/validate_env.
 ```
 
 ### Testing
-```bash
-# Run all tests
-docker compose run --rm recommendation-service pytest tests/ -v
 
-# Run unit tests only
+**Unit Tests (30 tests)** - Run automatically, isolated, fast:
+```bash
+# Run all unit tests (recommended)
 docker compose run --rm recommendation-service pytest tests/unit/ -v
 
 # Run with coverage
-docker compose run --rm recommendation-service pytest tests/ --cov=src --cov-report=html
+docker compose run --rm recommendation-service pytest tests/unit/ --cov=src --cov-report=html
 
 # Single test file
 docker compose run --rm recommendation-service pytest tests/unit/test_models.py -v
 ```
+
+**Integration Tests (25 tests)** - Run manually, requires all services running:
+```bash
+# Prerequisites:
+# 1. All services running: make up
+# 2. Migrations applied: make migration
+# 3. Seed data loaded: docker exec ft_transcendence_recommendation_service python scripts/seed_products.py
+# 4. Admin user created: docker exec ft_transcendence_auth_service python manage.py createsuperuser
+
+# Run all integration tests
+docker compose run --rm recommendation-service pytest tests/integration/ -v
+
+# Run specific test file
+docker compose run --rm recommendation-service pytest tests/integration/test_recommendations_e2e.py -v
+
+# See tests/integration/README.md for details
+```
+
+**⚠️ IMPORTANT:** Do NOT run `pytest tests/ -v` - this runs both unit and integration tests together, which is not recommended.
 
 ### Migrations
 ```bash

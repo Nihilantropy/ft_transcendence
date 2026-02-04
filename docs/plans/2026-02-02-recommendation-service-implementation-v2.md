@@ -176,7 +176,7 @@ async def health_check():
     return {"status": "healthy", "service": "recommendation-service"}
 ```
 
-### Step 6: Create .env file
+### Step 6: Create .env file and .env.example
 
 Create file: `srcs/recommendation-service/.env`
 
@@ -444,16 +444,15 @@ docker exec ft_transcendence_db psql -U user -d smartbreeds -c "\dt recommendati
 # Expected output: products, recommendations, user_feedback tables
 ```
 
-### Step 5: Add Makefile target (optional)
+### Step 5: add migration commands to @scripts/run-migrations.sh
 
-Add to root `Makefile`:
-
-```makefile
-migration-recommendation:
-	@echo "Running recommendation service migrations..."
-	docker exec -i ft_transcendence_db psql -U user -d smartbreeds < srcs/recommendation-service/migrations/001_create_schema.sql
-	docker exec -i ft_transcendence_db psql -U user -d smartbreeds < srcs/recommendation-service/migrations/002_create_tables.sql
-	@echo "Migrations complete!"
+```bash
+# Run recommendation-service migrations
+echo -e "${YELLOW}[5/5] Running recommendation-service migrations...${NC}"
+docker exec ft_transcendence_recommendation_service python manage.py makemigrations
+docker exec ft_transcendence_recommendation_service python manage.py migrate
+echo -e "${GREEN}✓ Recommendation service migrations complete${NC}"
+echo ""
 ```
 
 ### Step 6: Commit migrations
@@ -493,7 +492,7 @@ async def validate_database():
     """Test database connection and schema."""
     try:
         engine = create_async_engine(
-            "postgresql+asyncpg://user:password@db:5432/smartbreeds",
+            "postgresql+asyncpg://user:password@db:5432/smartbreeds", # Take from .env in real use
             echo=False
         )
 
@@ -653,7 +652,7 @@ docker compose run --rm recommendation-service pytest tests/unit/test_models.py 
 ### Migrations
 ```bash
 # Run migrations
-make migration-recommendation
+make migration # this call the @scripts/run-migrations.sh script
 
 # Or manually
 docker exec -i ft_transcendence_db psql -U user -d smartbreeds < srcs/recommendation-service/migrations/001_create_schema.sql

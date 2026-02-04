@@ -23,10 +23,6 @@ RUN useradd -m -u 1000 classifier && \
     chown -R classifier:classifier /app
 USER classifier
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
-  CMD curl -f http://localhost:3004/health || exit 1
-
 EXPOSE 3004
 
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3004"]

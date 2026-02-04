@@ -31,6 +31,7 @@ class ProxyResponse(Response):
 
 # Service routing map
 # NOTE: RAG endpoints are internal-only (used by vision pipeline, not exposed to users)
+# NOTE: Longer prefixes must come before shorter ones for correct matching
 SERVICE_ROUTES = {
     "/api/v1/auth": settings.AUTH_SERVICE_URL,
     "/api/v1/users": settings.USER_SERVICE_URL,
@@ -38,6 +39,7 @@ SERVICE_ROUTES = {
     "/api/v1/vision": settings.AI_SERVICE_URL,
     # "/api/v1/rag": Intentionally not exposed - internal use only
     "/api/v1/recommendations": settings.RECOMMENDATION_SERVICE_URL,
+    "/api/v1/admin/products": settings.RECOMMENDATION_SERVICE_URL,  # Product management admin
 }
 
 def get_backend_service_url(path: str) -> str:

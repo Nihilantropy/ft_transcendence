@@ -19,20 +19,20 @@ class UserServiceClient:
         self.timeout = timeout
 
     async def get_pet_profile(
-        self, pet_id: int, user_id: int
+        self, pet_id: str, user_id: str
     ) -> Optional[Dict[str, Any]]:
         """
         Fetch pet profile from user-service.
 
         Args:
-            pet_id: Pet ID to fetch
-            user_id: User ID for authentication (passed as X-User-ID header)
+            pet_id: Pet ID to fetch (UUID string)
+            user_id: User ID for authentication (UUID string, passed as X-User-ID header)
 
         Returns:
             Pet profile data dictionary, or None if not found/error
         """
         url = f"{self.base_url}/api/v1/pets/{pet_id}"
-        headers = {"X-User-ID": str(user_id)}
+        headers = {"X-User-ID": user_id}
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

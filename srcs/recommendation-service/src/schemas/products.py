@@ -85,13 +85,39 @@ class ProductResponse(BaseModel):
     brand: str
     description: Optional[str] = None
     price: Optional[Decimal] = None
+    product_url: Optional[str] = None
+    image_url: Optional[str] = None
+
+    # Target specifications
     target_species: str
+    min_age_months: Optional[int] = None
+    max_age_months: Optional[int] = None
+    min_weight_kg: Optional[Decimal] = None
+    max_weight_kg: Optional[Decimal] = None
+    suitable_breeds: Optional[List[str]] = None
+
+    # Nutritional profile
     protein_percentage: Optional[Decimal] = None
     fat_percentage: Optional[Decimal] = None
+    fiber_percentage: Optional[Decimal] = None
     calories_per_100g: Optional[int] = None
-    for_joint_health: bool
-    for_sensitive_stomach: bool
-    is_active: bool
+
+    # Ingredient flags
+    grain_free: bool = False
+    organic: bool = False
+    hypoallergenic: bool = False
+    limited_ingredient: bool = False
+    raw_food: bool = False
+
+    # Health condition targeting
+    for_sensitive_stomach: bool = False
+    for_weight_management: bool = False
+    for_joint_health: bool = False
+    for_skin_allergies: bool = False
+    for_dental_health: bool = False
+    for_kidney_health: bool = False
+
+    is_active: bool = True
 
     class Config:
         from_attributes = True

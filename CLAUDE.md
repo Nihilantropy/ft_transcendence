@@ -36,7 +36,7 @@ make re            # Soft rebuild (clean + all)
 make ref           # Full rebuild (fclean + all)
 make show          # Show system status (containers, networks, volumes)
 make migration     # Run database migrations
-make test          # Run all tests via init-and-test.sh
+make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
 ```
 
 ### Development
@@ -54,7 +54,9 @@ docker exec -it CONTAINER sh    # Shell into container
 
 **Critical Docker Workflow:**
 - Code changes require rebuild: `make build` or `docker compose build SERVICE`
-- Preferred test command: `docker compose run --rm SERVICE pytest` (works even when container stopped)
+- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls)
+- Integration tests: MUST use `docker exec` on a running container — `run --rm` cannot
+  resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
 **API Gateway Tests** (30 tests total):
@@ -74,6 +76,12 @@ docker compose run --rm ai-service python -m pytest tests/ -v
 # Classification Service tests (28 tests total)
 docker compose run --rm classification-service python -m pytest tests/ -v
 
+# Recommendation Service tests (53 tests total: 30 unit + 23 integration)
+# Unit tests via run --rm:
+docker compose run --rm recommendation-service python -m pytest tests/unit/ -v
+# Integration tests MUST use exec (need api-gateway hostname):
+docker exec ft_transcendence_recommendation_service python -m pytest tests/integration/ -v
+
 # Run specific test within a service
 docker compose run --rm SERVICE python -m pytest tests/test_file.py::test_function -v
 
@@ -88,17 +96,22 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-r
 ```
 
 ### IMPORTANT!
-All unit tests run via pytest must point to the test database `test_smartbreeds`.
+All services use a single database `smartbreeds`. Django services (auth, user) have pytest-django
+auto-create an isolated test DB at runtime — no separate test database is provisioned or managed.
 Services must only contain unit tests that are not dependent on other services.
-Integration tests are run via Jupyter notebook: `scripts/jupyter/test_ai_service.ipynb`
+Integration tests: Jupyter notebook (`scripts/jupyter/test_ai_service.ipynb`) for AI pipeline;
+pytest-based for recommendation-service (`tests/integration/`). Integration tests that call
+other services by hostname MUST run via `docker exec`, not `docker compose run --rm`.
 
 #### Test Orchestration Scripts
 ```bash
-# Full test suite with initialization (build, start, migrations, run tests)
-./scripts/init-and-test.sh [--all|--unit|--integration] [--skip-init]
+# Run all unit tests (init skipped by default; pass --init to build/start/migrate first)
+./scripts/init-and-test.sh [--init] [--gateway] [--auth] [--user] [--ai] [--classification] [--recommendation]
+# Equivalent via make (extra words become flags):
+make test [init] [gateway] [auth] [user] [ai] [classification] [recommendation]
 
-# Unit tests only (API Gateway, Auth, User, AI, Classification services)
-./scripts/run-unit-tests.sh
+# Unit tests directly (same flags, no init phase at all)
+./scripts/run-unit-tests.sh [--gateway] [--auth] [--user] [--ai] [--classification] [--recommendation]
 
 # Integration tests only (E2E via Jupyter notebook - manual for now)
 jupyter notebook scripts/jupyter/test_ai_service.ipynb
@@ -393,8 +406,9 @@ Services use environment variables from `.env` files:
 **Test Script Organization:**
 ```bash
 # Run specific test suites
-./scripts/run-unit-tests.sh           # Unit tests only (all services)
-./scripts/init-and-test.sh [--all|--unit|--integration] [--skip-init]  # Orchestrator with flags
+./scripts/run-unit-tests.sh [flags]                   # Unit tests (--all default; flags: --gateway --auth --user --ai --classification --recommendation)
+./scripts/init-and-test.sh [--init] [flags]           # Orchestrator: --init enables build/start/migrate; flags forwarded to run-unit-tests.sh
+make test [init] [flags]                              # make shortcut (no -- prefix needed)
 ```
 
 **FastAPI Lifespan Testing Pattern:**
@@ -465,9 +479,9 @@ Services use environment variables from `.env` files:
 
 **In Progress:**
 - Frontend (React scaffolding exists, needs implementation)
-- Product recommendation system (backlog)
 
 **Recently Completed:**
+- Recommendation Service — content-based filtering with 53 passing tests (30 unit + 23 integration)
 - Classification Service GPU support for RTX 5060 Ti (Blackwell) using PyTorch 2.11 nightly
 
 ## Common Troubleshooting

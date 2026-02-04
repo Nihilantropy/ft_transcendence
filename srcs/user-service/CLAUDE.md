@@ -28,7 +28,7 @@ docker exec ft_transcendence_user_service python -m pytest tests/test_models.py:
 docker exec ft_transcendence_user_service python -m pytest tests/ --cov=apps --cov-report=html
 ```
 
-**Test Limitations:** Model/serializer/view tests fail in test DB (auth_schema doesn't exist for FK constraints). Middleware and permission tests pass. This is expected behavior.
+**Test Limitations:** No cross-schema FK constraints (user_id fields are soft references). pytest-django auto-creates an isolated test DB at runtime from the configured `smartbreeds` database — no separate test database is provisioned.
 
 ### Database Migrations
 
@@ -114,9 +114,9 @@ User-service receives pre-authenticated requests from API Gateway:
 - `pets` - Pet profiles
 - `pet_analyses` - Breed identification history
 
-**Cross-schema FK constraints:**
-- user_profiles.user_id → auth_schema.users.id
-- pets.user_id → auth_schema.users.id
+**Cross-schema references (soft, no DB-level FK):**
+- user_profiles.user_id, pets.user_id — plain UUIDs referencing auth_schema.users.id
+- Validated at the API/view layer, not enforced by the database
 
 ## Configuration
 
@@ -150,4 +150,4 @@ Environment variables loaded via `python-decouple` from `.env`:
 - Serializers: 11 tests
 - Views: 9 tests
 
-**Note:** Model/serializer/view tests may fail in test DB (auth_schema doesn't exist for FK constraints). This is expected behavior. Middleware and permission tests pass reliably.
+**Note:** user_id fields are soft references (plain UUIDs), not ForeignKeys. No cross-schema FK constraints exist.

@@ -66,7 +66,7 @@ async def test_get_pet_profile_adds_headers():
         mock_get.return_value = mock_response
 
         client = UserServiceClient()
-        await client.get_pet_profile(pet_id=1, user_id=456)
+        await client.get_pet_profile(pet_id="1", user_id="456")
 
         # Verify headers were passed
         call_kwargs = mock_get.call_args.kwargs

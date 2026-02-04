@@ -14,6 +14,74 @@ NC='\033[0m' # No Color
 TOTAL_TESTS=0
 FAILED_TESTS=0
 
+usage() {
+  echo -e "${BLUE}Usage: $0 [OPTIONS]${NC}"
+  echo ""
+  echo "  --all              Run all test suites (default)"
+  echo "  --gateway          API Gateway tests"
+  echo "  --auth             Auth Service tests"
+  echo "  --user             User Service tests"
+  echo "  --ai               AI Service tests"
+  echo "  --classification   Classification Service tests"
+  echo "  --recommendation   Recommendation Service tests"
+  echo "  -h, --help         Show this help message"
+  echo ""
+  echo "Multiple flags can be combined, e.g.: $0 --auth --user --ai"
+  exit 0
+}
+
+# Parse arguments
+RUN_GATEWAY=false
+RUN_AUTH=false
+RUN_USER=false
+RUN_AI=false
+RUN_CLASSIFICATION=false
+RUN_RECOMMENDATION=false
+SPECIFIC_SUITE=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --all)
+      shift
+      ;;
+    --gateway)
+      RUN_GATEWAY=true; SPECIFIC_SUITE=true; shift
+      ;;
+    --auth)
+      RUN_AUTH=true; SPECIFIC_SUITE=true; shift
+      ;;
+    --user)
+      RUN_USER=true; SPECIFIC_SUITE=true; shift
+      ;;
+    --ai)
+      RUN_AI=true; SPECIFIC_SUITE=true; shift
+      ;;
+    --classification)
+      RUN_CLASSIFICATION=true; SPECIFIC_SUITE=true; shift
+      ;;
+    --recommendation)
+      RUN_RECOMMENDATION=true; SPECIFIC_SUITE=true; shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      echo -e "${RED}Unknown option: $1${NC}"
+      usage
+      ;;
+  esac
+done
+
+# Default to all if no specific suite requested
+if [ "$SPECIFIC_SUITE" = false ]; then
+  RUN_GATEWAY=true
+  RUN_AUTH=true
+  RUN_USER=true
+  RUN_AI=true
+  RUN_CLASSIFICATION=true
+  RUN_RECOMMENDATION=true
+fi
+
 # Function to run tests and track results
 run_test_suite() {
   local service_name=$1
@@ -36,25 +104,29 @@ echo -e "${BLUE}║      SmartBreeds Unit Test Suite          ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
-run_test_suite "API Gateway" \
+[ "$RUN_GATEWAY" = true ] && run_test_suite "API Gateway" \
   "docker compose run --rm api-gateway python -m pytest tests/ -v" \
   28
 
-run_test_suite "Auth Service" \
+[ "$RUN_AUTH" = true ] && run_test_suite "Auth Service" \
   "docker compose run --rm auth-service python -m pytest tests/ -v" \
   77
 
-run_test_suite "User Service" \
+[ "$RUN_USER" = true ] && run_test_suite "User Service" \
   "docker compose run --rm user-service python -m pytest tests/ -v" \
   73
 
-run_test_suite "AI Service" \
+[ "$RUN_AI" = true ] && run_test_suite "AI Service" \
   "docker compose run --rm ai-service python -m pytest tests/ -v" \
   37
 
-run_test_suite "Classification Service" \
+[ "$RUN_CLASSIFICATION" = true ] && run_test_suite "Classification Service" \
   "docker compose run --rm classification-service python -m pytest tests/ -v" \
   28
+
+[ "$RUN_RECOMMENDATION" = true ] && run_test_suite "Recommendation Service" \
+  "docker compose run --rm recommendation-service python -m pytest tests/unit/ -v" \
+  42
 
 # Summary
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"

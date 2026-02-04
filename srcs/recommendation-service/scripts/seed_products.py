@@ -1,10 +1,17 @@
 """Seed database with sample product data."""
 import asyncio
+import os
+import sys
 from decimal import Decimal
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+# TODO this must become a real seed with real product data.
+# Tests are made by creating seed_products fixtures on each test individually (create and soft-delete via admin API) to ensure test isolation and avoid cross-test contamination. This script is only for manual testing and development purposes, not for automated test setup.
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from src.models.product import Product
-import os
 
 async def seed_products():
     """Add sample products to database."""
