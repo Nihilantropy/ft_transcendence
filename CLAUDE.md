@@ -188,6 +188,13 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - **GPU Support:** RTX 5060 Ti (Blackwell) via PyTorch nightly (2.11.0.dev20260128+cu128)
 - Location: `srcs/classification-service/`
 
+**Recommendation Service (FastAPI - internal port 3005):** [Complete - 53 passing tests]
+- Content-based product recommendations using 15-dimensional feature vectors
+- Weighted cosine similarity matching pet profiles to products
+- Product CRUD administration endpoints
+- Direct integration with User Service for pet profile retrieval
+- Location: `srcs/recommendation-service/`
+
 **Ollama (port 11434):**
 - Self-hosted LLM server (GPU-accelerated, NVIDIA runtime)
 - Hosts qwen3-vl:8b model for vision and text generation
@@ -205,7 +212,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 **Shared PostgreSQL with Logical Separation:**
 - `auth_schema`: users, refresh_tokens (owned by auth-service)
 - `user_schema`: user_profiles, pets, pet_analyses (owned by user-service)
-- `ai_schema`: (reserved for future features - product recommendations, user preferences)
+- `recommendation_schema`: products (owned by recommendation-service)
 
 **Rule:** Services NEVER directly access other services' schemas. Cross-service data access MUST go through REST APIs via API Gateway.
 
