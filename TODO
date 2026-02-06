@@ -1,0 +1,1 @@
+sometimes on /analyze return 503, even if from log ai-service and classification-service do not see issues. Maybe problem is in api-gateway on how forward request, or timeout
