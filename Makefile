@@ -160,6 +160,10 @@ seed:
 	@echo "Seeding initial data..."
 	@scripts/seed-db.sh
 
+rag:
+	@echo "Starting RAG setup..."
+	@scripts/init-rag-kb.sh
+
 # create superuser
 superuser:
 	@echo "Creating superuser..."

@@ -24,7 +24,7 @@ services:
   ### OLLAMA ###
   ollama:
     container_name: ollama
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.15.4
     runtime: nvidia
     entrypoint: ["/workspace/init.sh"]
     environment:

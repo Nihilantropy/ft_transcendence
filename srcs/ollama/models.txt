@@ -1,1 +1,2 @@
 qwen3-vl:8b
+gpt-oss:20b
