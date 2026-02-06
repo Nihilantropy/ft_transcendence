@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=100)),
                 ('breed', models.CharField(blank=True, max_length=100)),
                 ('breed_confidence', models.FloatField(blank=True, null=True)),
-                ('species', models.CharField(choices=[('dog', 'Dog'), ('cat', 'Cat'), ('other', 'Other')], default='dog', max_length=10)),
+                ('species', models.CharField(choices=[('dog', 'Dog'), ('cat', 'Cat'), ('other', 'Other')], max_length=20)),
                 ('age', models.IntegerField(blank=True, null=True)),
                 ('weight', models.FloatField(blank=True, null=True)),
                 ('health_conditions', models.JSONField(blank=True, default=list)),

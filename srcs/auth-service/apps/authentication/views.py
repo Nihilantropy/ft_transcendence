@@ -6,7 +6,7 @@ import jwt
 from rest_framework.views import APIView
 
 from apps.authentication.models import User, RefreshToken
-from apps.authentication.serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from apps.authentication.serializers import LoginSerializer, RegisterSerializer, UserSerializer, ChangePasswordSerializer
 from apps.authentication.utils import (
     success_response, 
     error_response, 
@@ -427,6 +427,100 @@ class DeleteUserView(APIView):
         )
         clear_auth_cookies(response)
         
+        return response
+
+
+class ChangePasswordView(APIView):
+    """
+    PUT /api/v1/auth/change-password
+
+    Change the authenticated user's password.
+    Requires valid access token. Revokes all refresh tokens and re-issues fresh tokens.
+    """
+
+    def put(self, request):
+        # Extract access_token from cookies
+        access_token = request.COOKIES.get('access_token')
+        if not access_token:
+            return error_response(
+                code='UNAUTHORIZED',
+                message='Authentication required',
+                status=401
+            )
+
+        # Decode and validate token
+        try:
+            payload = decode_token(access_token)
+        except jwt.ExpiredSignatureError:
+            return error_response(
+                code='TOKEN_EXPIRED',
+                message='Access token has expired',
+                status=401
+            )
+        except jwt.InvalidTokenError:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Check token_type is 'access'
+        if payload.get('token_type') != 'access':
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Find user
+        user_id = payload.get('user_id')
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return error_response(
+                code='INVALID_TOKEN',
+                message='Invalid access token',
+                status=401
+            )
+
+        # Check if account is active
+        if not user.is_active:
+            return error_response(
+                code='ACCOUNT_DISABLED',
+                message='Account is disabled',
+                status=403
+            )
+
+        # Parse JSON body
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+
+        # Validate input
+        serializer = ChangePasswordSerializer(data=data, context={'user': user})
+        if not serializer.is_valid():
+            return error_response(
+                code='VALIDATION_ERROR',
+                message='Invalid input',
+                details=serializer.errors,
+                status=422
+            )
+
+        # Update password
+        user.set_password(serializer.validated_data['new_password'])
+        user.save(update_fields=['password'])
+
+        # Revoke all existing refresh tokens
+        RefreshToken.objects.filter(user=user, is_revoked=False).update(is_revoked=True)
+
+        # Issue fresh tokens
+        response = success_response(
+            data={'message': 'Password changed successfully'},
+            status=200
+        )
+        response = issue_auth_tokens(user, response)
+
         return response
 
 

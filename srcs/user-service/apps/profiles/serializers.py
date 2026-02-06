@@ -96,6 +96,7 @@ class PetCreateSerializer(serializers.ModelSerializer):
         model = Pet
         fields = ['name', 'species', 'breed', 'age', 'weight', 'health_conditions']
         extra_kwargs = {
+            'species': {'required': True},
             'breed': {'required': False, 'allow_blank': True},
             'age': {'required': False},
             'weight': {'required': False},

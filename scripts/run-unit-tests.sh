@@ -110,11 +110,11 @@ echo ""
 
 [ "$RUN_AUTH" = true ] && run_test_suite "Auth Service" \
   "docker compose run --rm auth-service python -m pytest tests/ -v" \
-  77
+  102
 
 [ "$RUN_USER" = true ] && run_test_suite "User Service" \
   "docker compose run --rm user-service python -m pytest tests/ -v" \
-  73
+  91
 
 [ "$RUN_AI" = true ] && run_test_suite "AI Service" \
   "docker compose run --rm ai-service python -m pytest tests/ -v" \

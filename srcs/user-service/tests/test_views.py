@@ -486,6 +486,229 @@ class TestPetViewSetAdditional:
         # Pet should still exist
         assert Pet.objects.filter(id=pet.id).exists()
     
+    def test_create_pet_empty_body(self):
+        """Test POST /pets with empty body returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert response.data['error']['code'] == 'VALIDATION_ERROR'
+
+    def test_create_pet_missing_name(self):
+        """Test POST /pets without name returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({'species': 'cat', 'age': 12}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert response.data['error']['code'] == 'VALIDATION_ERROR'
+        assert 'name' in response.data['error']['details']
+
+    def test_create_pet_blank_name(self):
+        """Test POST /pets with blank name returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({'name': '', 'species': 'dog'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert 'name' in response.data['error']['details']
+
+    def test_create_pet_invalid_species(self):
+        """Test POST /pets with invalid species value returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({'name': 'Buddy', 'species': 'hamster'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert 'species' in response.data['error']['details']
+
+    def test_create_pet_missing_species(self):
+        """Test POST /pets without species returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({'name': 'Rex'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert 'species' in response.data['error']['details']
+
+    def test_create_pet_invalid_age_type(self):
+        """Test POST /pets with non-integer age returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({'name': 'Test', 'species': 'dog', 'age': 'two'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert 'age' in response.data['error']['details']
+
+    def test_create_pet_invalid_weight(self):
+        """Test POST /pets with negative weight returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({'name': 'Test', 'species': 'cat', 'weight': -3.5}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert 'weight' in response.data['error']['details']
+
+    def test_create_pet_invalid_json(self):
+        """Test POST /pets with malformed JSON returns 400"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data='not valid json{',
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 400
+
+    def test_update_pet_invalid_species(self):
+        """Test PUT /pets/{id} with invalid species returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(
+            user_id=user_id, name='Buddy', species='dog'
+        )
+
+        request = factory.put(
+            f'/api/v1/pets/{pet.id}/',
+            data=json.dumps({'name': 'Buddy', 'species': 'parrot'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'put': 'update'})
+        response = view(request, pk=pet.id)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+        assert 'species' in response.data['error']['details']
+
+    def test_update_nonexistent_pet(self):
+        """Test PUT /pets/{id} for nonexistent pet returns 404"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        fake_id = uuid.uuid4()
+
+        request = factory.put(
+            f'/api/v1/pets/{fake_id}/',
+            data=json.dumps({'name': 'Ghost', 'species': 'dog'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'put': 'update'})
+        response = view(request, pk=fake_id)
+
+        assert response.status_code == 404
+
+    def test_partial_update_invalid_age(self):
+        """Test PATCH /pets/{id} with negative age returns 422"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(
+            user_id=user_id, name='Buddy', species='dog', age=12
+        )
+
+        request = factory.patch(
+            f'/api/v1/pets/{pet.id}/',
+            data=json.dumps({'age': -10}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'patch': 'partial_update'})
+        response = view(request, pk=pet.id)
+
+        assert response.status_code == 422
+        assert response.data['success'] is False
+
     def test_404_on_nonexistent_pet(self):
         """Test 404 when pet doesn't exist"""
         factory = RequestFactory()

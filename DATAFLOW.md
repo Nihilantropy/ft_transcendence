@@ -144,10 +144,15 @@ Register a new user account.
 {
   "email": "user@example.com",
   "password": "SecurePassword123!",
+  "password_confirm": "SecurePassword123!",
   "first_name": "John",
   "last_name": "Doe"
 }
 ```
+
+**Required Fields:** `email`, `password`, `password_confirm`
+
+**Optional Fields:** `first_name`, `last_name`
 
 **Password Requirements:**
 - Minimum 8 characters
@@ -182,7 +187,7 @@ Register a new user account.
 **Errors:**
 | Code | Status | Reason |
 |------|--------|--------|
-| `VALIDATION_ERROR` | 422 | Invalid email format or password requirements not met |
+| `VALIDATION_ERROR` | 422 | Invalid email format, password requirements not met, or passwords do not match |
 | `EMAIL_ALREADY_EXISTS` | 409 | Email already registered |
 
 ---
@@ -341,6 +346,46 @@ Delete user account with cascade deletion across all services.
   "timestamp": "2026-02-06T12:00:00.000000"
 }
 ```
+
+---
+
+### PUT /api/v1/auth/change-password
+
+**Auth Required:** Yes
+
+Change the authenticated user's password. Revokes all existing sessions and re-issues fresh tokens.
+
+**Request:**
+```json
+{
+  "current_password": "OldPassword123!",
+  "new_password": "NewSecurePassword456!",
+  "new_password_confirm": "NewSecurePassword456!"
+}
+```
+
+**Required Fields:** `current_password`, `new_password`, `new_password_confirm`
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Password changed successfully"
+  },
+  "error": null,
+  "timestamp": "2026-02-06T12:00:00.000000"
+}
+```
+
+**Cookies Set:** New `access_token` and `refresh_token` (all previous tokens revoked)
+
+**Errors:**
+| Code | Status | Reason |
+|------|--------|--------|
+| `VALIDATION_ERROR` | 422 | Current password incorrect, new password requirements not met, or new passwords do not match |
+| `UNAUTHORIZED` | 401 | Missing or invalid access token |
+| `ACCOUNT_DISABLED` | 403 | Account is disabled |
 
 ---
 

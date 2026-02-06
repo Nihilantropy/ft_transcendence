@@ -14,7 +14,7 @@ Django REST Framework microservice handling user authentication via JWT tokens w
 
 ### Testing
 ```bash
-# Run all tests (77 tests) - use `run --rm` for reliability
+# Run all tests (102 tests) - use `run --rm` for reliability
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # Run specific test file
@@ -56,9 +56,9 @@ apps/
     models.py      # User, RefreshToken models
     jwt_utils.py   # Token generation/decoding (RS256)
     validators.py  # Custom password validator
-    serializers.py # DRF serializers for registration/login
+    serializers.py # DRF serializers (Register, Login, ChangePassword)
     utils.py       # Standardized API responses
-    views.py       # Endpoints (pending implementation)
+    views.py       # All authentication endpoints
 tests/           # pytest-django tests
 keys/            # RS256 key pair (private key is gitignored)
 ```
@@ -122,16 +122,19 @@ Custom markers defined in `pytest.ini`:
 
 ## Current State
 
-**Fully Implemented (77 tests passing):**
+**Fully Implemented (102 tests passing):**
 - User model with email auth, Argon2 hashing
 - RefreshToken model with hash storage
 - JWT utilities (generate/decode/hash)
 - Password validator (letter + number requirement)
-- Serializers (User, Register, Login)
+- Serializers (User, Register, Login, ChangePassword)
 - Response utilities
 - Login endpoint (POST /api/v1/auth/login)
-- Register endpoint (POST /api/v1/auth/register)
+- Register endpoint (POST /api/v1/auth/register) - requires email, password, password_confirm
 - Refresh endpoint (POST /api/v1/auth/refresh) with token rotation
 - Logout endpoint (POST /api/v1/auth/logout) with graceful error handling
+- Verify endpoint (GET /api/v1/auth/verify)
+- Delete endpoint (DELETE /api/v1/auth/delete) with cascade
+- Change password endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens
 
 **Service Status:** Complete - all authentication endpoints implemented

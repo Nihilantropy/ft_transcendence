@@ -64,7 +64,7 @@ docker exec -it CONTAINER sh    # Shell into container
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (77 tests total)
+# Auth Service tests (102 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # User Service tests (73 tests total)
@@ -157,9 +157,10 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Zero-touch routing: automatically proxies `/api/*` to backend services
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 77 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 102 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
-- User registration and login endpoints
+- User registration (requires email, password, password_confirm) and login endpoints
+- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
@@ -471,7 +472,7 @@ make test [init] [flags]                              # make shortcut (no -- pre
 
 **Completed:**
 - API Gateway (FastAPI) with full middleware stack - 30 passing tests
-- Auth Service (Django) with authentication endpoints - 77 passing tests
+- Auth Service (Django) with authentication endpoints - 102 passing tests
 - User Service (Django) with profile and pet management - 73 passing tests
 - AI Service (FastAPI) with multi-stage vision pipeline - 47 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
