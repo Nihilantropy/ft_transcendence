@@ -1,6 +1,8 @@
 # Project specific
 en.subject.pdf
 
+.coverage
+
 # Environment files (all directories)
 .env
 .env.*
@@ -55,7 +57,7 @@ Thumbs.db
 **/Thumbs.db
 
 # IDE files
-.vscode/settings.json
+.vscode
 .idea/
 *.swp
 *.swo

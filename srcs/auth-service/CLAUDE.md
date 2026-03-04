@@ -120,6 +120,10 @@ Custom markers defined in `pytest.ini`:
 - `@pytest.mark.slow` - slow tests
 - `@pytest.mark.integration` - integration tests
 
+## Common Gotchas
+
+**Django `.delete()` return value:** `queryset.delete()` returns `(total_rows, {model_label: count})`. `total_rows` includes all cascade-deleted related rows (e.g. deleting a User also deletes its RefreshTokens, giving `total_rows = 2`). Always use the dict: `deleted_counts.get('authentication.User', 0)` for per-model accuracy.
+
 ## Current State
 
 **Fully Implemented (102 tests passing):**

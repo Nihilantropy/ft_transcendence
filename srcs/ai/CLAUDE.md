@@ -15,7 +15,7 @@ FastAPI microservice that orchestrates multi-stage vision analysis for pet breed
 ### Testing
 
 ```bash
-# All tests (47 total)
+# All tests (104 total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Specific test file
@@ -33,12 +33,11 @@ docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-repor
 ChromaDB starts empty. Initialize the knowledge base:
 
 ```bash
-# From inside container (localhost-only endpoint)
-docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize
+# Preferred: use the Makefile rule from project root
+make rag
 
-# Or via shell
-docker exec -it ft_transcendence_ai_service sh
-curl -X POST http://localhost:3003/api/v1/admin/rag/initialize
+# Direct (from inside container — localhost-only endpoint)
+docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize
 ```
 
 ### Docker Operations
@@ -161,4 +160,6 @@ def mock_classification_client():
 
 ## Current State
 
-**Status:** 47 passing tests
+**Status:** 104 passing tests (86% coverage)
+- New test files: `test_image_processor.py`, `test_embedder.py`, `test_ollama_client.py`
+- pytest-cov not in requirements — install temporarily: `docker exec ft_transcendence_ai_service pip install pytest-cov`

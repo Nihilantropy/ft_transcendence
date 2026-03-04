@@ -135,6 +135,8 @@ Mocking patterns:
 
 ## Common Gotchas
 
+**Per-service timeout override:** `SERVICE_TIMEOUTS` dict in `routes/proxy.py` maps path prefixes to timeouts (seconds). Default is 30s; `/api/v1/vision` uses 300s for Ollama inference. Add new slow services there rather than raising the global default.
+
 **httpx.Response headers:** Use `response.headers.raw` (returns `List[Tuple[bytes, bytes]]`), NOT `response.raw_headers` (doesn't exist)
 
 **pytest warnings:** Configure pytest.ini with custom markers and `asyncio_default_fixture_loop_scope = function`

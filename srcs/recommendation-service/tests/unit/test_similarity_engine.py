@@ -94,3 +94,53 @@ def test_similarity_engine_ranking():
 
     # A should score highest, C lowest (due to health condition weight)
     assert scores[0] >= scores[1] >= scores[2]
+
+
+@pytest.mark.unit
+def test_rank_products_returns_sorted_scores():
+    """rank_products returns (index, score) tuples sorted descending."""
+    engine = SimilarityEngine()
+    pet = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.7, 0.5, 0.6, 0.0])
+    product_a = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.7, 0.5, 0.6, 0.0])
+    product_b = np.array([0.5, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+    results = engine.rank_products(pet, [product_a, product_b])
+
+    assert len(results) >= 1
+    if len(results) > 1:
+        assert results[0][1] >= results[1][1]
+    # Perfect match (product_a) should appear first with index 0
+    assert results[0][0] == 0
+
+
+@pytest.mark.unit
+def test_rank_products_empty_list():
+    """rank_products with empty product list returns empty list."""
+    engine = SimilarityEngine()
+    pet = np.array([0.5] * 15)
+    assert engine.rank_products(pet, []) == []
+
+
+@pytest.mark.unit
+def test_rank_products_below_threshold_excluded():
+    """rank_products excludes products below similarity threshold."""
+    engine = SimilarityEngine(threshold=0.99)
+    pet = np.array([1.0] + [0.0] * 14)
+    product = np.array([0.0] * 14 + [1.0])  # orthogonal — very low similarity
+    results = engine.rank_products(pet, [product])
+    assert results == []
+
+
+@pytest.mark.unit
+def test_rank_products_returns_correct_indices():
+    """rank_products returns correct original indices."""
+    engine = SimilarityEngine()
+    pet = np.array([0.5] * 15)
+    product_zero = np.array([0.1] * 15)   # index 0 — lower similarity
+    product_one = np.array([0.5] * 15)    # index 1 — perfect match
+
+    results = engine.rank_products(pet, [product_zero, product_one])
+
+    indices = [r[0] for r in results]
+    # Product at index 1 is the better match, should appear first
+    assert indices[0] == 1

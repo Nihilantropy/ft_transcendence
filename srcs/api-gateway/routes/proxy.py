@@ -9,8 +9,13 @@ from typing import Dict, Any, List, Tuple
 
 router = APIRouter()
 
-# Async HTTP client for backend requests
+# Async HTTP client for backend requests (default 30s timeout)
 httpx_client = httpx.AsyncClient(timeout=30.0)
+
+# Per-service timeout overrides (seconds) — vision/AI pipeline can be very slow
+SERVICE_TIMEOUTS: Dict[str, float] = {
+    "/api/v1/vision": 300.0,  # Ollama inference can take several minutes
+}
 
 
 class ProxyResponse(Response):
@@ -104,6 +109,12 @@ async def forward_request(
     if method in ["POST", "PUT", "PATCH"]:
         body = await request.body()
 
+    # Determine timeout for this path (use longer timeout for slow services)
+    timeout = next(
+        (t for prefix, t in SERVICE_TIMEOUTS.items() if path.startswith(prefix)),
+        30.0
+    )
+
     try:
         # Forward request to backend
         response = await httpx_client.request(
@@ -111,7 +122,8 @@ async def forward_request(
             url=full_url,
             headers=forward_headers,
             content=body,
-            params=dict(request.query_params)
+            params=dict(request.query_params),
+            timeout=timeout
         )
 
         # Try to parse JSON, fallback to raw content

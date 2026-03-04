@@ -37,6 +37,7 @@ make ref           # Full rebuild (fclean + all)
 make show          # Show system status (containers, networks, volumes)
 make migration     # Run database migrations
 make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
+make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
 ```
 
 ### Development
@@ -93,6 +94,14 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middle
 
 # With coverage
 docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-report=html
+
+# Coverage per service (pytest-cov pre-installed only in auth-service + recommendation-service)
+# Install on-the-fly for others: docker exec CONTAINER pip install pytest-cov
+# --cov target: api-gateway/auth-service/user-service → --cov=.
+#               ai-service/classification-service/recommendation-service → --cov=src
+# Note: recommendation-service unit coverage appears ~51% overall — routes/schemas/main.py/
+# database.py are 0% in unit tests by design (covered by 23 integration tests).
+# Service logic files (feature_engineering, similarity_engine, etc.) are 100%.
 ```
 
 ### IMPORTANT!
@@ -172,7 +181,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 47 passing tests]
+**AI Service (FastAPI - internal port 3003):** [Complete - 104 passing tests]
 - Multi-stage vision pipeline via VisionOrchestrator
 - Ollama HTTP API integration (qwen3-vl:8b model) for contextual analysis
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
@@ -189,7 +198,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - **GPU Support:** RTX 5060 Ti (Blackwell) via PyTorch nightly (2.11.0.dev20260128+cu128)
 - Location: `srcs/classification-service/`
 
-**Recommendation Service (FastAPI - internal port 3005):** [Complete - 53 passing tests]
+**Recommendation Service (FastAPI - internal port 3005):** [Complete - 84 passing tests (61 unit + 23 integration)]
 - Content-based product recommendations using 15-dimensional feature vectors
 - Weighted cosine similarity matching pet profiles to products
 - Product CRUD administration endpoints
@@ -246,8 +255,8 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
   - `spiecies/`: General species info (dogs.md, cats.md)
   - Directory structure: `spiecies/{species}/{purebreeds,crossbreeds,health}/*.md`
   - Future: breed-specific files for detailed breed standards
-- ChromaDB starts empty - use `POST /api/v1/admin/rag/initialize` to bulk ingest (localhost-only)
-- Initialization: `docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize`
+- ChromaDB starts empty - use `make rag` to bulk ingest (calls `scripts/init-rag-kb.sh` which hits the localhost-only endpoint)
+- Initialization: `make rag` (preferred) or directly: `docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize`
 - Workflow: Document → chunk → embed → store → semantic search
 - RAG retrieval enriches Ollama context with factual breed knowledge
 - Volume mount: `/app/data/chroma` (persisted in `ai-chroma-data` volume)
@@ -444,10 +453,11 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Location: `scripts/jupyter/test_ai_service.ipynb`
 - Purpose: Test full vision pipeline with real images through API Gateway
 - Setup: Notebook handles JWT authentication automatically
-- Images: Place test images in `scripts/jupyter/` directory
+- Images: Place test images in `scripts/jupyter/test_data/images/` directory
 - Run: `jupyter notebook scripts/jupyter/test_ai_service.ipynb` (requires `make up` first)
 - Note: All requests route through API Gateway (localhost:8001) with proper JWT tokens
 - Note: notebooks uses real database transactions on `smartbreeds` database (production-like). Make sure to clean up test data as needed. Every run must use unique user accounts to avoid conflicts and leave a clean state.
+- **Headless execution:** `jupyter-nbconvert --to notebook --execute --allow-errors --ExecutePreprocessor.timeout=600 notebook.ipynb --output out.ipynb` — use `--allow-errors` to capture all cell outputs even when cells fail; set timeout ≥600 for AI notebooks
 
 **Debugging ML Models in Containers:**
 - Direct `docker exec` Python commands loading large models often hang → use script approach instead
@@ -474,7 +484,7 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - API Gateway (FastAPI) with full middleware stack - 30 passing tests
 - Auth Service (Django) with authentication endpoints - 102 passing tests
 - User Service (Django) with profile and pet management - 73 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 47 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 104 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → Ollama orchestration)
 - Crossbreed detection with intelligent thresholding
@@ -489,7 +499,7 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Frontend (React scaffolding exists, needs implementation)
 
 **Recently Completed:**
-- Recommendation Service — content-based filtering with 53 passing tests (30 unit + 23 integration)
+- Recommendation Service — content-based filtering with 84 passing tests (61 unit + 23 integration)
 - Classification Service GPU support for RTX 5060 Ti (Blackwell) using PyTorch 2.11 nightly
 
 ## Common Troubleshooting
@@ -560,6 +570,21 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Ollama client expects `image_base64` parameter, NOT `image`
 - Location: `srcs/ai/src/services/vision_orchestrator.py`
 - Parameter names must match method signatures exactly
+
+**503 on /api/v1/vision/analyze:**
+- Root cause: API Gateway has a 30s global proxy timeout; Ollama inference takes 20–120s
+- Fix is in place: `SERVICE_TIMEOUTS` dict in `srcs/api-gateway/routes/proxy.py` overrides to 300s for `/api/v1/vision`
+- If adding a new slow endpoint, add its prefix to that dict
+
+**Django `.delete()` count returns wrong number:**
+- `queryset.delete()` returns `(total_rows, {model_label: count})` where `total_rows` includes CASCADE-deleted related rows
+- Example: deleting a User also deletes RefreshTokens, so `total_rows = 2` for 1 user
+- Always use `deleted_counts.get('authentication.User', 0)` for per-model accuracy
+
+**Recommendation service product duplicates:**
+- Seed script is idempotent — skips if any products exist, prints a warning
+- Use `--force` flag to clear and re-seed: `docker exec ft_transcendence_recommendation_service python scripts/seed_products.py --force`
+- Product data lives in `scripts/products.yaml` — edit there, not in Python
 
 ## Reference Documentation
 

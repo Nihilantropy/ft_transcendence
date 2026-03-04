@@ -17,7 +17,7 @@ Code changes require `docker compose restart recommendation-service`.
 ### Testing
 
 ```bash
-# Unit tests (30 tests) — run --rm works fine for these
+# Unit tests (61 tests) — run --rm works fine for these
 docker compose run --rm recommendation-service python -m pytest tests/unit/ -v
 
 # Integration tests (23 tests) — MUST use docker exec (need other services reachable by hostname)
@@ -101,6 +101,17 @@ pet_data["weight_kg"] = pet_data.get("weight")
 - `PUT /api/v1/admin/products/{id}` — update product
 - `DELETE /api/v1/admin/products/{id}` — soft delete (sets is_active=False)
 
+## Seed Data
+
+**Product definitions** live in `scripts/products.yaml` — edit there to add/modify products without touching Python code.
+
+**Seed script is idempotent:** skips if any products exist. Use `--force` to clear and re-seed:
+```bash
+docker exec ft_transcendence_recommendation_service python scripts/seed_products.py           # safe no-op if data exists
+docker exec ft_transcendence_recommendation_service python scripts/seed_products.py --force   # clear + re-seed
+```
+
 ## Current State
 
-**Status:** 53 passing tests (30 unit + 23 integration)
+**Status:** 84 passing tests (61 unit + 23 integration)
+- Unit coverage appears ~51% overall — routes/schemas/main.py/database.py are 0% by design (covered by integration tests). Service logic (feature_engineering, similarity_engine, etc.) is 100%.
