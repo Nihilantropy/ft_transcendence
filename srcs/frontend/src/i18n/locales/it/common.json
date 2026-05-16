@@ -2,6 +2,15 @@
   "accessibility": {
     "switchToLight": "Passa al tema chiaro",
     "switchToDark": "Passa al tema scuro",
-    "switchLanguage": "Cambia lingua"
+    "switchLanguage": "Cambia lingua",
+    "openNav": "Apri menu di navigazione",
+    "closeNav": "Chiudi menu di navigazione"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "pets": "I miei pet",
+    "analyze": "Analizza",
+    "recommendations": "Raccomandazioni",
+    "profile": "Profilo"
   }
 }

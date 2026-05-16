@@ -16,7 +16,7 @@ export function LanguageToggle() {
         void i18n.changeLanguage(next)
       }}
       aria-label={t('accessibility.switchLanguage')}
-      className="font-mono text-xs tracking-[0.18em] uppercase"
+      className="text-xs font-normal tracking-[0.18em] uppercase"
     >
       {current}
     </Button>

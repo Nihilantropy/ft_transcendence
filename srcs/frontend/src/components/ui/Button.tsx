@@ -18,20 +18,20 @@ const buttonVariants = cva(
     variants: {
       variant: {
         copper: [
-          'bg-accent text-base shadow-[0_0_0_1px_var(--c-accent-hi),0_8px_24px_-8px_var(--c-accent-glow)]',
-          'hover:bg-accent-hi hover:shadow-[0_0_0_1px_var(--c-accent-hi),0_12px_32px_-8px_var(--c-accent-glow)]',
+          'bg-accent text-white shadow-[0_8px_24px_-8px_var(--c-accent-glow)]',
+          'hover:bg-accent-hi hover:shadow-[0_12px_32px_-8px_var(--c-accent-glow)]',
         ],
         outline: [
           'border border-border-soft text-text-hi bg-transparent',
           'hover:bg-elevated hover:border-text-lo',
         ],
-        ghost: ['text-text-mid hover:text-text-hi hover:bg-elevated'],
+        ghost: ['text-text-mid hover:text-text-hi hover:bg-accent/10'],
         link: ['text-accent underline-offset-4 hover:underline px-0 py-0 h-auto'],
       },
       size: {
-        sm: 'h-9 px-3 text-sm rounded-md',
-        md: 'h-11 px-5 text-sm rounded-md',
-        lg: 'h-14 px-7 text-base rounded-md',
+        sm: 'h-9 min-w-20 px-3 text-sm rounded-md',
+        md: 'h-11 min-w-28 px-5 text-sm rounded-md',
+        lg: 'h-14 min-w-36 px-7 text-base rounded-md',
         icon: 'h-10 w-10 rounded-md',
       },
     },

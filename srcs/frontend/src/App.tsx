@@ -1,12 +1,15 @@
-import { Header } from '@/components/layout/Header'
+import { AppShell } from '@/components/layout/AppShell'
+import { Toaster } from '@/components/ui/Toast'
 import { LandingPage } from '@/pages/landing/LandingPage'
 
 function App() {
   return (
-    <div className="min-h-dvh">
-      <Header />
-      <LandingPage />
-    </div>
+    <>
+      <AppShell>
+        <LandingPage />
+      </AppShell>
+      <Toaster />
+    </>
   )
 }
 

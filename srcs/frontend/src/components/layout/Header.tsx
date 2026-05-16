@@ -1,18 +1,29 @@
+// import { useTranslation } from 'react-i18next' // TODO Phase 4-6: restore with NAV_ITEMS
+import { Brand } from '@/components/layout/Brand'
 import { LanguageToggle } from '@/components/layout/LanguageToggle'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { cn } from '@/lib/utils/cn'
 
-export function Header() {
+interface HeaderProps {
+  bordered?: boolean
+}
+
+export function Header({ bordered = false }: HeaderProps) {
   return (
-    <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-      <a
-        href="/"
-        className="text-text-hi font-sans text-lg font-bold tracking-tight lowercase select-none"
-      >
-        smartbreeds
-      </a>
-      <div className="flex items-center gap-1">
-        <LanguageToggle />
-        <ThemeToggle />
+    <header
+      className={cn(
+        'bg-base shrink-0 border-b transition-colors duration-200',
+        bordered ? 'border-border-soft' : 'border-transparent',
+      )}
+    >
+      <div className="flex items-center justify-between gap-4 px-12 py-3">
+        <div className="flex items-center gap-8">
+          <Brand />
+        </div>
+        <div className="flex items-center gap-1">
+          <LanguageToggle />
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )

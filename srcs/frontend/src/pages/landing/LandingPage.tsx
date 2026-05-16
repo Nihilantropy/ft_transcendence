@@ -7,9 +7,11 @@ export function LandingPage() {
   const { t } = useTranslation('landing')
 
   return (
-    <main className="pb-section mx-auto max-w-5xl px-6 pt-12">
+    <div className="pb-section pt-12">
+      {/*  Animation */}
       <ScanAnimation size={140} />
 
+      {/*  Hero Section */}
       <h1
         className="text-text-hi mt-8 font-sans font-extrabold"
         style={{
@@ -29,7 +31,9 @@ export function LandingPage() {
       >
         {t('hero.subtitle')}
       </p>
-      <div className="mt-10 flex flex-wrap gap-4">
+
+      {/* CTA */}
+      <div className="mt-8 flex flex-wrap gap-4">
         <Button size="lg">
           {t('cta.uploadPhoto')}
           <ArrowRight size={18} aria-hidden />
@@ -41,6 +45,6 @@ export function LandingPage() {
           {t('cta.learnMore')}
         </Button>
       </div>
-    </main>
+    </div>
   )
 }
