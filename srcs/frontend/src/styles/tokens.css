@@ -1,0 +1,109 @@
+/* ------------------------------------------------------------------ */
+/* Fonts                                                              */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: 'Host Grotesk Variable';
+  src: url('/fonts/HostGrotesk-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Host Grotesk Variable';
+  src: url('/fonts/HostGrotesk-Italic-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Theme tokens                                                       */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  --color-base: var(--c-base);
+  --color-elevated: var(--c-elevated);
+  --color-border-soft: var(--c-border-soft);
+  --color-text-hi: var(--c-text-hi);
+  --color-text-mid: var(--c-text-mid);
+  --color-text-lo: var(--c-text-lo);
+  --color-accent: var(--c-accent);
+  --color-accent-hi: var(--c-accent-hi);
+  --color-accent-glow: var(--c-accent-glow);
+  --color-success: var(--c-success);
+  --color-warn: var(--c-warn);
+  --color-danger: var(--c-danger);
+
+  --font-sans: 'Host Grotesk Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --text-xs: clamp(0.75rem, 0.7rem + 0.2vw, 0.8125rem);
+  --text-sm: clamp(0.875rem, 0.82rem + 0.2vw, 0.9375rem);
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.0625rem);
+  --text-lg: clamp(1.125rem, 1.05rem + 0.4vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 1.3rem + 0.8vw, 1.875rem);
+  --text-3xl: clamp(1.875rem, 1.5rem + 1.4vw, 2.5rem);
+  --text-4xl: clamp(2.25rem, 1.8rem + 2vw, 3.5rem);
+  --text-5xl: clamp(3rem, 2.2rem + 3vw, 5rem);
+  --text-display: clamp(3rem, 1.5rem + 7vw, 7rem);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 9999px;
+
+  --spacing-section: clamp(4rem, 3rem + 5vw, 9rem);
+
+  --duration-fast: 150ms;
+  --duration-normal: 280ms;
+  --duration-slow: 600ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Themed CSS custom properties                                       */
+/* ------------------------------------------------------------------ */
+
+:root,
+:root[data-theme='dark'] {
+  --c-base: oklch(14% 0.015 250);
+  --c-elevated: oklch(18% 0.02 250);
+  --c-border-soft: oklch(35% 0.02 250 / 0.4);
+
+  --c-text-hi: oklch(96% 0.005 90);
+  --c-text-mid: oklch(75% 0.01 90);
+  --c-text-lo: oklch(55% 0.015 90);
+
+  --c-accent: oklch(72% 0.13 55);
+  --c-accent-hi: oklch(82% 0.14 60);
+  --c-accent-glow: oklch(72% 0.13 55 / 0.35);
+
+  --c-success: oklch(72% 0.16 150);
+  --c-warn: oklch(78% 0.16 75);
+  --c-danger: oklch(65% 0.21 25);
+
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --c-base: oklch(98% 0.005 90);
+  --c-elevated: oklch(96% 0.008 90);
+  --c-border-soft: oklch(85% 0.01 90);
+
+  --c-text-hi: oklch(18% 0.01 250);
+  --c-text-mid: oklch(38% 0.01 250);
+  --c-text-lo: oklch(55% 0.01 250);
+
+  --c-accent: oklch(55% 0.14 55);
+  --c-accent-hi: oklch(45% 0.16 50);
+  --c-accent-glow: oklch(55% 0.14 55 / 0.25);
+
+  --c-success: oklch(50% 0.16 150);
+  --c-warn: oklch(60% 0.16 75);
+  --c-danger: oklch(50% 0.21 25);
+
+  color-scheme: light;
+}
