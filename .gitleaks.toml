@@ -1,0 +1,14 @@
+title = "Gitleaks Configuration"
+
+# Use the bundled default rules and add our own allowlist on top.
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "Ignore lockfiles and frozen artifacts (high false-positive rate)"
+  paths = [
+    '''pnpm-lock\.yaml''',
+    '''package-lock\.json''',
+    '''yarn\.lock''',
+    '''poetry\.lock''',
+  ]
