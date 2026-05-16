@@ -15,7 +15,7 @@ export function LandingPage() {
         style={{
           fontSize: 'var(--text-5xl)',
           lineHeight: 0.95,
-          letterSpacing: '-0.035em',
+          letterSpacing: '-0.015em',
         }}
       >
         {t('hero.titleLine1')}
@@ -29,7 +29,6 @@ export function LandingPage() {
       >
         {t('hero.subtitle')}
       </p>
-
       <div className="mt-10 flex flex-wrap gap-4">
         <Button size="lg">
           {t('cta.uploadPhoto')}
