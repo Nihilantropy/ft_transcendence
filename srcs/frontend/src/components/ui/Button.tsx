@@ -1,6 +1,7 @@
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/utils'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { Loader2 } from 'lucide-react'
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
 
 const buttonVariants = cva(
@@ -26,6 +27,7 @@ const buttonVariants = cva(
           'hover:bg-elevated hover:border-text-lo',
         ],
         ghost: ['text-text-mid hover:text-text-hi hover:bg-accent/10'],
+        subtle: ['bg-accent/16 text-accent hover:bg-accent/24'],
         link: ['text-accent underline-offset-4 hover:underline px-0 py-0 h-auto'],
       },
       size: {
@@ -51,17 +53,43 @@ const buttonVariants = cva(
 export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean
+  isLoading?: boolean
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, width, asChild = false, ...props }, ref) => {
+  (
+    {
+      className,
+      variant,
+      size,
+      width,
+      asChild = false,
+      isLoading = false,
+      disabled,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
     const Comp = asChild ? Slot : 'button'
     return (
       <Comp
         ref={ref}
         className={cn(buttonVariants({ variant, size, width }), className)}
+        disabled={disabled ?? isLoading}
+        aria-busy={isLoading || undefined}
         {...props}
-      />
+      >
+        {isLoading ? (
+          // show spinner when loading
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            {children}
+          </>
+        ) : (
+          children
+        )}
+      </Comp>
     )
   },
 )

@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 
 interface LandingSectionProps {

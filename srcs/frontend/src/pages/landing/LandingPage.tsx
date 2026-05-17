@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/Button'
 import { ArrowRight, HeartPulse, ImageUp, ScanEye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { LandingSection } from './components/LandingSection'
 import { ScanAnimation } from './components/ScanAnimation'
 
@@ -22,7 +23,7 @@ export function LandingPage() {
   return (
     <div>
       {/* Hero */}
-      <section className="flex lg:py-16 flex-col justify-center">
+      <section className="flex lg:py-12 flex-col justify-center">
         <div className="mx-auto w-full max-w-5xl px-4">
           <ScanAnimation size={160} />
 
@@ -49,13 +50,13 @@ export function LandingPage() {
           {/* CTA */}
           <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
             <Button size="lg" width="responsive" asChild>
-              <a href="/register">
+              <Link to="/register">
                 {t('cta.start')}
                 <ArrowRight size={18} aria-hidden />
-              </a>
+              </Link>
             </Button>
             <Button size="lg" variant="outline" width="responsive" asChild>
-              <a href="/login">{t('cta.login')}</a>
+              <Link to="/login">{t('cta.login')}</Link>
             </Button>
           </div>
         </div>

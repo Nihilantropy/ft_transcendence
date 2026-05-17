@@ -12,5 +12,19 @@
     "analyze": "Analizza",
     "recommendations": "Raccomandazioni",
     "profile": "Profilo"
+  },
+  "auth": {
+    "logout": "Esci"
+  },
+  "errors": {
+    "goHome": "Torna alla home",
+    "page": {
+      "title": "Qualcosa è andato storto",
+      "message": "Si è verificato un errore inatteso. Riprova o torna alla home."
+    },
+    "notFound": {
+      "title": "Pagina non trovata",
+      "message": "La pagina che stai cercando non esiste o è stata spostata."
+    }
   }
 }

@@ -1,13 +1,11 @@
-import { AppShell } from '@/components/layout/AppShell'
 import { Toaster } from '@/components/ui/Toast'
-import { LandingPage } from '@/pages/landing/LandingPage'
+import { router } from '@/routes/router'
+import { RouterProvider } from 'react-router'
 
 function App() {
   return (
     <>
-      <AppShell>
-        <LandingPage />
-      </AppShell>
+      <RouterProvider router={router} />
       <Toaster />
     </>
   )

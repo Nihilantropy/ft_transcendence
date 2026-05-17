@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/utils'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import {

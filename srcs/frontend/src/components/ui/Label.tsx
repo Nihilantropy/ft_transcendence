@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/utils'
 import * as LabelPrimitive from '@radix-ui/react-label'
 import { forwardRef, type ComponentPropsWithoutRef, type ComponentRef } from 'react'
 

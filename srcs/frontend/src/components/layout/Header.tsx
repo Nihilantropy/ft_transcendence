@@ -1,8 +1,7 @@
-// import { useTranslation } from 'react-i18next' // TODO Phase 4-6: restore with NAV_ITEMS
 import { Brand } from '@/components/layout/Brand'
 import { LanguageToggle } from '@/components/layout/LanguageToggle'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/utils'
 
 interface HeaderProps {
   bordered?: boolean
@@ -20,7 +19,7 @@ export function Header({ bordered = false }: HeaderProps) {
         <div className="flex items-center gap-8">
           <Brand />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="-mr-3 flex items-center gap-1">
           <LanguageToggle />
           <ThemeToggle />
         </div>

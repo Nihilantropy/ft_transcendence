@@ -4,7 +4,7 @@
 
 @font-face {
   font-family: 'Host Grotesk Variable';
-  src: url('/fonts/HostGrotesk-Variable.woff2') format('woff2-variations');
+  src: url('../assets/fonts/HostGrotesk-Variable.woff2') format('woff2-variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -12,7 +12,7 @@
 
 @font-face {
   font-family: 'Host Grotesk Variable';
-  src: url('/fonts/HostGrotesk-Italic-Variable.woff2') format('woff2-variations');
+  src: url('../assets/fonts/HostGrotesk-Italic-Variable.woff2') format('woff2-variations');
   font-weight: 100 900;
   font-style: italic;
   font-display: swap;

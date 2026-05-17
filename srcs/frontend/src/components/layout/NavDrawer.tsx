@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 
 interface NavItem {
   href: string
@@ -66,14 +67,16 @@ export function NavDrawer({ items }: NavDrawerProps) {
           </DialogPrimitive.Title>
           <nav className="mt-16 flex flex-1 flex-col gap-1">
             {items.map(({ href, labelKey }) => (
-              <a
+              <Link
                 key={href}
-                href={href}
-                onClick={() => setOpen(false)}
+                to={href}
+                onClick={() => {
+                  setOpen(false)
+                }}
                 className="text-text-hi hover:text-accent py-3 text-xl font-semibold transition-colors"
               >
                 {t(labelKey)}
-              </a>
+              </Link>
             ))}
           </nav>
         </DialogPrimitive.Content>

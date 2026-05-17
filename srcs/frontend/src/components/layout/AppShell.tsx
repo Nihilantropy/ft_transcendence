@@ -1,12 +1,9 @@
 import { Footer } from '@/components/layout/Footer'
 import { Header } from '@/components/layout/Header'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Outlet } from 'react-router'
 
-interface AppShellProps {
-  children: ReactNode
-}
-
-export function AppShell({ children }: AppShellProps) {
+export function AppShell() {
   const mainRef = useRef<HTMLElement>(null)
   const [isScrolled, setIsScrolled] = useState(false)
 
@@ -25,8 +22,12 @@ export function AppShell({ children }: AppShellProps) {
     <div className="flex h-full flex-col">
       <Header bordered={isScrolled} />
       <main ref={mainRef} className="flex-1 overflow-y-auto">
-        {children}
-        <Footer />
+        <div className="flex min-h-full flex-col">
+          <div className="flex-1">
+            <Outlet />
+          </div>
+          <Footer />
+        </div>
       </main>
     </div>
   )
