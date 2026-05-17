@@ -2,11 +2,38 @@
   "hero": {
     "titleLine1": "Una foto è",
     "titleHighlight": "tutta la sua storia.",
-    "subtitle": "Identifica la razza del tuo animale, scopri i tratti di salute che contano davvero e trova prodotti pensati per come è veramente — con l’aiuto dell’AI."
+    "subtitle": "Identifica la razza del tuo animale, scopri i tratti di salute che contano davvero e trova prodotti pensati appositamente per lui — con l'aiuto dell'AI."
   },
   "cta": {
-    "uploadPhoto": "Carica una foto",
-    "browseBreeds": "Esplora le razze",
-    "learnMore": "Scopri di più"
+    "start": "Cominciamo",
+    "login": "Accedi"
+  },
+  "howItWorks": {
+    "label": "Come funziona",
+    "step1": {
+      "title": "Carica",
+      "body": "Carica una foto del tuo animale. Bastano pochi secondi: un'immagine chiara, ben illuminata, che ne mostri il muso e la corporatura. Del resto ci occupiamo noi."
+    },
+    "step2": {
+      "title": "Riconosci",
+      "body": "La nostra intelligenza artificiale analizza la foto e identifica razza, tratti distintivi, tendenze ereditarie e i campanelli silenziosi che spesso passano inosservati."
+    },
+    "step3": {
+      "title": "Cura",
+      "body": "Ricevi raccomandazioni di alimentazione, prodotti e stile di vita modellate sull'unicità del tuo animale. Perché la cura giusta nasce dal conoscerlo davvero."
+    }
+  },
+  "stats": {
+    "label": "Tecnologia",
+    "item1": { "label": "razze identificate" },
+    "item2": { "label": "tratti considerati per ogni analisi" },
+    "item3": { "label": "modelli AI specializzati" }
+  },
+  "contact": {
+    "label": "Per le aziende",
+    "title": "Lavoriamo insieme",
+    "body": "Per veterinari, brand di pet food, allevatori e pet shop. Mettiamo la nostra intelligenza al servizio del vostro lavoro, con soluzioni su misura per chi mette gli animali al primo posto.",
+    "cta": "Contattaci",
+    "email": "partner@smartbreeds.com"
   }
 }

@@ -25,7 +25,7 @@ export function AppShell({ children }: AppShellProps) {
     <div className="flex h-full flex-col">
       <Header bordered={isScrolled} />
       <main ref={mainRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-4">{children}</div>
+        {children}
         <Footer />
       </main>
     </div>
