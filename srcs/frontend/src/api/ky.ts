@@ -52,19 +52,11 @@ const hooks: Hooks = {
   ],
   beforeError: [
     // enrich the HTTPError with `code` + `detail` pulled from the response body
-    async ({ error }) => {
+    ({ error }) => {
       if (!(error instanceof HTTPError)) return error
-      const { response } = error
-      if (!response.body) return error
-      try {
-        const text = await response.clone().text()
-        const parsed: unknown = JSON.parse(text)
-        const { code, message } = extractError(parsed)
-        error.code = code
-        error.detail = message ?? text
-      } catch {
-        // body not JSON; leave error.detail/code untouched
-      }
+      const { code, message } = extractError(error.data)
+      error.code = code
+      error.detail = message
       return error
     },
   ],
