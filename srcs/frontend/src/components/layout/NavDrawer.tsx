@@ -1,15 +1,12 @@
 import { Brand } from '@/components/layout/Brand'
+import { LogoutButton } from '@/components/layout/LogoutButton'
 import { Button } from '@/components/ui/Button'
+import type { NavItem } from '@/lib/navigation'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-
-interface NavItem {
-  href: string
-  labelKey: string
-}
 
 interface NavDrawerProps {
   items: ReadonlyArray<NavItem>
@@ -66,10 +63,10 @@ export function NavDrawer({ items }: NavDrawerProps) {
             {t('accessibility.openNav')}
           </DialogPrimitive.Title>
           <nav className="mt-16 flex flex-1 flex-col gap-1">
-            {items.map(({ href, labelKey }) => (
+            {items.map(({ to, labelKey }) => (
               <Link
-                key={href}
-                to={href}
+                key={to}
+                to={to}
                 onClick={() => {
                   setOpen(false)
                 }}
@@ -78,6 +75,12 @@ export function NavDrawer({ items }: NavDrawerProps) {
                 {t(labelKey)}
               </Link>
             ))}
+            <LogoutButton
+              variant="text"
+              onLogoutClick={() => {
+                setOpen(false)
+              }}
+            />
           </nav>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

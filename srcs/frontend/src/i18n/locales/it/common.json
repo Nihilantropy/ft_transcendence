@@ -8,8 +8,8 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "pets": "I miei pet",
-    "analyze": "Analizza",
+    "pets": "Pet",
+    "analyze": "Analisi",
     "recommendations": "Raccomandazioni",
     "profile": "Profilo"
   },
