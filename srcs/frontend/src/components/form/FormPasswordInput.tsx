@@ -1,7 +1,6 @@
+import { FormField } from '@/components/form/FormField'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Label } from '@/components/ui/Label'
-import { cn } from '@/lib/utils'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
@@ -36,8 +35,13 @@ export function FormPasswordInput<T extends FieldValues>({
   const errorMessage = fieldError?.message
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
-      {label && <Label htmlFor={inputId}>{label}</Label>}
+    <FormField
+      label={label}
+      hint={hint}
+      error={errorMessage}
+      htmlFor={inputId}
+      className={className}
+    >
       <div className="relative">
         <Input
           id={inputId}
@@ -62,15 +66,6 @@ export function FormPasswordInput<T extends FieldValues>({
           {visible ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
         </Button>
       </div>
-      {(hint || errorMessage) && (
-        <p
-          id={helperId}
-          role={errorMessage ? 'alert' : undefined}
-          className={cn('text-text-lo text-xs', errorMessage && 'text-danger')}
-        >
-          {errorMessage ?? hint}
-        </p>
-      )}
-    </div>
+    </FormField>
   )
 }

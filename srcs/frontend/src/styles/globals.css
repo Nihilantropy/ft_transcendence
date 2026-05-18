@@ -50,3 +50,11 @@ body {
   background: var(--c-accent-glow);
   color: var(--c-text-hi);
 }
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}

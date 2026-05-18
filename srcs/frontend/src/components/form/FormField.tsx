@@ -1,35 +1,32 @@
-import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { cn } from '@/lib/utils'
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
-interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
-  label: ReactNode
+interface FormFieldProps {
+  label?: ReactNode
   hint?: ReactNode
   error?: string
+  htmlFor?: string
   className?: string
+  children: ReactNode
 }
 
-export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
-  ({ label, hint, error, id, className, ...inputProps }, ref) => {
-    const helperId = id ? `${id}-helper` : undefined
-    return (
-      <div className={cn('flex flex-col gap-2', className)}>
-        <Label htmlFor={id}>{label}</Label>
-        <Input
-          ref={ref}
-          id={id}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={hint || error ? helperId : undefined}
-          {...inputProps}
-        />
-        {(hint || error) && (
-          <p id={helperId} className={cn('text-text-lo text-xs', error && 'text-danger')}>
-            {error ?? hint}
-          </p>
-        )}
-      </div>
-    )
-  },
-)
-FormField.displayName = 'FormField'
+// generic form wrapper: label + body + hint/error footer.
+export function FormField({ label, hint, error, htmlFor, className, children }: FormFieldProps) {
+  const helperId = htmlFor ? `${htmlFor}-helper` : undefined
+  return (
+    <div className={cn('flex flex-col gap-2', className)}>
+      {label && <Label htmlFor={htmlFor}>{label}</Label>}
+      {children}
+      {(hint || error) && (
+        <p
+          id={helperId}
+          role={error ? 'alert' : undefined}
+          className={cn('text-text-lo text-xs', error && 'text-danger')}
+        >
+          {error ?? hint}
+        </p>
+      )}
+    </div>
+  )
+}
