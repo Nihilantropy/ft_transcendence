@@ -1,12 +1,8 @@
 import { useIsAuthenticated, useIsAuthReady } from '@/stores/auth'
-import type { ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router'
+import { Navigate, Outlet, useLocation } from 'react-router'
 
-interface ProtectedRouteProps {
-  children: ReactNode
-}
-
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+// wraps all child routes with an auth gate
+export function ProtectedRoute() {
   const isReady = useIsAuthReady()
   const isAuthenticated = useIsAuthenticated()
   const location = useLocation()
@@ -20,5 +16,5 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to={`/login?next=${next}`} replace />
   }
 
-  return <>{children}</>
+  return <Outlet />
 }

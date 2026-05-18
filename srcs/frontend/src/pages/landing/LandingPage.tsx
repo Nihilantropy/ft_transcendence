@@ -23,7 +23,7 @@ export function LandingPage() {
   return (
     <div>
       {/* Hero */}
-      <section className="flex lg:py-12 flex-col justify-center">
+      <section className="flex flex-col justify-center">
         <div className="mx-auto w-full max-w-5xl px-4">
           <ScanAnimation size={160} />
 

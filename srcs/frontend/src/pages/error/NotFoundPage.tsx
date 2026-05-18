@@ -8,8 +8,8 @@ import { Link } from 'react-router'
 export function NotFoundPage() {
   const { t } = useTranslation('common')
   return (
-    <div className="py-section flex min-h-[60vh] items-center justify-center px-6">
-      <div className="w-full max-w-md text-center">
+    <div className="mx-auto w-full max-w-md px-6 text-center">
+      <div>
         <p
           className="text-accent font-extrabold tabular-nums"
           style={{ fontSize: 'clamp(5rem,15vw,9rem)', lineHeight: 1 }}

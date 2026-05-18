@@ -19,6 +19,7 @@ export function RegisterPage() {
 
   const schema = z
     .object({
+      first_name: z.string().max(50).optional(),
       email: z.email(t('errors.invalidEmail')),
       password: z.string().min(8, t('errors.passwordTooShort')),
       password_confirm: z.string().min(1, t('errors.passwordRequired')),
@@ -30,7 +31,7 @@ export function RegisterPage() {
 
   const form = useForm<RegisterPayload>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '', password_confirm: '' },
+    defaultValues: { first_name: '', email: '', password: '', password_confirm: '' },
   })
 
   const registerMutation = useRegisterMutation()
@@ -38,7 +39,7 @@ export function RegisterPage() {
   const onSubmit = (values: RegisterPayload) => {
     registerMutation.mutate(values, {
       onSuccess: () => {
-        void navigate('/dashboard', { replace: true })
+        void navigate('/', { replace: true })
       },
       onError: (error) => {
         toast.error(getApiErrorMessage(error, 'auth', t))
@@ -63,6 +64,15 @@ export function RegisterPage() {
         }}
         className="mt-8 flex flex-col gap-5"
       >
+        {/* First name (optional) */}
+        <FormTextInput
+          form={form}
+          name="first_name"
+          label={t('register.firstName')}
+          placeholder={t('register.firstNamePlaceholder')}
+          autoComplete="given-name"
+        />
+
         {/* Email */}
         <FormTextInput
           form={form}

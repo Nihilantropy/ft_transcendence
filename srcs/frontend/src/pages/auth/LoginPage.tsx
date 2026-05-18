@@ -33,7 +33,7 @@ export function LoginPage() {
   const onSubmit = (values: LoginPayload) => {
     loginMutation.mutate(values, {
       onSuccess: () => {
-        void navigate(getSafeNext(searchParams, '/dashboard'), { replace: true })
+        void navigate(getSafeNext(searchParams, '/'), { replace: true })
       },
       onError: (error) => {
         toast.error(getApiErrorMessage(error, 'auth', t))
