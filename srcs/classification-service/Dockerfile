@@ -10,8 +10,14 @@ WORKDIR /app
 
 # Copy and install requirements
 COPY requirements.txt .
-RUN pip install --no-cache-dir --pre -r requirements.txt
-RUN pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
+RUN pip install --no-cache-dir -r requirements.txt
+# Stable torch+torchvision with CUDA 12.8 — supports both Ada (sm_89) and
+# Blackwell (sm_120, RTX 5060 Ti). Replaces the fragile unpinned nightly, which
+# broke once torch/torchvision nightlies drifted out of sync on the index.
+RUN pip3 install \
+    torch==2.11.0+cu128 \
+    torchvision==0.26.0+cu128 \
+    --index-url https://download.pytorch.org/whl/cu128
 
 # Copy application code
 COPY src/ ./src/
@@ -22,10 +28,6 @@ RUN useradd -m -u 1000 classifier && \
     mkdir -p /app/.cache/huggingface && \
     chown -R classifier:classifier /app
 USER classifier
-
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
-  CMD curl -f http://localhost:3004/health || exit 1
 
 EXPOSE 3004
 

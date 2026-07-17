@@ -193,15 +193,14 @@ def delete_user_cascade(user_id, user_role='user'):
     except httpx.RequestError as e:
         raise Exception(f"Failed to connect to user-service: {str(e)}")
     
-    # Step 2: Delete auth data (refresh tokens and user)
-    # refresh_token_count = RefreshToken.objects.filter(user_id=user_id).count()
-    # RefreshToken.objects.filter(user_id=user_id).delete()
-    
-    user_deleted = User.objects.filter(id=user_id).delete()
-    
+    # Step 2: Delete auth data (user + cascaded refresh tokens)
+    # Django CASCADE on RefreshToken FK means deleting User also deletes its tokens.
+    # delete() returns (total_rows, {model_label: count}) — use per-model counts.
+    _, deleted_counts = User.objects.filter(id=user_id).delete()
+
     deletion_summary['auth_service'] = {
-        'users': user_deleted[0] if user_deleted else 0
-        # 'refresh_tokens': refresh_token_count
+        'users': deleted_counts.get('authentication.User', 0),
+        'refresh_tokens': deleted_counts.get('authentication.RefreshToken', 0),
     }
     
     return deletion_summary

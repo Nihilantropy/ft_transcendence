@@ -1,0 +1,30 @@
+# LiteLLM proxy — single OpenAI-compatible entry point for all LLM inference.
+# ai-service talks only to this proxy; the proxy routes to a local model (Ollama)
+# or a hosted provider (Mistral, ...) with no code change — just switch the model
+# alias in srcs/ai/.env (LLM_VISION_MODEL / LLM_TEXT_MODEL).
+
+model_list:
+  # --- Local (GPU), needs the `local` compose profile (ollama container) ---
+  - model_name: vision-model
+    litellm_params:
+      model: ollama_chat/qwen3-vl:8b
+      api_base: os.environ/OLLAMA_BASE_URL
+  - model_name: text-model
+    litellm_params:
+      model: ollama_chat/qwen3-vl:8b
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # --- Cloud (API key, no GPU). Requires MISTRAL_API_KEY. Vision needs a multimodal
+  #     model: mistral-large is text-only, so the vision stage uses mistral-medium
+  #     (vision-capable); text generation uses mistral-large. ---
+  - model_name: vision-model-cloud
+    litellm_params:
+      model: mistral/mistral-medium-latest
+      api_key: os.environ/MISTRAL_API_KEY
+  - model_name: text-model-cloud
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: os.environ/MISTRAL_API_KEY
+
+litellm_settings:
+  drop_params: true  # silently drop params a given provider doesn't support

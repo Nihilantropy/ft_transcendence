@@ -90,6 +90,48 @@ class TestPetSerializer:
         serializer = PetCreateSerializer(data=data)
         assert serializer.is_valid()
 
+    def test_pet_create_missing_name(self):
+        """Test PetCreateSerializer rejects missing name"""
+        serializer = PetCreateSerializer(data={'species': 'cat'})
+        assert not serializer.is_valid()
+        assert 'name' in serializer.errors
+
+    def test_pet_create_blank_name(self):
+        """Test PetCreateSerializer rejects blank name"""
+        serializer = PetCreateSerializer(data={'name': '', 'species': 'dog'})
+        assert not serializer.is_valid()
+        assert 'name' in serializer.errors
+
+    def test_pet_create_empty_body(self):
+        """Test PetCreateSerializer rejects empty data"""
+        serializer = PetCreateSerializer(data={})
+        assert not serializer.is_valid()
+        assert 'name' in serializer.errors
+
+    def test_pet_create_invalid_species(self):
+        """Test PetCreateSerializer rejects invalid species choice"""
+        serializer = PetCreateSerializer(data={'name': 'Buddy', 'species': 'hamster'})
+        assert not serializer.is_valid()
+        assert 'species' in serializer.errors
+
+    def test_pet_create_missing_species(self):
+        """Test PetCreateSerializer rejects missing species"""
+        serializer = PetCreateSerializer(data={'name': 'Rex'})
+        assert not serializer.is_valid()
+        assert 'species' in serializer.errors
+
+    def test_pet_create_invalid_age_type(self):
+        """Test PetCreateSerializer rejects non-integer age"""
+        serializer = PetCreateSerializer(data={'name': 'Test', 'species': 'dog', 'age': 'old'})
+        assert not serializer.is_valid()
+        assert 'age' in serializer.errors
+
+    def test_pet_create_negative_weight(self):
+        """Test PetCreateSerializer rejects negative weight"""
+        serializer = PetCreateSerializer(data={'name': 'Test', 'species': 'dog', 'weight': -5.0})
+        assert not serializer.is_valid()
+        assert 'weight' in serializer.errors
+
 
 @pytest.mark.django_db
 class TestPetAnalysisSerializer:

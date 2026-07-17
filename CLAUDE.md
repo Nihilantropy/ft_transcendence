@@ -11,9 +11,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
 - Backend Services: Django 6.0.1 (auth-service, user-service)
 - AI Services:
-  - FastAPI + Ollama HTTP API (qwen3-vl:8b model) for multimodal vision
+  - FastAPI vision orchestrator talking to an LLM via the **LiteLLM proxy**
+    (OpenAI-compatible) — routes to local Ollama (qwen3-vl:8b) or hosted Mistral
   - RAG (ChromaDB + sentence-transformers) for breed knowledge enrichment
-  - HuggingFace Transformers for classification (species, breed, NSFW)
+  - HuggingFace Transformers for classification (species, breed, NSFW) — GPU, `local` profile only
+- Inference gateway: LiteLLM (single OpenAI-compatible endpoint for all LLM calls)
 - Database: PostgreSQL 15+
 - Cache: Redis 7
 - Infrastructure: Docker Compose, Nginx reverse proxy
@@ -36,8 +38,29 @@ make re            # Soft rebuild (clean + all)
 make ref           # Full rebuild (fclean + all)
 make show          # Show system status (containers, networks, volumes)
 make migration     # Run database migrations
-make test          # Run all tests via init-and-test.sh
+make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
+make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
 ```
+
+### Compose Profiles (local vs cloud)
+
+Two inference backends, selected via `COMPOSE_PROFILES` (default `local`, set in the
+Makefile / root `.env`):
+
+| Profile | LLM backend | GPU services | AI pipeline |
+|---------|-------------|--------------|-------------|
+| `local` (default) | Ollama `qwen3-vl:8b` via LiteLLM | `ollama` + `classification-service` run | full (NSFW + HF species/breed + RAG + LLM) |
+| `cloud` | Mistral via LiteLLM (needs `MISTRAL_API_KEY`) | none | VLM-only (LLM does species/breed; **no NSFW filter**) |
+
+```bash
+make up                                # local profile (GPU)
+make up COMPOSE_PROFILES=cloud         # cloud profile (Mistral, no GPU)
+```
+
+The `litellm` proxy runs in BOTH profiles. Switching backends is config-only: set the
+model alias in `srcs/ai/.env` (`LLM_VISION_MODEL`/`LLM_TEXT_MODEL` → `*-cloud` for Mistral)
+and, for cloud, set `CLASSIFICATION_ENABLED=false` (the classification-service is off in
+`cloud`, so leaving it `true` yields 503s). Root config lives in `.env` (see `.env.example`).
 
 ### Development
 ```bash
@@ -54,7 +77,9 @@ docker exec -it CONTAINER sh    # Shell into container
 
 **Critical Docker Workflow:**
 - Code changes require rebuild: `make build` or `docker compose build SERVICE`
-- Preferred test command: `docker compose run --rm SERVICE pytest` (works even when container stopped)
+- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls)
+- Integration tests: MUST use `docker exec` on a running container — `run --rm` cannot
+  resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
 **API Gateway Tests** (30 tests total):
@@ -62,7 +87,7 @@ docker exec -it CONTAINER sh    # Shell into container
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (77 tests total)
+# Auth Service tests (102 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # User Service tests (73 tests total)
@@ -73,6 +98,12 @@ docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
 docker compose run --rm classification-service python -m pytest tests/ -v
+
+# Recommendation Service tests (53 tests total: 30 unit + 23 integration)
+# Unit tests via run --rm:
+docker compose run --rm recommendation-service python -m pytest tests/unit/ -v
+# Integration tests MUST use exec (need api-gateway hostname):
+docker exec ft_transcendence_recommendation_service python -m pytest tests/integration/ -v
 
 # Run specific test within a service
 docker compose run --rm SERVICE python -m pytest tests/test_file.py::test_function -v
@@ -85,20 +116,33 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middle
 
 # With coverage
 docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-report=html
+
+# Coverage per service (pytest-cov pre-installed only in auth-service + recommendation-service)
+# Install on-the-fly for others: docker exec CONTAINER pip install pytest-cov
+# --cov target: api-gateway/auth-service/user-service → --cov=.
+#               ai-service/classification-service/recommendation-service → --cov=src
+# Note: recommendation-service unit coverage appears ~51% overall — routes/schemas/main.py/
+# database.py are 0% in unit tests by design (covered by 23 integration tests).
+# Service logic files (feature_engineering, similarity_engine, etc.) are 100%.
 ```
 
 ### IMPORTANT!
-All unit tests run via pytest must point to the test database `test_smartbreeds`.
+All services use a single database `smartbreeds`. Django services (auth, user) have pytest-django
+auto-create an isolated test DB at runtime — no separate test database is provisioned or managed.
 Services must only contain unit tests that are not dependent on other services.
-Integration tests are run via Jupyter notebook: `scripts/jupyter/test_ai_service.ipynb`
+Integration tests: Jupyter notebook (`scripts/jupyter/test_ai_service.ipynb`) for AI pipeline;
+pytest-based for recommendation-service (`tests/integration/`). Integration tests that call
+other services by hostname MUST run via `docker exec`, not `docker compose run --rm`.
 
 #### Test Orchestration Scripts
 ```bash
-# Full test suite with initialization (build, start, migrations, run tests)
-./scripts/init-and-test.sh [--all|--unit|--integration] [--skip-init]
+# Run all unit tests (init skipped by default; pass --init to build/start/migrate first)
+./scripts/init-and-test.sh [--init] [--gateway] [--auth] [--user] [--ai] [--classification] [--recommendation]
+# Equivalent via make (extra words become flags):
+make test [init] [gateway] [auth] [user] [ai] [classification] [recommendation]
 
-# Unit tests only (API Gateway, Auth, User, AI, Classification services)
-./scripts/run-unit-tests.sh
+# Unit tests directly (same flags, no init phase at all)
+./scripts/run-unit-tests.sh [--gateway] [--auth] [--user] [--ai] [--classification] [--recommendation]
 
 # Integration tests only (E2E via Jupyter notebook - manual for now)
 jupyter notebook scripts/jupyter/test_ai_service.ipynb
@@ -144,9 +188,10 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Zero-touch routing: automatically proxies `/api/*` to backend services
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 77 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 102 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
-- User registration and login endpoints
+- User registration (requires email, password, password_confirm) and login endpoints
+- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
@@ -158,12 +203,13 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 47 passing tests]
-- Multi-stage vision pipeline via VisionOrchestrator
-- Ollama HTTP API integration (qwen3-vl:8b model) for contextual analysis
+**AI Service (FastAPI - internal port 3003):** [Complete - 104 passing tests]
+- Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
+- LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
 - Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info)
-- Coordinates between Classification Service (HuggingFace models) and Ollama (LLM)
+- Coordinates between Classification Service (HF models, optional) and the LLM
+- `CLASSIFICATION_ENABLED=false` → VLM-only pipeline (LLM does species/breed, no NSFW filter)
 - Location: `srcs/ai/`
 
 **Classification Service (FastAPI - internal port 3004):** [Complete - 28 passing tests]
@@ -172,12 +218,27 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Species classification (dog/cat/other)
 - Breed classification (120 dog breeds, 70 cat breeds)
 - Crossbreed detection with intelligent thresholding
-- **GPU Support:** RTX 5060 Ti (Blackwell) via PyTorch nightly (2.11.0.dev20260128+cu128)
+- **GPU Support:** RTX 5060 Ti (Blackwell) via stable PyTorch 2.11.0 + CUDA 12.8 (`cu128`)
+- **Compose profile:** `local` only (disabled in `cloud`)
 - Location: `srcs/classification-service/`
 
-**Ollama (port 11434):**
+**Recommendation Service (FastAPI - internal port 3005):** [Complete - 84 passing tests (61 unit + 23 integration)]
+- Content-based product recommendations using 15-dimensional feature vectors
+- Weighted cosine similarity matching pet profiles to products
+- Product CRUD administration endpoints
+- Direct integration with User Service for pet profile retrieval
+- Location: `srcs/recommendation-service/`
+
+**LiteLLM (port 4000):**
+- OpenAI-compatible inference gateway — the single LLM endpoint the AI Service calls
+- Routes model aliases to local Ollama or hosted Mistral (see `srcs/litellm/config.yaml`)
+- Auth via `LITELLM_MASTER_KEY` (must match AI Service `LLM_API_KEY`)
+- Runs in both `local` and `cloud` profiles
+- Location: `srcs/litellm/`
+
+**Ollama (port 11434):** [`local` profile only]
 - Self-hosted LLM server (GPU-accelerated, NVIDIA runtime)
-- Hosts qwen3-vl:8b model for vision and text generation
+- Hosts qwen3-vl:8b model for vision and text generation, fronted by LiteLLM
 - Location: `srcs/ollama/`
 
 **Nginx (ports 80, 443):**
@@ -192,7 +253,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 **Shared PostgreSQL with Logical Separation:**
 - `auth_schema`: users, refresh_tokens (owned by auth-service)
 - `user_schema`: user_profiles, pets, pet_analyses (owned by user-service)
-- `ai_schema`: (reserved for future features - product recommendations, user preferences)
+- `recommendation_schema`: products (owned by recommendation-service)
 
 **Rule:** Services NEVER directly access other services' schemas. Cross-service data access MUST go through REST APIs via API Gateway.
 
@@ -216,7 +277,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Species Classifier: Dog/Cat/Other identification
 - Breed Classifiers: 120 dog breeds, 70 cat breeds
 - Crossbreed Detection: Multi-rule heuristic (confidence thresholds, probability gaps)
-- Device: GPU-accelerated (RTX 5060 Ti Blackwell via PyTorch 2.11 nightly + CUDA 12.8)
+- Device: GPU-accelerated (RTX 5060 Ti Blackwell via stable PyTorch 2.11.0 + CUDA 12.8)
 
 **ChromaDB Vector Store:**
 - Embeddings: 384-dimensional (sentence-transformers/all-MiniLM-L6-v2)
@@ -225,8 +286,8 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
   - `spiecies/`: General species info (dogs.md, cats.md)
   - Directory structure: `spiecies/{species}/{purebreeds,crossbreeds,health}/*.md`
   - Future: breed-specific files for detailed breed standards
-- ChromaDB starts empty - use `POST /api/v1/admin/rag/initialize` to bulk ingest (localhost-only)
-- Initialization: `docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize`
+- ChromaDB starts empty - use `make rag` to bulk ingest (calls `scripts/init-rag-kb.sh` which hits the localhost-only endpoint)
+- Initialization: `make rag` (preferred) or directly: `docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize`
 - Workflow: Document → chunk → embed → store → semantic search
 - RAG retrieval enriches Ollama context with factual breed knowledge
 - Volume mount: `/app/data/chroma` (persisted in `ai-chroma-data` volume)
@@ -272,11 +333,12 @@ All services use **custom Dockerfiles that bake in requirements** during build:
 
 **Django Version:** Django 6.x requires Python >=3.12. Use Django 5.1.x for Python 3.11 compatibility.
 
-**Classification Service PyTorch:** Uses nightly builds for RTX 5060 Ti Blackwell support:
-- PyTorch: 2.11.0.dev20260128+cu128
-- Torchvision: 0.25.0.dev20260128+cu128
-- Installed via: `pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128`
-- Pin specific nightly build in requirements.txt to avoid breaking changes
+**Classification Service PyTorch:** Stable pinned wheels for RTX 5060 Ti Blackwell support:
+- PyTorch: 2.11.0+cu128
+- Torchvision: 0.26.0+cu128
+- Installed in the Dockerfile (NOT requirements.txt): `pip3 install torch==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128`
+- Keep the pair version-matched (torch 2.11 ↔ torchvision 0.26). This replaced the earlier
+  unpinned nightly, which broke when the nightlies drifted out of sync on the ephemeral index.
 
 ### Middleware Stack (API Gateway)
 
@@ -393,8 +455,9 @@ Services use environment variables from `.env` files:
 **Test Script Organization:**
 ```bash
 # Run specific test suites
-./scripts/run-unit-tests.sh           # Unit tests only (all services)
-./scripts/init-and-test.sh [--all|--unit|--integration] [--skip-init]  # Orchestrator with flags
+./scripts/run-unit-tests.sh [flags]                   # Unit tests (--all default; flags: --gateway --auth --user --ai --classification --recommendation)
+./scripts/init-and-test.sh [--init] [flags]           # Orchestrator: --init enables build/start/migrate; flags forwarded to run-unit-tests.sh
+make test [init] [flags]                              # make shortcut (no -- prefix needed)
 ```
 
 **FastAPI Lifespan Testing Pattern:**
@@ -422,10 +485,11 @@ Services use environment variables from `.env` files:
 - Location: `scripts/jupyter/test_ai_service.ipynb`
 - Purpose: Test full vision pipeline with real images through API Gateway
 - Setup: Notebook handles JWT authentication automatically
-- Images: Place test images in `scripts/jupyter/` directory
+- Images: Place test images in `scripts/jupyter/test_data/images/` directory
 - Run: `jupyter notebook scripts/jupyter/test_ai_service.ipynb` (requires `make up` first)
 - Note: All requests route through API Gateway (localhost:8001) with proper JWT tokens
 - Note: notebooks uses real database transactions on `smartbreeds` database (production-like). Make sure to clean up test data as needed. Every run must use unique user accounts to avoid conflicts and leave a clean state.
+- **Headless execution:** `jupyter-nbconvert --to notebook --execute --allow-errors --ExecutePreprocessor.timeout=600 notebook.ipynb --output out.ipynb` — use `--allow-errors` to capture all cell outputs even when cells fail; set timeout ≥600 for AI notebooks
 
 **Debugging ML Models in Containers:**
 - Direct `docker exec` Python commands loading large models often hang → use script approach instead
@@ -450,9 +514,9 @@ Services use environment variables from `.env` files:
 
 **Completed:**
 - API Gateway (FastAPI) with full middleware stack - 30 passing tests
-- Auth Service (Django) with authentication endpoints - 77 passing tests
+- Auth Service (Django) with authentication endpoints - 102 passing tests
 - User Service (Django) with profile and pet management - 73 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 47 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 104 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → Ollama orchestration)
 - Crossbreed detection with intelligent thresholding
@@ -465,10 +529,12 @@ Services use environment variables from `.env` files:
 
 **In Progress:**
 - Frontend (React scaffolding exists, needs implementation)
-- Product recommendation system (backlog)
 
 **Recently Completed:**
-- Classification Service GPU support for RTX 5060 Ti (Blackwell) using PyTorch 2.11 nightly
+- LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
+  talks OpenAI chat-completions to the proxy; VLM-only pipeline when classification is disabled
+- Classification Service torch pin moved from unpinned nightly → stable 2.11.0+cu128 (Blackwell)
+- Recommendation Service — content-based filtering with 84 passing tests (61 unit + 23 integration)
 
 ## Common Troubleshooting
 
@@ -507,13 +573,13 @@ Services use environment variables from `.env` files:
 - Fix: `return success_response(data)` NOT `return Response(success_response(data))`
 
 **Classification Service GPU troubleshooting:**
-- Using PyTorch 2.11 nightly (2.11.0.dev20260128+cu128) for RTX 5060 Ti Blackwell support
-- Torchvision: 0.25.0.dev20260128+cu128
+- Using stable PyTorch 2.11.0+cu128 (torchvision 0.26.0+cu128) for RTX 5060 Ti Blackwell support
 - CUDA 12.8 runtime required
+- Only runs in the `local` compose profile (absent in `cloud`)
 - Environment variable `DEVICE=auto` detects GPU automatically (falls back to CPU if unavailable)
 - Verify GPU: `docker exec ft_transcendence_classification_service python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"`
 - Check docker-compose.yml: `runtime: nvidia` and `deploy.resources.reservations.devices` configured
-- **Note:** Nightly PyTorch versions may have breaking changes - pin to specific nightly build in requirements.txt
+- **Note:** torch/torchvision are pinned in the Dockerfile (not requirements.txt); keep the pair version-matched
 
 **Crossbreed detection returning false positives:**
 - Check confidence thresholds in `crossbreed_detector.py`
@@ -538,6 +604,21 @@ Services use environment variables from `.env` files:
 - Ollama client expects `image_base64` parameter, NOT `image`
 - Location: `srcs/ai/src/services/vision_orchestrator.py`
 - Parameter names must match method signatures exactly
+
+**503 on /api/v1/vision/analyze:**
+- Root cause: API Gateway has a 30s global proxy timeout; Ollama inference takes 20–120s
+- Fix is in place: `SERVICE_TIMEOUTS` dict in `srcs/api-gateway/routes/proxy.py` overrides to 300s for `/api/v1/vision`
+- If adding a new slow endpoint, add its prefix to that dict
+
+**Django `.delete()` count returns wrong number:**
+- `queryset.delete()` returns `(total_rows, {model_label: count})` where `total_rows` includes CASCADE-deleted related rows
+- Example: deleting a User also deletes RefreshTokens, so `total_rows = 2` for 1 user
+- Always use `deleted_counts.get('authentication.User', 0)` for per-model accuracy
+
+**Recommendation service product duplicates:**
+- Seed script is idempotent — skips if any products exist, prints a warning
+- Use `--force` flag to clear and re-seed: `docker exec ft_transcendence_recommendation_service python scripts/seed_products.py --force`
+- Product data lives in `scripts/products.yaml` — edit there, not in Python
 
 ## Reference Documentation
 

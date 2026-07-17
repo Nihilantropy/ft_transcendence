@@ -92,7 +92,7 @@ class RAGService:
         return RAGResponse(
             answer=answer,
             sources=sources,
-            model=self.config.OLLAMA_MODEL
+            model=self.config.LLM_TEXT_MODEL
         )
 
     def _build_sources(self, results: Dict) -> List[Source]:

@@ -4,6 +4,11 @@ DOCKER_COMPOSE = docker compose
 COMPOSE_FILE = docker-compose.yml
 PROJECT_NAME = ft_transcendence
 
+# Compose profiles: 'local' = GPU stack (ollama + classification-service),
+# 'cloud' = LiteLLM-only (hosted API key, no GPU). Override: make up COMPOSE_PROFILES=cloud
+COMPOSE_PROFILES ?= local
+export COMPOSE_PROFILES
+
 # ft_transcendence service names
 TRANSCENDENCE_SERVICES = nginx frontend backend db
 
@@ -11,26 +16,38 @@ TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_frontend-data
 
 TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 
-.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage
+# Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
+TEST_FLAGS = gateway auth user ai classification recommendation init
+
+.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage $(TEST_FLAGS)
 
 # Default target
 all: build up show logs
 
-# Setup (simplified - no complex data directories needed)
-setup:
-	@echo "Setting up ft_transcendence environment..."
-	@echo "Checking Docker and Docker Compose..."
-	@docker --version >/dev/null 2>&1 || (echo "❌ Docker not found" && exit 1)
-	@docker compose version >/dev/null 2>&1 || (echo "❌ Docker Compose not found" && exit 1)
-	@echo "✅ Environment ready!"
+## init: Init target for setting up environment and running tests
+init: build up migration seed superuser rag
 
-# Build all images
+## build: Build all images
 build:
 	@echo "Building ft_transcendence images..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --parallel
 	@echo "✅ Images built successfully!"
 
-# Start all services
+## build-zero: Build all images with no cache
+build-zero:
+	@echo "Building ft_transcendence images with no cache..."
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache --parallel
+	@echo "✅ Images built successfully with no cache!"
+
+## build-%: Build specific service
+build-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build $*
+
+## build-zero-%: Build specific service with no cache
+build-zero-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache $*
+
+## up: Start all services
 up:
 	@echo "Starting ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
@@ -40,10 +57,11 @@ up:
 	@echo "📊 View logs with: make logs"
 	@echo ""
 
+## up-%: Start specific service
 up-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up $* -d
 
-# Show system status
+## show: Show system status
 show:
 	@echo "============= ft_transcendence Status ============="
 	@echo "Containers:"
@@ -56,50 +74,61 @@ show:
 	@docker volume ls --filter "name=$(PROJECT_NAME)" --format "table {{.Name}}\t{{.Driver}}"
 	@echo "=================================================="
 
-# Service management
+## stop: Stop all services
 stop:
 	@echo "Stopping ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) stop
 
+## stop-%: Stop specific service
+stop-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) stop $*
+
+## start: Start stopped services
 start:
 	@echo "Starting ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) start
 
+## start-%: Start specific service
+start-%:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) start $*
+
+## down: Stop and remove containers
 down:
 	@echo "Stopping and removing ft_transcendence containers..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 
+## downv: Stop and remove containers and volumes
 downv:
 	@echo "Stopping and removing ft_transcendence containers and volumes..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v
 
+## downv-%: Stop and remove specific service containers
 downv-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v $*
 
+## down-%: Stop and remove specific service containers
 down-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down $*
 
+## restart: Restart services
 restart:
 	@echo "Restarting ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart
 
+## restart-%: Restart specific service
 restart-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart $*
 
-# Logs management
+## logs: View logs for all services
 logs:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f
 
+## logs-%: View logs for specific service
 logs-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f $*
 
-# Clean operations
-clean:
-	@echo "Cleaning ft_transcendence containers and networks..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
-	@echo "✅ Containers and networks cleaned!"
-
-fclean:
+## purge: Full cleanup of containers, images, volumes, networks
+purge:
 	@echo "Full cleanup of ft_transcendence resources..."
 	@echo "Stopping and removing containers..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v 2>/dev/null || true
@@ -124,51 +153,49 @@ fclean:
 	@docker image prune -f --filter "label=project=$(PROJECT_NAME)" 2>/dev/null || true
 	@echo "✅ Full cleanup completed!"
 
-# Rebuild everything soft
-re: clean all
+## re: Rebuild everything soft
+re: down all
 
-# Rebuild everything
-ref: fclean all
+## ref: Rebuild everything
+ref: purge all
 
-# Execute commands in containers
+## exec-%: Execute commands in containers
 exec-%:
 	@docker exec -it $(PROJECT_NAME)_$* /bin/sh
 
+## migration: Migrate database
 migration:
 	@echo "Running database migrations..."
 	@scripts/run-migrations.sh
 
+## seed: Seed initial data
+seed:
+	@echo "Seeding initial data..."
+	@scripts/seed-db.sh
+
+## rag: Setup RAG knowledge base
+rag:
+	@echo "Starting RAG setup..."
+	@scripts/init-rag-kb.sh
+
+## superuser: Create superuser
+superuser:
+	@echo "Creating superuser..."
+	@scripts/create-superuser.sh
+
+## test: Run unit tests (args: make test auth user ai classification recommendation)
 test:
 	@echo "Running tests..."
-	@scripts/init-and-test.sh
+	@scripts/init-and-test.sh $(foreach a,$(wordlist 2,99,$(MAKECMDGOALS)),--$(a))
 
-# Help target
-help:
-	@echo "ft_transcendence - Docker Management Commands"
-	@echo ""
-	@echo "Usage: make [target]"
-	@echo ""
-	@echo "Main targets:"
-	@echo "  all          - Build and start all services (default)"
-	@echo "  up           - Start all services"
-	@echo "  down         - Stop and remove containers"
-	@echo "  restart      - Restart all services"
-	@echo "  show         - Show system status"
-	@echo ""
-	@echo "Build targets:"
-	@echo "  build        - Build all Docker images"
-	@echo "  setup        - Setup environment"
-	@echo ""
-	@echo "Logs targets:"
-	@echo "  logs         - View all logs"
-	@echo "  logs-SERVICE - View logs for specific service"
-	@echo ""
-	@echo "Clean targets:"
-	@echo "  clean        - Remove containers and networks"
-	@echo "  fclean       - Full cleanup (images, volumes, etc.)"
-	@echo "  re           - Soft rebuild (clean + all)"
-	@echo "  ref          - Full rebuild (fclean + all)"
-	@echo ""
-	@echo "Development targets:"
-	@echo "  dev          - Start in development mode (foreground)"
-	@echo "  exec-SERVICE - Shell into service container"
+## test-integration: Run integration tests
+test-integration:
+	@echo "Running integration tests..."
+	@scripts/run-integration-tests.sh
+
+$(TEST_FLAGS):
+	@:
+
+## help: Help target
+help: Makefile
+	@sed -n 's/^##//p' $<

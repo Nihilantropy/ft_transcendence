@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Optional
 
 def success_response(data: Any) -> dict:
@@ -14,7 +14,7 @@ def success_response(data: Any) -> dict:
         "success": True,
         "data": data,
         "error": None,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(UTC).isoformat()
     }
 
 def error_response(code: str, message: str, details: Optional[dict] = None) -> dict:
@@ -36,5 +36,5 @@ def error_response(code: str, message: str, details: Optional[dict] = None) -> d
             "message": message,
             "details": details or {}
         },
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(UTC).isoformat()
     }

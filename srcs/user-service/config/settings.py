@@ -13,6 +13,9 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='user-service,localhost', cast=Csv())
 
 # Application definition
+# NOTE: django.contrib.auth is required for DRF permissions to work,
+# but user-service doesn't use Django's auth system directly - it receives
+# pre-authenticated requests from API Gateway with X-User-ID header.
 INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -30,7 +33,8 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # NOTE: AuthenticationMiddleware not used - user context comes from
+    # X-User-ID/X-User-Role headers set by API Gateway
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.profiles.middleware.UserContextMiddleware',
@@ -52,7 +56,6 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
         },

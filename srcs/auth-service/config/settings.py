@@ -69,6 +69,9 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD', default='smartbreeds_password'),
         'HOST': config('DB_HOST', default='db'),
         'PORT': config('DB_PORT', default='5432'),
+        'OPTIONS': {
+            'options': '-c search_path=auth_schema,public'
+        },
         'ATOMIC_REQUESTS': False,
     }
 }

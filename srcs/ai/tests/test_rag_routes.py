@@ -178,11 +178,14 @@ class TestInitializeEndpoint:
 
         mock_rag_service.config.KNOWLEDGE_BASE_DIR = str(kb_dir)
 
-        # Mock processor to fail on second file
-        mock_document_processor.process.side_effect = [
-            [Mock(content="chunk1", metadata={})],  # Success
-            ValueError("Invalid frontmatter")  # Error
-        ]
+        # Fail on invalid.md, succeed on valid.md. Keyed on the source file so the
+        # test does not depend on rglob() iteration order (which is not sorted).
+        def process_by_source(*, content, metadata):
+            if metadata["source_file"] == "invalid.md":
+                raise ValueError("Invalid frontmatter")
+            return [Mock(content="chunk1", metadata={})]
+
+        mock_document_processor.process.side_effect = process_by_source
 
         response = client_localhost.post("/api/v1/admin/rag/initialize")
 

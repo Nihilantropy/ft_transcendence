@@ -30,12 +30,5 @@ RUN chmod +x /docker-entrypoint.sh
 # Set proper permissions
 RUN chown -R nginx:nginx /var/log/nginx /var/cache/nginx /usr/share/nginx/html
 
-# Expose ports
-EXPOSE 8000 4433
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f https://localhost:4433/health --insecure || exit 1
-
 # Use entrypoint script to configure nginx and start it
 ENTRYPOINT ["/docker-entrypoint.sh"]

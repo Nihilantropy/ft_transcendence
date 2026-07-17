@@ -10,10 +10,11 @@ from src.config import Settings
 def ollama_client():
     """Create Ollama client with test config."""
     settings = Settings(
-        OLLAMA_BASE_URL="http://test-ollama:11434",
-        OLLAMA_MODEL="qwen3-vl:8b",
-        OLLAMA_TIMEOUT=300,
-        OLLAMA_TEMPERATURE=0.1
+        LLM_BASE_URL="http://test-litellm:4000/v1",
+        LLM_VISION_MODEL="vision-model",
+        LLM_TEXT_MODEL="text-model",
+        LLM_TIMEOUT=300,
+        LLM_TEMPERATURE=0.1
     )
     return OllamaVisionClient(settings)
 
@@ -70,7 +71,7 @@ async def test_analyze_with_context_purebred(
     }
 
     mock_http_response = Mock()
-    mock_http_response.json.return_value = mock_response
+    mock_http_response.json.return_value = {"choices": [mock_response]}
     mock_http_response.raise_for_status = Mock()
 
     mock_async_client = AsyncMock()
@@ -94,7 +95,7 @@ async def test_analyze_with_context_purebred(
 
         # Verify prompt contains breed context
         call_args = mock_async_client.post.call_args
-        prompt = call_args[1]["json"]["messages"][0]["content"]
+        prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "Golden Retriever" in prompt
         assert "confidence: 0.89" in prompt
         assert "BREED CONTEXT" in prompt
@@ -143,7 +144,7 @@ async def test_analyze_with_context_crossbreed(ollama_client):
     }
 
     mock_http_response = Mock()
-    mock_http_response.json.return_value = mock_response
+    mock_http_response.json.return_value = {"choices": [mock_response]}
     mock_http_response.raise_for_status = Mock()
 
     mock_async_client = AsyncMock()
@@ -163,7 +164,7 @@ async def test_analyze_with_context_crossbreed(ollama_client):
 
         # Verify crossbreed prompt structure
         call_args = mock_async_client.post.call_args
-        prompt = call_args[1]["json"]["messages"][0]["content"]
+        prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "Goldendoodle" in prompt
         assert "Parent breeds: Golden Retriever, Poodle" in prompt
 
@@ -185,7 +186,7 @@ async def test_analyze_with_context_no_rag(
     }
 
     mock_http_response = Mock()
-    mock_http_response.json.return_value = mock_response
+    mock_http_response.json.return_value = {"choices": [mock_response]}
     mock_http_response.raise_for_status = Mock()
 
     mock_async_client = AsyncMock()
@@ -205,7 +206,7 @@ async def test_analyze_with_context_no_rag(
 
         # Verify prompt handles missing RAG gracefully
         call_args = mock_async_client.post.call_args
-        prompt = call_args[1]["json"]["messages"][0]["content"]
+        prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "BREED CONTEXT: (unavailable)" in prompt
 
 

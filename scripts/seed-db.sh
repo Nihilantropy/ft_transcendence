@@ -1,0 +1,1 @@
+docker compose run --rm recommendation-service python scripts/seed_products.py

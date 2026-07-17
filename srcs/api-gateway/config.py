@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     AUTH_SERVICE_URL: str
     USER_SERVICE_URL: str
     AI_SERVICE_URL: str
+    RECOMMENDATION_SERVICE_URL: str
 
     # Redis Configuration
     REDIS_URL: str = "redis://redis:6379/0"

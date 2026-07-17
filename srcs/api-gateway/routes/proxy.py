@@ -9,8 +9,13 @@ from typing import Dict, Any, List, Tuple
 
 router = APIRouter()
 
-# Async HTTP client for backend requests
+# Async HTTP client for backend requests (default 30s timeout)
 httpx_client = httpx.AsyncClient(timeout=30.0)
+
+# Per-service timeout overrides (seconds) — vision/AI pipeline can be very slow
+SERVICE_TIMEOUTS: Dict[str, float] = {
+    "/api/v1/vision": 300.0,  # Ollama inference can take several minutes
+}
 
 
 class ProxyResponse(Response):
@@ -31,13 +36,15 @@ class ProxyResponse(Response):
 
 # Service routing map
 # NOTE: RAG endpoints are internal-only (used by vision pipeline, not exposed to users)
+# NOTE: Longer prefixes must come before shorter ones for correct matching
 SERVICE_ROUTES = {
     "/api/v1/auth": settings.AUTH_SERVICE_URL,
     "/api/v1/users": settings.USER_SERVICE_URL,
     "/api/v1/pets": settings.USER_SERVICE_URL,
     "/api/v1/vision": settings.AI_SERVICE_URL,
     # "/api/v1/rag": Intentionally not exposed - internal use only
-    "/api/v1/recommendations": settings.AI_SERVICE_URL,
+    "/api/v1/recommendations": settings.RECOMMENDATION_SERVICE_URL,
+    "/api/v1/admin/products": settings.RECOMMENDATION_SERVICE_URL,  # Product management admin
 }
 
 def get_backend_service_url(path: str) -> str:
@@ -102,6 +109,12 @@ async def forward_request(
     if method in ["POST", "PUT", "PATCH"]:
         body = await request.body()
 
+    # Determine timeout for this path (use longer timeout for slow services)
+    timeout = next(
+        (t for prefix, t in SERVICE_TIMEOUTS.items() if path.startswith(prefix)),
+        30.0
+    )
+
     try:
         # Forward request to backend
         response = await httpx_client.request(
@@ -109,7 +122,8 @@ async def forward_request(
             url=full_url,
             headers=forward_headers,
             content=body,
-            params=dict(request.query_params)
+            params=dict(request.query_params),
+            timeout=timeout
         )
 
         # Try to parse JSON, fallback to raw content

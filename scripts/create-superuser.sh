@@ -1,0 +1,1 @@
+docker exec -it ft_transcendence_auth_service bash -c "DJANGO_SUPERUSER_PASSWORD=Password123! DJANGO_SUPERUSER_EMAIL=test_admin@example.com python manage.py createsuperuser --no-input"

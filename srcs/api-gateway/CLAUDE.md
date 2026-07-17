@@ -73,13 +73,15 @@ Execution order is bottom-to-top in `main.py`:
 
 Zero-touch routing - backend services add endpoints without gateway changes:
 ```
-/api/v1/auth/*           → AUTH_SERVICE_URL
-/api/v1/users/*          → USER_SERVICE_URL
-/api/v1/pets/*           → USER_SERVICE_URL
-/api/v1/vision/*         → AI_SERVICE_URL
-/api/v1/rag/*            → AI_SERVICE_URL
-/api/v1/recommendations/* → AI_SERVICE_URL
+/api/v1/auth/*             → AUTH_SERVICE_URL
+/api/v1/users/*            → USER_SERVICE_URL
+/api/v1/pets/*             → USER_SERVICE_URL
+/api/v1/vision/*           → AI_SERVICE_URL
+/api/v1/recommendations/*  → RECOMMENDATION_SERVICE_URL
+/api/v1/admin/products/*   → RECOMMENDATION_SERVICE_URL
 ```
+
+**Note:** `/api/v1/rag/*` is intentionally NOT exposed - internal use only by vision pipeline.
 
 **Cookie Forwarding:**
 - Cookies are stripped before forwarding to backend services (security/isolation)
@@ -132,6 +134,8 @@ Mocking patterns:
 - Use `TestClient` from FastAPI for synchronous test requests
 
 ## Common Gotchas
+
+**Per-service timeout override:** `SERVICE_TIMEOUTS` dict in `routes/proxy.py` maps path prefixes to timeouts (seconds). Default is 30s; `/api/v1/vision` uses 300s for Ollama inference. Add new slow services there rather than raising the global default.
 
 **httpx.Response headers:** Use `response.headers.raw` (returns `List[Tuple[bytes, bytes]]`), NOT `response.raw_headers` (doesn't exist)
 

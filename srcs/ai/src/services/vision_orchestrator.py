@@ -53,6 +53,10 @@ class VisionOrchestrator:
         """
         logger.info("Starting vision analysis pipeline")
 
+        # Cloud/no-GPU mode: no classification service → the vision LLM does everything.
+        if not self.config.CLASSIFICATION_ENABLED:
+            return await self._analyze_vlm_only(image)
+
         # Stage 1: Content safety (strict)
         safety = await self.classification.check_content(image)
         if not safety["is_safe"]:
@@ -126,3 +130,55 @@ class VisionOrchestrator:
 
         logger.info("Vision analysis pipeline completed successfully")
         return result
+
+    async def _analyze_vlm_only(self, image: str) -> Dict[str, Any]:
+        """VLM-only pipeline used when the classification service is disabled.
+
+        The vision LLM performs species + breed (and crossbreed) detection directly.
+        WARNING: the dedicated NSFW safety filter is NOT applied in this mode —
+        content moderation is delegated to the LLM provider.
+
+        Raises:
+            ValueError: BREED_DETECTION_FAILED if breed confidence is too low.
+            ConnectionError: If the LLM service is unavailable.
+        """
+        logger.warning(
+            "Classification disabled: running VLM-only pipeline "
+            "(no NSFW filter, LLM-based species/breed detection)"
+        )
+
+        vlm = await self.ollama.analyze_breed(image, detect_crossbreed=True, top_n_breeds=2)
+        breed_analysis = vlm["breed_analysis"]
+        species = vlm.get("species", "dog")
+
+        if breed_analysis["confidence"] < self.config.BREED_MIN_CONFIDENCE:
+            logger.warning(f"Low breed confidence: {breed_analysis['confidence']}")
+            raise ValueError("BREED_DETECTION_FAILED")
+
+        # RAG enrichment (graceful failure)
+        rag_context = None
+        try:
+            if breed_analysis["is_likely_crossbreed"]:
+                detected_breeds = breed_analysis["crossbreed_analysis"]["detected_breeds"]
+                rag_context = await self.rag.get_crossbreed_context(detected_breeds)
+            else:
+                rag_context = await self.rag.get_breed_context(breed_analysis["primary_breed"])
+        except Exception as e:
+            logger.warning(f"RAG enrichment failed (graceful degradation): {e}")
+            rag_context = None
+
+        ollama_result = await self.ollama.analyze_with_context(
+            image_base64=image,
+            species=species,
+            breed_analysis=breed_analysis,
+            rag_context=rag_context,
+        )
+
+        return {
+            "species": species,
+            "breed_analysis": breed_analysis,
+            "description": ollama_result["description"],
+            "traits": ollama_result["traits"],
+            "health_observations": ollama_result["health_observations"],
+            "enriched_info": rag_context,
+        }

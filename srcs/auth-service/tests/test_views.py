@@ -1,6 +1,7 @@
 """
 Tests for authentication views
 """
+import json
 import pytest
 from datetime import timedelta
 from django.test import Client
@@ -244,6 +245,7 @@ class TestRegisterView:
             data={
                 'email': 'newuser@example.com',
                 'password': 'Password123',
+                'password_confirm': 'Password123',
                 'first_name': 'John',
                 'last_name': 'Doe'
             },
@@ -261,12 +263,13 @@ class TestRegisterView:
         assert 'password' not in data['data']['user']
 
     def test_register_with_only_required_fields_returns_201(self, client):
-        """Successful registration with only email and password returns 201"""
+        """Successful registration with only email, password, and password_confirm returns 201"""
         response = client.post(
             '/api/v1/auth/register',
             data={
                 'email': 'minimal@example.com',
-                'password': 'Password123'
+                'password': 'Password123',
+                'password_confirm': 'Password123'
             },
             content_type='application/json'
         )
@@ -284,7 +287,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'not-an-email',
-                'password': 'Password123'
+                'password': 'Password123',
+                'password_confirm': 'Password123'
             },
             content_type='application/json'
         )
@@ -298,7 +302,10 @@ class TestRegisterView:
         """Missing email returns 422 VALIDATION_ERROR"""
         response = client.post(
             '/api/v1/auth/register',
-            data={'password': 'Password123'},
+            data={
+                'password': 'Password123',
+                'password_confirm': 'Password123'
+            },
             content_type='application/json'
         )
 
@@ -311,7 +318,43 @@ class TestRegisterView:
         """Missing password returns 422 VALIDATION_ERROR"""
         response = client.post(
             '/api/v1/auth/register',
-            data={'email': 'test@example.com'},
+            data={
+                'email': 'test@example.com',
+                'password_confirm': 'Password123'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'VALIDATION_ERROR'
+
+    def test_register_with_missing_password_confirm_returns_422(self, client):
+        """Missing password_confirm returns 422 VALIDATION_ERROR"""
+        response = client.post(
+            '/api/v1/auth/register',
+            data={
+                'email': 'newuser@example.com',
+                'password': 'Password123'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'VALIDATION_ERROR'
+
+    def test_register_with_mismatched_passwords_returns_422(self, client):
+        """Mismatched password and password_confirm returns 422 VALIDATION_ERROR"""
+        response = client.post(
+            '/api/v1/auth/register',
+            data={
+                'email': 'newuser@example.com',
+                'password': 'Password123',
+                'password_confirm': 'Different456'
+            },
             content_type='application/json'
         )
 
@@ -326,7 +369,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'test@example.com',  # Same as fixture user
-                'password': 'Password123'
+                'password': 'Password123',
+                'password_confirm': 'Password123'
             },
             content_type='application/json'
         )
@@ -343,7 +387,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'newuser@example.com',
-                'password': 'Pass1'  # Only 5 chars, needs 8
+                'password': 'Pass1',  # Only 5 chars, needs 8
+                'password_confirm': 'Pass1'
             },
             content_type='application/json'
         )
@@ -359,7 +404,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'newuser@example.com',
-                'password': '12345678'  # No letters
+                'password': '12345678',  # No letters
+                'password_confirm': '12345678'
             },
             content_type='application/json'
         )
@@ -375,7 +421,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'newuser@example.com',
-                'password': 'abcdefgh'  # No numbers
+                'password': 'abcdefgh',  # No numbers
+                'password_confirm': 'abcdefgh'
             },
             content_type='application/json'
         )
@@ -391,7 +438,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'newuser@example.com',
-                'password': 'Password123'
+                'password': 'Password123',
+                'password_confirm': 'Password123'
             },
             content_type='application/json'
         )
@@ -412,7 +460,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'newuser@example.com',
-                'password': 'Password123'
+                'password': 'Password123',
+                'password_confirm': 'Password123'
             },
             content_type='application/json'
         )
@@ -434,6 +483,7 @@ class TestRegisterView:
             data={
                 'email': 'newuser@example.com',
                 'password': 'Password123',
+                'password_confirm': 'Password123',
                 'first_name': 'John',
                 'last_name': 'Doe'
             },
@@ -453,7 +503,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'newuser@example.com',
-                'password': 'Password123'
+                'password': 'Password123',
+                'password_confirm': 'Password123'
             },
             content_type='application/json'
         )
@@ -469,7 +520,8 @@ class TestRegisterView:
             '/api/v1/auth/register',
             data={
                 'email': 'TEST@EXAMPLE.COM',  # Same email, different case
-                'password': 'Password123'
+                'password': 'Password123',
+                'password_confirm': 'Password123'
             },
             content_type='application/json'
         )
@@ -862,3 +914,249 @@ class TestLogoutView:
         assert response.status_code == 200
         data = response.json()
         assert data['success'] is True
+
+
+@pytest.mark.django_db
+class TestChangePasswordView:
+    """Tests for PUT /api/v1/auth/change-password"""
+
+    ENDPOINT = '/api/v1/auth/change-password'
+
+    @pytest.fixture
+    def authenticated_client(self, client, user, user_data):
+        """Client with a valid access_token cookie"""
+        access_token = generate_access_token(user)
+        client.cookies['access_token'] = access_token
+        return client
+
+    def test_change_password_with_valid_data_returns_200(self, authenticated_client, user, user_data):
+        """Successful password change returns 200"""
+        response = authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': user_data['password'],
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert 'password changed' in data['data']['message'].lower()
+
+    def test_change_password_updates_password_in_database(self, authenticated_client, user, user_data):
+        """Password is actually updated in the database"""
+        authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': user_data['password'],
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        user.refresh_from_db()
+        assert user.check_password('newSecure456') is True
+        assert user.check_password(user_data['password']) is False
+
+    def test_change_password_revokes_all_refresh_tokens(self, authenticated_client, user, user_data):
+        """All existing refresh tokens are revoked after password change"""
+        # Create some refresh tokens
+        for i in range(3):
+            RefreshToken.objects.create(
+                user=user,
+                token_hash=f'hash_{i}',
+                expires_at=timezone.now() + timedelta(days=7)
+            )
+        assert RefreshToken.objects.filter(user=user, is_revoked=False).count() == 3
+
+        authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': user_data['password'],
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        # All old tokens revoked, only the freshly issued one remains active
+        assert RefreshToken.objects.filter(user=user, is_revoked=False).count() == 1
+
+    def test_change_password_issues_new_tokens(self, authenticated_client, user, user_data):
+        """New access and refresh tokens are issued after password change"""
+        response = authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': user_data['password'],
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        # New access token cookie
+        assert 'access_token' in response.cookies
+        cookie = response.cookies['access_token']
+        assert cookie['httponly'] is True
+        payload = decode_token(cookie.value)
+        assert payload['user_id'] == str(user.id)
+        assert payload['token_type'] == 'access'
+
+        # New refresh token cookie
+        assert 'refresh_token' in response.cookies
+        refresh_cookie = response.cookies['refresh_token']
+        assert refresh_cookie['httponly'] is True
+        assert refresh_cookie['path'] == '/api/v1/auth/refresh'
+
+    def test_change_password_with_wrong_current_password_returns_422(self, authenticated_client, user):
+        """Wrong current password returns 422"""
+        response = authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': 'wrongpassword123',
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'VALIDATION_ERROR'
+
+    def test_change_password_with_mismatched_passwords_returns_422(self, authenticated_client, user, user_data):
+        """Mismatched new passwords returns 422"""
+        response = authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': user_data['password'],
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'differentPass789'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'VALIDATION_ERROR'
+
+    def test_change_password_with_weak_new_password_returns_422(self, authenticated_client, user, user_data):
+        """Weak new password returns 422"""
+        response = authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': user_data['password'],
+                'new_password': 'weak',
+                'new_password_confirm': 'weak'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'VALIDATION_ERROR'
+
+    def test_change_password_with_missing_fields_returns_422(self, authenticated_client, user):
+        """Missing required fields returns 422"""
+        response = authenticated_client.put(
+            self.ENDPOINT,
+            data={},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'VALIDATION_ERROR'
+
+    def test_change_password_without_access_token_returns_401(self, client):
+        """No access token returns 401"""
+        response = client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': 'oldpass123',
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['success'] is False
+        assert data['error']['code'] == 'UNAUTHORIZED'
+
+    def test_change_password_with_expired_token_returns_401(self, client, user):
+        """Expired access token returns 401"""
+        import jwt as pyjwt
+        payload = {
+            'user_id': str(user.id),
+            'email': user.email,
+            'role': user.role,
+            'token_type': 'access',
+            'iat': int((timezone.now() - timedelta(hours=1)).timestamp()),
+            'exp': int((timezone.now() - timedelta(minutes=1)).timestamp())
+        }
+        expired_token = pyjwt.encode(payload, settings.JWT_KEYS['private'], algorithm=settings.JWT_ALGORITHM)
+        client.cookies['access_token'] = expired_token
+
+        response = client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': 'testpass123',
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data['error']['code'] == 'TOKEN_EXPIRED'
+
+    def test_change_password_with_disabled_account_returns_403(self, client, user_data):
+        """Disabled account returns 403"""
+        disabled_user = User.objects.create_user(
+            email='disabled@example.com',
+            password='password123',
+            is_active=False
+        )
+        access_token = generate_access_token(disabled_user)
+        client.cookies['access_token'] = access_token
+
+        response = client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': 'password123',
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error']['code'] == 'ACCOUNT_DISABLED'
+
+    def test_change_password_does_not_leak_password(self, authenticated_client, user, user_data):
+        """Response never contains password fields"""
+        response = authenticated_client.put(
+            self.ENDPOINT,
+            data={
+                'current_password': user_data['password'],
+                'new_password': 'newSecure456',
+                'new_password_confirm': 'newSecure456'
+            },
+            content_type='application/json'
+        )
+
+        response_text = json.dumps(response.json())
+        assert 'newSecure456' not in response_text
+        assert user_data['password'] not in response_text
