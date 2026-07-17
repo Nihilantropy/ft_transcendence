@@ -21,10 +21,32 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-  ### OLLAMA ###
+  ### LITELLM PROXY (inference gateway) ###
+  litellm:
+    container_name: ft_transcendence_litellm
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-smartbreeds-local}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+    volumes:
+      - ./srcs/litellm/config.yaml:/app/config.yaml:ro
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  ### OLLAMA (local GPU inference — `local` profile only) ###
   ollama:
     container_name: ollama
     image: ollama/ollama:0.15.4
+    profiles: ["local"]
     runtime: nvidia
     entrypoint: ["/workspace/init.sh"]
     environment:
@@ -81,6 +103,7 @@ services:
       context: ./srcs/classification-service
       dockerfile: Dockerfile
     container_name: ft_transcendence_classification_service
+    profiles: ["local"]  # heavy HF models + GPU; disabled in cloud profile (VLM-only pipeline)
     env_file:
       - ./srcs/classification-service/.env
     # GPU enabled - RTX 5060 Ti (Blackwell) support via PyTorch 2.11 nightly + CUDA 12.8

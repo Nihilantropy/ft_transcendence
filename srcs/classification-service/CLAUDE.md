@@ -8,7 +8,11 @@ FastAPI microservice for image classification using HuggingFace Transformers. Pr
 
 **Port:** 3004 (internal, called by AI Service)
 
-**GPU Support:** RTX 5060 Ti (Blackwell) via PyTorch 2.11 nightly + CUDA 12.8
+**GPU Support:** RTX 5060 Ti (Blackwell) via stable PyTorch 2.11.0 + CUDA 12.8
+
+**Compose profile:** `local` only. This service runs the heavy HuggingFace models on
+the GPU, so it is disabled in the `cloud` profile — there the AI Service runs a
+VLM-only pipeline (the vision LLM does species/breed; see `srcs/ai/CLAUDE.md`).
 
 ## Commands
 
@@ -157,7 +161,10 @@ def mock_nsfw_detector():
 
 ## Common Gotchas
 
-**PyTorch nightly:** Using 2.11.0.dev20260128+cu128 for RTX 5060 Ti support. Pin specific nightly build to avoid breaking changes.
+**PyTorch pin:** Stable `torch==2.11.0+cu128` + `torchvision==0.26.0+cu128` from the
+CUDA-12.8 index. This replaced the earlier unpinned nightly, which broke once the
+torch/torchvision nightlies drifted out of sync on the ephemeral nightly index.
+Keep the torch/torchvision pair version-matched (torch 2.11 ↔ torchvision 0.26).
 
 **Model loading:** Models load during app lifespan startup. First request may be slow if models not cached.
 
@@ -167,14 +174,18 @@ def mock_nsfw_detector():
 
 ## PyTorch Configuration
 
-```
-# requirements.txt
---extra-index-url https://download.pytorch.org/whl/nightly/cu128
-torch==2.11.0.dev20260128+cu128
-torchvision==0.25.0.dev20260128+cu128
+torch/torchvision are NOT in `requirements.txt`. They are installed as a separate,
+pinned step in the `Dockerfile` (stable wheels, CUDA-12.8 index):
+
+```dockerfile
+RUN pip3 install \
+    torch==2.11.0+cu128 \
+    torchvision==0.26.0+cu128 \
+    --index-url https://download.pytorch.org/whl/cu128
 ```
 
-**CUDA Runtime:** 12.8 (specified in Dockerfile)
+**CUDA Runtime:** 12.8 (specified in Dockerfile). Stable `cu128` wheels carry both
+Ada (sm_89) and Blackwell (sm_120, RTX 5060 Ti) kernels.
 
 ## Current State
 

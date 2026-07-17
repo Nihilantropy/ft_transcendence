@@ -10,17 +10,18 @@ from src.config import Settings
 @pytest.fixture
 def client():
     settings = Settings(
-        OLLAMA_BASE_URL="http://test-ollama:11434",
-        OLLAMA_MODEL="qwen3-vl:8b",
-        OLLAMA_TIMEOUT=300,
-        OLLAMA_TEMPERATURE=0.1,
+        LLM_BASE_URL="http://test-litellm:4000/v1",
+        LLM_VISION_MODEL="vision-model",
+        LLM_TEXT_MODEL="text-model",
+        LLM_TIMEOUT=300,
+        LLM_TEMPERATURE=0.1,
     )
     return OllamaVisionClient(settings)
 
 
 def _make_mock_http_client(response_content: str):
     mock_response = Mock()
-    mock_response.json.return_value = {"message": {"content": response_content}}
+    mock_response.json.return_value = {"choices": [{"message": {"content": response_content}}]}
     mock_response.raise_for_status = Mock()
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(return_value=mock_response)
@@ -47,8 +48,8 @@ async def test_analyze_breed_strips_data_uri_prefix(client):
     mock_http = _make_mock_http_client(content)
     with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
         await client.analyze_breed("data:image/jpeg;base64,/9j/test", detect_crossbreed=False)
-    images = mock_http.post.call_args[1]["json"]["messages"][0]["images"]
-    assert images[0] == "/9j/test"
+    content = mock_http.post.call_args[1]["json"]["messages"][0]["content"]
+    assert content[1]["image_url"]["url"] == "data:image/jpeg;base64,/9j/test"
 
 
 @pytest.mark.asyncio
@@ -86,7 +87,7 @@ async def test_analyze_breed_uses_crossbreed_prompt_when_requested(client):
     mock_http = _make_mock_http_client(content)
     with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
         await client.analyze_breed("/9j/test", detect_crossbreed=True, top_n_breeds=3)
-    prompt = mock_http.post.call_args[1]["json"]["messages"][0]["content"]
+    prompt = mock_http.post.call_args[1]["json"]["messages"][0]["content"][0]["text"]
     assert "TOP 3" in prompt
 
 
@@ -96,7 +97,7 @@ async def test_analyze_breed_uses_standard_prompt_when_not_crossbreed(client):
     mock_http = _make_mock_http_client(content)
     with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
         await client.analyze_breed("/9j/test", detect_crossbreed=False)
-    prompt = mock_http.post.call_args[1]["json"]["messages"][0]["content"]
+    prompt = mock_http.post.call_args[1]["json"]["messages"][0]["content"][0]["text"]
     assert "breed name or Unknown" in prompt
 
 

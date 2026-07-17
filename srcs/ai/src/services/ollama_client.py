@@ -6,29 +6,60 @@ from typing import Dict, Any, List, Optional
 logger = logging.getLogger(__name__)
 
 class OllamaVisionClient:
-    """Client for Ollama vision analysis using native HTTP API.
-    
-    Supports both simple breed detection and multi-breed/crossbreed detection.
+    """Vision/text LLM client speaking the OpenAI chat-completions format.
+
+    Targets a LiteLLM proxy (LLM_BASE_URL), which routes to a local model
+    (Ollama) or a hosted provider (Mistral, ...) transparently. Supports both
+    simple breed detection and multi-breed/crossbreed detection.
     """
 
     def __init__(self, config):
-        """Initialize Ollama client with configuration.
+        """Initialize LLM client with configuration.
 
         Args:
-            config: Settings instance with Ollama configuration
+            config: Settings instance with LLM_* configuration
         """
-        self.base_url = config.OLLAMA_BASE_URL
-        self.model = config.OLLAMA_MODEL
-        self.timeout = config.OLLAMA_TIMEOUT
-        self.temperature = config.OLLAMA_TEMPERATURE
+        self.base_url = config.LLM_BASE_URL.rstrip("/")
+        self.api_key = config.LLM_API_KEY
+        self.vision_model = config.LLM_VISION_MODEL
+        self.text_model = config.LLM_TEXT_MODEL
+        self.timeout = config.LLM_TIMEOUT
+        self.temperature = config.LLM_TEMPERATURE
         self.low_confidence_threshold = config.LOW_CONFIDENCE_THRESHOLD
-        
+
         # Crossbreed detection thresholds
         self.crossbreed_probability_threshold = 0.35
         self.purebred_confidence_threshold = 0.75
         self.purebred_gap_threshold = 0.30
-        
-        logger.info(f"Initialized Ollama client: {self.base_url}, model: {self.model}")
+
+        logger.info(f"Initialized LLM client: {self.base_url}, vision={self.vision_model}, text={self.text_model}")
+
+    @staticmethod
+    def _image_content(prompt: str, image_base64: str) -> List[Dict[str, Any]]:
+        """Build OpenAI multimodal message content (text + image data URI)."""
+        raw = image_base64.split(",", 1)[1] if "," in image_base64 else image_base64
+        return [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{raw}"}},
+        ]
+
+    async def _chat(self, messages: List[Dict[str, Any]], model: str) -> str:
+        """POST an OpenAI chat-completions request to the proxy; return the text content."""
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": False,
+        }
+        timeout = httpx.Timeout(self.timeout, connect=self.timeout)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions", json=payload, headers=headers
+            )
+            response.raise_for_status()
+            response_data = response.json()
+        return response_data["choices"][0]["message"]["content"]
 
     async def analyze_breed(
         self,
@@ -52,44 +83,16 @@ class OllamaVisionClient:
             ConnectionError: If Ollama is unreachable
         """
         try:
-            # Extract just the base64 part (remove data URI prefix)
-            if "," in image_base64:
-                image_base64 = image_base64.split(",")[1]
-
             # Build structured prompt
             if detect_crossbreed:
                 prompt = self._build_crossbreed_prompt(top_n_breeds)
             else:
                 prompt = self._build_analysis_prompt()
 
-            logger.info(f"Sending image to Ollama for {'crossbreed' if detect_crossbreed else 'standard'} analysis")
+            logger.info(f"Sending image to LLM for {'crossbreed' if detect_crossbreed else 'standard'} analysis")
 
-            # Call Ollama HTTP API with explicit timeout
-            timeout = httpx.Timeout(self.timeout, connect=self.timeout)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/chat",
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": prompt,
-                                "images": [image_base64]
-                            }
-                        ],
-                        "stream": False,
-                        "options": {
-                            "temperature": self.temperature
-                        }
-                    }
-                )
-
-                response.raise_for_status()
-                response_data = response.json()
-
-            # Extract content from response
-            content = response_data.get("message", {}).get("content", "")
+            messages = [{"role": "user", "content": self._image_content(prompt, image_base64)}]
+            content = await self._chat(messages, self.vision_model)
 
             # Parse JSON response
             result = self._parse_response(content)
@@ -153,6 +156,7 @@ Consider if this is a PUREBRED or CROSS-BREED (mixed breed). Look for:
 Return ONLY valid JSON with the TOP {top_n} most likely breeds:
 
 {{
+  "species": "dog or cat",
   "breed_probabilities": [
     {{"breed": "breed_name", "probability": 0.0-1.0}},
     {{"breed": "breed_name", "probability": 0.0-1.0}}
@@ -211,6 +215,7 @@ Probabilities should sum to approximately 1.0."""
         if not breed_probs_sorted:
             # Fallback if no probabilities
             return {
+                "species": result.get("species", "dog"),
                 "breed_analysis": {
                     "primary_breed": "Unknown",
                     "confidence": 0.0,
@@ -294,6 +299,7 @@ Probabilities should sum to approximately 1.0."""
         }
         
         final_result = {
+            "species": result.get("species", "dog"),
             "breed_analysis": breed_analysis,
             "traits": result.get("traits", {}),
             "health_considerations": result.get("health_considerations", [])
@@ -358,25 +364,11 @@ Probabilities should sum to approximately 1.0."""
             ConnectionError: If Ollama is unreachable
         """
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/chat",
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {"role": "user", "content": prompt}
-                        ],
-                        "stream": False,
-                        "options": {"temperature": self.temperature}
-                    }
-                )
-                response.raise_for_status()
-                response_data = response.json()
-
-            return response_data.get("message", {}).get("content", "")
+            messages = [{"role": "user", "content": prompt}]
+            return await self._chat(messages, self.text_model)
 
         except httpx.HTTPError as e:
-            logger.error(f"Ollama generation failed: {str(e)}")
+            logger.error(f"LLM generation failed: {str(e)}")
             raise ConnectionError(f"Failed to connect to Ollama: {str(e)}")
 
     async def analyze_with_context(
@@ -401,44 +393,22 @@ Probabilities should sum to approximately 1.0."""
             ConnectionError: If Ollama unreachable
             RuntimeError: If response parsing fails
         """
-        # Extract base64 part if data URI
-        if "," in image_base64:
-            image_base64 = image_base64.split(",")[1]
-
         # Build contextual prompt
         prompt = self._build_contextual_prompt(species, breed_analysis, rag_context)
 
-        # Call Ollama HTTP API
+        # Call LLM via proxy (OpenAI format)
         try:
-            timeout = httpx.Timeout(self.timeout, connect=self.timeout)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/chat",
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": prompt,
-                                "images": [image_base64]
-                            }
-                        ],
-                        "stream": False,
-                        "options": {"temperature": self.temperature}
-                    }
-                )
-                response.raise_for_status()
-                response_data = response.json()
+            messages = [{"role": "user", "content": self._image_content(prompt, image_base64)}]
+            content = await self._chat(messages, self.vision_model)
 
         except httpx.ConnectError as e:
-            logger.error(f"Ollama connection failed: {e}")
+            logger.error(f"LLM connection failed: {e}")
             raise ConnectionError("Ollama service unavailable")
         except httpx.TimeoutException as e:
-            logger.error(f"Ollama timeout: {e}")
+            logger.error(f"LLM timeout: {e}")
             raise ConnectionError("Ollama service timeout")
 
         # Parse JSON response
-        content = response_data.get("message", {}).get("content", "")
         result = self._parse_response(content)
 
         logger.info(f"Visual analysis complete for {breed_analysis['primary_breed']}")

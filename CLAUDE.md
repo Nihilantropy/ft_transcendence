@@ -11,9 +11,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
 - Backend Services: Django 6.0.1 (auth-service, user-service)
 - AI Services:
-  - FastAPI + Ollama HTTP API (qwen3-vl:8b model) for multimodal vision
+  - FastAPI vision orchestrator talking to an LLM via the **LiteLLM proxy**
+    (OpenAI-compatible) — routes to local Ollama (qwen3-vl:8b) or hosted Mistral
   - RAG (ChromaDB + sentence-transformers) for breed knowledge enrichment
-  - HuggingFace Transformers for classification (species, breed, NSFW)
+  - HuggingFace Transformers for classification (species, breed, NSFW) — GPU, `local` profile only
+- Inference gateway: LiteLLM (single OpenAI-compatible endpoint for all LLM calls)
 - Database: PostgreSQL 15+
 - Cache: Redis 7
 - Infrastructure: Docker Compose, Nginx reverse proxy
@@ -39,6 +41,26 @@ make migration     # Run database migrations
 make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
 make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
 ```
+
+### Compose Profiles (local vs cloud)
+
+Two inference backends, selected via `COMPOSE_PROFILES` (default `local`, set in the
+Makefile / root `.env`):
+
+| Profile | LLM backend | GPU services | AI pipeline |
+|---------|-------------|--------------|-------------|
+| `local` (default) | Ollama `qwen3-vl:8b` via LiteLLM | `ollama` + `classification-service` run | full (NSFW + HF species/breed + RAG + LLM) |
+| `cloud` | Mistral via LiteLLM (needs `MISTRAL_API_KEY`) | none | VLM-only (LLM does species/breed; **no NSFW filter**) |
+
+```bash
+make up                                # local profile (GPU)
+make up COMPOSE_PROFILES=cloud         # cloud profile (Mistral, no GPU)
+```
+
+The `litellm` proxy runs in BOTH profiles. Switching backends is config-only: set the
+model alias in `srcs/ai/.env` (`LLM_VISION_MODEL`/`LLM_TEXT_MODEL` → `*-cloud` for Mistral)
+and, for cloud, set `CLASSIFICATION_ENABLED=false` (the classification-service is off in
+`cloud`, so leaving it `true` yields 503s). Root config lives in `.env` (see `.env.example`).
 
 ### Development
 ```bash
@@ -182,11 +204,12 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Location: `srcs/user-service/`
 
 **AI Service (FastAPI - internal port 3003):** [Complete - 104 passing tests]
-- Multi-stage vision pipeline via VisionOrchestrator
-- Ollama HTTP API integration (qwen3-vl:8b model) for contextual analysis
+- Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
+- LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
 - Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info)
-- Coordinates between Classification Service (HuggingFace models) and Ollama (LLM)
+- Coordinates between Classification Service (HF models, optional) and the LLM
+- `CLASSIFICATION_ENABLED=false` → VLM-only pipeline (LLM does species/breed, no NSFW filter)
 - Location: `srcs/ai/`
 
 **Classification Service (FastAPI - internal port 3004):** [Complete - 28 passing tests]
@@ -195,7 +218,8 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Species classification (dog/cat/other)
 - Breed classification (120 dog breeds, 70 cat breeds)
 - Crossbreed detection with intelligent thresholding
-- **GPU Support:** RTX 5060 Ti (Blackwell) via PyTorch nightly (2.11.0.dev20260128+cu128)
+- **GPU Support:** RTX 5060 Ti (Blackwell) via stable PyTorch 2.11.0 + CUDA 12.8 (`cu128`)
+- **Compose profile:** `local` only (disabled in `cloud`)
 - Location: `srcs/classification-service/`
 
 **Recommendation Service (FastAPI - internal port 3005):** [Complete - 84 passing tests (61 unit + 23 integration)]
@@ -205,9 +229,16 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Direct integration with User Service for pet profile retrieval
 - Location: `srcs/recommendation-service/`
 
-**Ollama (port 11434):**
+**LiteLLM (port 4000):**
+- OpenAI-compatible inference gateway — the single LLM endpoint the AI Service calls
+- Routes model aliases to local Ollama or hosted Mistral (see `srcs/litellm/config.yaml`)
+- Auth via `LITELLM_MASTER_KEY` (must match AI Service `LLM_API_KEY`)
+- Runs in both `local` and `cloud` profiles
+- Location: `srcs/litellm/`
+
+**Ollama (port 11434):** [`local` profile only]
 - Self-hosted LLM server (GPU-accelerated, NVIDIA runtime)
-- Hosts qwen3-vl:8b model for vision and text generation
+- Hosts qwen3-vl:8b model for vision and text generation, fronted by LiteLLM
 - Location: `srcs/ollama/`
 
 **Nginx (ports 80, 443):**
@@ -246,7 +277,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Species Classifier: Dog/Cat/Other identification
 - Breed Classifiers: 120 dog breeds, 70 cat breeds
 - Crossbreed Detection: Multi-rule heuristic (confidence thresholds, probability gaps)
-- Device: GPU-accelerated (RTX 5060 Ti Blackwell via PyTorch 2.11 nightly + CUDA 12.8)
+- Device: GPU-accelerated (RTX 5060 Ti Blackwell via stable PyTorch 2.11.0 + CUDA 12.8)
 
 **ChromaDB Vector Store:**
 - Embeddings: 384-dimensional (sentence-transformers/all-MiniLM-L6-v2)
@@ -302,11 +333,12 @@ All services use **custom Dockerfiles that bake in requirements** during build:
 
 **Django Version:** Django 6.x requires Python >=3.12. Use Django 5.1.x for Python 3.11 compatibility.
 
-**Classification Service PyTorch:** Uses nightly builds for RTX 5060 Ti Blackwell support:
-- PyTorch: 2.11.0.dev20260128+cu128
-- Torchvision: 0.25.0.dev20260128+cu128
-- Installed via: `pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128`
-- Pin specific nightly build in requirements.txt to avoid breaking changes
+**Classification Service PyTorch:** Stable pinned wheels for RTX 5060 Ti Blackwell support:
+- PyTorch: 2.11.0+cu128
+- Torchvision: 0.26.0+cu128
+- Installed in the Dockerfile (NOT requirements.txt): `pip3 install torch==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128`
+- Keep the pair version-matched (torch 2.11 ↔ torchvision 0.26). This replaced the earlier
+  unpinned nightly, which broke when the nightlies drifted out of sync on the ephemeral index.
 
 ### Middleware Stack (API Gateway)
 
@@ -499,8 +531,10 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Frontend (React scaffolding exists, needs implementation)
 
 **Recently Completed:**
+- LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
+  talks OpenAI chat-completions to the proxy; VLM-only pipeline when classification is disabled
+- Classification Service torch pin moved from unpinned nightly → stable 2.11.0+cu128 (Blackwell)
 - Recommendation Service — content-based filtering with 84 passing tests (61 unit + 23 integration)
-- Classification Service GPU support for RTX 5060 Ti (Blackwell) using PyTorch 2.11 nightly
 
 ## Common Troubleshooting
 
@@ -539,13 +573,13 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Fix: `return success_response(data)` NOT `return Response(success_response(data))`
 
 **Classification Service GPU troubleshooting:**
-- Using PyTorch 2.11 nightly (2.11.0.dev20260128+cu128) for RTX 5060 Ti Blackwell support
-- Torchvision: 0.25.0.dev20260128+cu128
+- Using stable PyTorch 2.11.0+cu128 (torchvision 0.26.0+cu128) for RTX 5060 Ti Blackwell support
 - CUDA 12.8 runtime required
+- Only runs in the `local` compose profile (absent in `cloud`)
 - Environment variable `DEVICE=auto` detects GPU automatically (falls back to CPU if unavailable)
 - Verify GPU: `docker exec ft_transcendence_classification_service python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"`
 - Check docker-compose.yml: `runtime: nvidia` and `deploy.resources.reservations.devices` configured
-- **Note:** Nightly PyTorch versions may have breaking changes - pin to specific nightly build in requirements.txt
+- **Note:** torch/torchvision are pinned in the Dockerfile (not requirements.txt); keep the pair version-matched
 
 **Crossbreed detection returning false positives:**
 - Check confidence thresholds in `crossbreed_detector.py`
