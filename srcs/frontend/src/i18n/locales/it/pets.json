@@ -51,7 +51,11 @@
     "generic": "Qualcosa è andato storto. Riprova.",
     "NOT_FOUND": "Pet non trovato.",
     "VALIDATION_ERROR": "Dati non validi. Controlla i campi e riprova.",
-    "INTERNAL_ERROR": "Errore del server. Riprova più tardi."
+    "INTERNAL_ERROR": "Errore del server. Riprova più tardi.",
+    "nameTooLong": "Il nome non può superare i 100 caratteri.",
+    "breedTooLong": "La razza non può superare i 100 caratteri.",
+    "ageTooLarge": "L'età non può superare i 150 anni.",
+    "weightTooLarge": "Il peso non può superare i 500 kg."
   },
   "detail": {
     "tabs": {

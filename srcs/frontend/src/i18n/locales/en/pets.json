@@ -51,7 +51,11 @@
     "generic": "Something went wrong. Please try again.",
     "NOT_FOUND": "Pet not found.",
     "VALIDATION_ERROR": "Invalid data. Please check the fields and try again.",
-    "INTERNAL_ERROR": "Server error. Please try again later."
+    "INTERNAL_ERROR": "Server error. Please try again later.",
+    "nameTooLong": "The name cannot exceed 100 characters.",
+    "breedTooLong": "The breed cannot exceed 100 characters.",
+    "ageTooLarge": "Age cannot exceed 150 years.",
+    "weightTooLarge": "Weight cannot exceed 500 kg."
   },
   "detail": {
     "tabs": {

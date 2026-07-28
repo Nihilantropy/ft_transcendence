@@ -47,18 +47,24 @@ function Form({ pet }: { pet?: Pet }) {
   }
 
   const schema = z.object({
-    name: z.string().trim().min(1, t('pets:errors.nameRequired')),
+    name: z
+      .string()
+      .trim()
+      .min(1, t('pets:errors.nameRequired'))
+      .max(100, t('pets:errors.nameTooLong')),
     species: z.enum(['dog', 'cat', 'other']),
-    breed: z.string().optional(),
+    breed: z.string().max(100, t('pets:errors.breedTooLong')).optional(),
     age: z
       .number({ message: t('pets:errors.ageInvalid') })
       .int(t('pets:errors.ageInvalid'))
       .min(0, t('pets:errors.ageInvalid'))
+      .max(150, t('pets:errors.ageTooLarge'))
       .nullable()
       .optional(),
     weight: z
       .number({ message: t('pets:errors.weightInvalid') })
       .positive(t('pets:errors.weightInvalid'))
+      .max(500, t('pets:errors.weightTooLarge'))
       .nullable()
       .optional(),
     health_conditions: z.array(z.string()).optional(),
@@ -99,6 +105,7 @@ function Form({ pet }: { pet?: Pet }) {
 
   // when species changes, drop any breed that's not in the new list
   useEffect(() => {
+    if (species === 'other') return
     const current = form.getValues('breed')
     if (!current) return
     const valid = breedOptions.some((o) => o.value === current)
