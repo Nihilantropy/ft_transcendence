@@ -1,0 +1,38 @@
+{
+  "attach": "Attach photo",
+  "send": "Send",
+  "messages": {
+    "neutral": [
+      "Hey 👋\nDrop a photo of your pet — I'll analyze breed, health and what they really need.",
+      "Ready when you are. A photo is all I need.",
+      "Want to get to know your pet better? One photo and I'm off.",
+      "Breed, traits and care tips — all from one photo.",
+      "Start with a photo — I'll do the rest.",
+      "The fastest way to know your pet: one photo."
+    ],
+    "withName": [
+      "Hi {{name}} 👋\nSend me a photo of your pet — I'll tell you everything.",
+      "{{name}}, I'm here to take a look. Drop a photo of your pet.",
+      "Hey {{name}}, one photo is all I need — I'll analyze breed, traits and care.",
+      "{{name}}, got a photo of your pet? I'll handle the rest.",
+      "Hi {{name}}, we can start whenever you like — a photo is enough.",
+      "One good photo, {{name}}, and I'll put together the full analysis."
+    ],
+    "withPet": [
+      "A photo of {{petName}} is all I need to get started.",
+      "Send me a fresh photo of {{petName}} — anything you'd like to know?",
+      "Want product recommendations tailored to {{petName}}?",
+      "How's {{petName}}? Send me a photo and I'll find out.",
+      "Quick check on {{petName}}? A photo is all it takes.",
+      "A new photo of {{petName}} and I'll cover breed, traits and care."
+    ],
+    "withNameAndPet": [
+      "Hi {{name}}! Want me to dig into {{petName}}'s health?",
+      "{{name}}, send me a photo of {{petName}} and let's analyze breed, traits and care.",
+      "Curious to learn more about {{petName}}? One photo and I'm in.",
+      "{{name}}, I could suggest something new for {{petName}} — just send a photo.",
+      "{{name}}, one photo of {{petName}} and we're off.",
+      "Curious what a photo of {{petName}} can tell us, {{name}}?"
+    ]
+  }
+}

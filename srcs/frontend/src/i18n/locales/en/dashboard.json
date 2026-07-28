@@ -1,0 +1,42 @@
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening",
+    "withName": "{{greeting}}, {{name}}"
+  },
+  "intro": "Here's a snapshot of your smartbreeds.",
+  "blocks": {
+    "pets": {
+      "title": "Your pets",
+      "empty": {
+        "title": "No pets yet",
+        "message": "Add your first one to get started.",
+        "cta": "Add pet"
+      },
+      "viewAll": "View all"
+    },
+    "lastAnalysis": {
+      "title": "Latest analysis",
+      "empty": {
+        "title": "No analyses yet",
+        "message": "Upload a photo to get your first analysis."
+      }
+    },
+    "recommendations": {
+      "title": "For you",
+      "empty": {
+        "message": "Recommendations will appear after the first analyses."
+      }
+    },
+    "analyze": {
+      "bot": {
+        "name": "SmartBreeds AI",
+        "status": "Ready to analyze",
+        "inputPlaceholder": "Ask me anything or drop a photo",
+        "dragActive": "Release the photo to begin",
+        "remove": "Remove"
+      }
+    }
+  }
+}

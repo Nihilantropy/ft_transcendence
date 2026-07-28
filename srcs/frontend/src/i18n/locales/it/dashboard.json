@@ -1,0 +1,42 @@
+{
+  "greeting": {
+    "morning": "Buongiorno",
+    "afternoon": "Buon pomeriggio",
+    "evening": "Buonasera",
+    "withName": "{{greeting}}, {{name}}"
+  },
+  "intro": "Ecco una panoramica del tuo smartbreeds.",
+  "blocks": {
+    "pets": {
+      "title": "I tuoi pet",
+      "empty": {
+        "title": "Nessun pet ancora",
+        "message": "Aggiungi il primo per cominciare.",
+        "cta": "Aggiungi pet"
+      },
+      "viewAll": "Vedi tutti"
+    },
+    "lastAnalysis": {
+      "title": "Ultima analisi",
+      "empty": {
+        "title": "Nessuna analisi",
+        "message": "Carica una foto per ricevere la prima analisi."
+      }
+    },
+    "recommendations": {
+      "title": "Per te",
+      "empty": {
+        "message": "Le raccomandazioni arriveranno dopo le prime analisi."
+      }
+    },
+    "analyze": {
+      "bot": {
+        "name": "SmartBreeds AI",
+        "status": "Pronto ad analizzare",
+        "inputPlaceholder": "Chiedimi qualcosa o invia una foto",
+        "dragActive": "Rilascia la foto per iniziare",
+        "remove": "Rimuovi"
+      }
+    }
+  }
+}

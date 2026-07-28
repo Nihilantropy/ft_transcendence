@@ -48,6 +48,15 @@ export function getSafeNext(searchParams: URLSearchParams, fallback: string): st
   return raw
 }
 
+// time-of-day bucket from local hour, used to pick a localized greeting
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening'
+export function getTimeOfDay(date: Date = new Date()): TimeOfDay {
+  const h = date.getHours()
+  if (h >= 5 && h < 12) return 'morning'
+  if (h >= 12 && h < 18) return 'afternoon'
+  return 'evening'
+}
+
 // combine class names safely for Tailwind components filtering out falsy values and resolving conflicts
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))

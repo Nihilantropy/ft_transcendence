@@ -1,0 +1,38 @@
+{
+  "attach": "Allega foto",
+  "send": "Invia",
+  "messages": {
+    "neutral": [
+      "Ciao 👋\nMandami una foto del tuo pet: analizzo razza, salute e ciò di cui ha davvero bisogno.",
+      "Pronto/a quando lo sei tu. Una foto è tutto ciò che mi serve.",
+      "Hai voglia di conoscere il tuo pet? Una foto e parto.",
+      "Razza, tratti e consigli di cura: tutto da una foto.",
+      "Parti da una foto: al resto penso io.",
+      "Il modo più veloce per conoscere il tuo pet: una foto."
+    ],
+    "withName": [
+      "Ciao {{name}} 👋\nMandami una foto del tuo pet e ti dico tutto.",
+      "{{name}}, sono qui per dare un'occhiata. Carica una foto del tuo pet.",
+      "Ehi {{name}}, una foto basta — analizzo razza, tratti e di cosa ha bisogno.",
+      "{{name}}, hai una foto del tuo pet? Al resto penso io.",
+      "Ciao {{name}}, quando vuoi partiamo: basta una foto.",
+      "Una foto ben fatta, {{name}}, e ti preparo l'analisi completa."
+    ],
+    "withPet": [
+      "Una foto di {{petName}} è tutto quello che mi serve per iniziare.",
+      "Mandami una nuova foto di {{petName}}: c'è qualcosa che vuoi sapere?",
+      "Vuoi che ti consigli prodotti su misura per {{petName}}?",
+      "Come sta {{petName}}? Mandami una sua foto per scoprirlo.",
+      "Facciamo un check a {{petName}}? Basta una foto.",
+      "Una nuova foto di {{petName}} e ti dico razza, tratti e consigli."
+    ],
+    "withNameAndPet": [
+      "Ciao {{name}}! Vuoi che ti aiuti a conoscere lo stato di salute di {{petName}}?",
+      "{{name}}, mandami una foto di {{petName}} e analizziamo insieme razza, tratti e cura.",
+      "Curiosa/o di sapere di più su {{petName}}? Una foto e parto.",
+      "{{name}}, posso suggerirti qualcosa di nuovo per {{petName}} — manda una foto.",
+      "{{name}}, una foto di {{petName}} e partiamo con l'analisi.",
+      "Curiosa/o di vedere cosa ci dice una foto di {{petName}}, {{name}}?"
+    ]
+  }
+}
