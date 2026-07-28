@@ -1,0 +1,97 @@
+{
+  "title": "I miei pet",
+  "newPet": "Aggiungi pet",
+  "search": "Cerca per nome",
+  "clearSearch": "Pulisci ricerca",
+  "filterSpecies": "Tutte le specie",
+  "species": {
+    "dog": "Cane",
+    "cat": "Gatto",
+    "other": "Altro"
+  },
+  "age": {
+    "years_one": "{{count}} anno",
+    "years_other": "{{count}} anni"
+  },
+  "weight": "{{value}} kg",
+  "empty": {
+    "title": "Non hai ancora pet",
+    "message": "Aggiungi il tuo primo pet per cominciare a tracciarne razza, salute e bisogni.",
+    "cta": "Aggiungi il primo pet"
+  },
+  "noResults": "Nessun risultato per questa ricerca.",
+  "form": {
+    "title": {
+      "create": "Nuovo pet",
+      "edit": "Modifica pet"
+    },
+    "name": "Nome",
+    "namePlaceholder": "Come si chiama?",
+    "species": "Specie",
+    "breed": "Razza",
+    "breedPlaceholder": "Es. Labrador (opzionale)",
+    "age": "Età",
+    "agePlaceholder": "Anni",
+    "weight": "Peso",
+    "weightPlaceholder": "Kg",
+    "healthConditions": "Condizioni di salute",
+    "healthConditionsPlaceholder": "Es. allergie, diabete (separate da virgola)",
+    "healthConditionsHint": "Separa più condizioni con una virgola.",
+    "submit": {
+      "create": "Crea pet",
+      "edit": "Salva modifiche"
+    },
+    "cancel": "Annulla"
+  },
+  "errors": {
+    "nameRequired": "Il nome è obbligatorio.",
+    "speciesRequired": "La specie è obbligatoria.",
+    "ageInvalid": "L'età deve essere un numero positivo.",
+    "weightInvalid": "Il peso deve essere un numero positivo.",
+    "generic": "Qualcosa è andato storto. Riprova.",
+    "NOT_FOUND": "Pet non trovato.",
+    "VALIDATION_ERROR": "Dati non validi. Controlla i campi e riprova.",
+    "INTERNAL_ERROR": "Errore del server. Riprova più tardi."
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Panoramica",
+      "health": "Salute",
+      "analyses": "Analisi"
+    },
+    "edit": "Modifica",
+    "delete": "Elimina",
+    "deleteConfirm": {
+      "title": "Eliminare {{name}}?",
+      "message": "Questa azione non può essere annullata. Tutte le analisi associate andranno perse.",
+      "confirm": "Elimina",
+      "cancel": "Annulla"
+    },
+    "loadError": "Non è stato possibile caricare il pet."
+  },
+  "overview": {
+    "title": "Anagrafica",
+    "species": "Specie",
+    "breed": "Razza",
+    "breedUnknown": "Non specificata",
+    "age": "Età",
+    "ageUnknown": "Non specificata",
+    "weight": "Peso",
+    "weightUnknown": "Non specificato",
+    "createdAt": "Aggiunto il"
+  },
+  "health": {
+    "title": "Stato di salute",
+    "conditions": "Condizioni note",
+    "noConditions": "Nessuna condizione registrata."
+  },
+  "analyses": {
+    "title": "Storico analisi",
+    "empty": {
+      "title": "Nessuna analisi ancora",
+      "message": "Carica una foto per cominciare.",
+      "cta": "Analizza una foto"
+    },
+    "loadError": "Non è stato possibile caricare le analisi."
+  }
+}

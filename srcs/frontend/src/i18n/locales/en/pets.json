@@ -1,0 +1,97 @@
+{
+  "title": "My pets",
+  "newPet": "Add pet",
+  "search": "Search by name",
+  "clearSearch": "Clear search",
+  "filterSpecies": "All species",
+  "species": {
+    "dog": "Dog",
+    "cat": "Cat",
+    "other": "Other"
+  },
+  "age": {
+    "years_one": "{{count}} year",
+    "years_other": "{{count}} years"
+  },
+  "weight": "{{value}} kg",
+  "empty": {
+    "title": "No pets yet",
+    "message": "Add your first pet to start tracking breed, health, and needs.",
+    "cta": "Add your first pet"
+  },
+  "noResults": "No results for this search.",
+  "form": {
+    "title": {
+      "create": "New pet",
+      "edit": "Edit pet"
+    },
+    "name": "Name",
+    "namePlaceholder": "What's their name?",
+    "species": "Species",
+    "breed": "Breed",
+    "breedPlaceholder": "E.g. Labrador (optional)",
+    "age": "Age",
+    "agePlaceholder": "Years",
+    "weight": "Weight",
+    "weightPlaceholder": "Kg",
+    "healthConditions": "Health conditions",
+    "healthConditionsPlaceholder": "E.g. allergies, diabetes (comma-separated)",
+    "healthConditionsHint": "Separate multiple conditions with a comma.",
+    "submit": {
+      "create": "Create pet",
+      "edit": "Save changes"
+    },
+    "cancel": "Cancel"
+  },
+  "errors": {
+    "nameRequired": "Name is required.",
+    "speciesRequired": "Species is required.",
+    "ageInvalid": "Age must be a positive number.",
+    "weightInvalid": "Weight must be a positive number.",
+    "generic": "Something went wrong. Please try again.",
+    "NOT_FOUND": "Pet not found.",
+    "VALIDATION_ERROR": "Invalid data. Please check the fields and try again.",
+    "INTERNAL_ERROR": "Server error. Please try again later."
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Overview",
+      "health": "Health",
+      "analyses": "Analyses"
+    },
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": {
+      "title": "Delete {{name}}?",
+      "message": "This action cannot be undone. All associated analyses will be lost.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "loadError": "Could not load the pet."
+  },
+  "overview": {
+    "title": "Profile",
+    "species": "Species",
+    "breed": "Breed",
+    "breedUnknown": "Not specified",
+    "age": "Age",
+    "ageUnknown": "Not specified",
+    "weight": "Weight",
+    "weightUnknown": "Not specified",
+    "createdAt": "Added on"
+  },
+  "health": {
+    "title": "Health status",
+    "conditions": "Known conditions",
+    "noConditions": "No conditions recorded."
+  },
+  "analyses": {
+    "title": "Analysis history",
+    "empty": {
+      "title": "No analyses yet",
+      "message": "Upload a photo to get started.",
+      "cta": "Analyze a photo"
+    },
+    "loadError": "Could not load the analyses."
+  }
+}

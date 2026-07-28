@@ -3,9 +3,9 @@ import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { ErrorPage } from '@/pages/error/ErrorPage'
 import { NotFoundPage } from '@/pages/error/NotFoundPage'
-import { PetDetailPage } from '@/pages/pets/PetDetailPage'
-import { PetEditPage } from '@/pages/pets/PetEditPage'
-import { PetsListPage } from '@/pages/pets/PetsListPage'
+import { PetDetail } from '@/pages/pets/PetDetail'
+import { PetForm } from '@/pages/pets/PetForm'
+import { PetsList } from '@/pages/pets/PetsList'
 import { HomePage } from '@/routes/HomeRoute'
 import { ProtectedRoute } from '@/routes/ProtectedRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
@@ -40,10 +40,10 @@ export const router = createBrowserRouter([
           {
             path: 'pets',
             children: [
-              { index: true, element: <PetsListPage /> },
-              { path: 'new', element: <PetEditPage /> },
-              { path: ':id', element: <PetDetailPage /> },
-              { path: ':id/edit', element: <PetEditPage /> },
+              { index: true, element: <PetsList /> },
+              { path: 'new', element: <PetForm /> },
+              { path: ':id', element: <PetDetail /> },
+              { path: ':id/edit', element: <PetForm /> },
             ],
           },
         ],

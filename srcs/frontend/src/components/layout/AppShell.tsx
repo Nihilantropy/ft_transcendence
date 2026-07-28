@@ -22,7 +22,8 @@ export function AppShell() {
   return (
     <div className="flex h-full flex-col">
       <Header bordered={isScrolled} />
-      <main ref={mainRef} className="flex-1 overflow-y-auto">
+      {/* scrollbar-gutter keeps centered content from shifting when the scrollbar appears/disappears */}
+      <main ref={mainRef} className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
         <div className="flex min-h-full flex-col">
           <div className="flex-1 pt-6 pb-12 lg:pt-10 lg:pb-16">
             <Outlet />

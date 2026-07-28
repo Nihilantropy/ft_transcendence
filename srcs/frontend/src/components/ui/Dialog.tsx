@@ -1,4 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
@@ -32,21 +34,30 @@ export const DialogContent = forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
+    <Card
+      asChild
+      radius="lg"
+      background="elevated"
+      padding="lg"
       className={cn(
-        'border-border-soft bg-elevated fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border p-6',
+        'fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
         'shadow-[0_24px_64px_oklch(0%_0_0/0.45)]',
         className,
       )}
-      {...props}
     >
-      {children}
-      <DialogPrimitive.Close className="focus-visible:ring-accent absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2">
-        <X size={18} aria-hidden />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
+      <DialogPrimitive.Content ref={ref} {...props}>
+        {children}
+        <DialogPrimitive.Close asChild>
+          <Button
+            variant="naked"
+            className="absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100"
+          >
+            <X size={18} aria-hidden />
+            <span className="sr-only">Close</span>
+          </Button>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </Card>
   </DialogPortal>
 ))
 DialogContent.displayName = DialogPrimitive.Content.displayName

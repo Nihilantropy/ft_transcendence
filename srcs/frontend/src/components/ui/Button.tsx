@@ -13,7 +13,7 @@ import {
 const buttonVariants = cva(
   [
     'inline-flex items-center justify-center gap-2 whitespace-nowrap',
-    'select-none',
+    'cursor-pointer select-none',
     'font-sans font-semibold tracking-tight',
     'transition-[transform,background-color,border-color,color,box-shadow]',
     'duration-200 ease-[var(--ease-out-expo)]',
@@ -30,7 +30,7 @@ const buttonVariants = cva(
         ],
         outline: [
           'border border-border-soft text-text-hi bg-transparent',
-          'hover:bg-elevated hover:border-text-lo',
+          'hover:bg-accent/10 hover:border-accent/40',
         ],
         ghost: ['text-text-mid hover:text-text-hi hover:bg-accent/10'],
         subtle: ['bg-accent/16 text-accent hover:bg-accent/24'],

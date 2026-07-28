@@ -52,3 +52,13 @@ export function getSafeNext(searchParams: URLSearchParams, fallback: string): st
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
+
+// normalize user-typed proper nouns to title case for better display (e.g. breed names, pet names)
+export function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
