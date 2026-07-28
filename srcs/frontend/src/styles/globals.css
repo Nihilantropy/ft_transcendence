@@ -58,3 +58,11 @@ body {
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+
+/* standard page container */
+@utility page-container {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--container-5xl);
+  padding-inline: 1rem;
+}

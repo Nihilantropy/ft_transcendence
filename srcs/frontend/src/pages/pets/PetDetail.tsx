@@ -25,7 +25,7 @@ export function PetDetail() {
 
   if (isError || !pet) {
     return (
-      <div className="mx-auto max-w-3xl px-4 text-center">
+      <div className="page-container text-center">
         <p className="text-text-mid">{t('detail.loadError')}</p>
         <Button variant="ghost" asChild className="mt-4">
           <Link to="/pets">
@@ -44,7 +44,7 @@ export function PetDetail() {
   ]
 
   return (
-    <div className="mx-auto max-w-3xl px-4">
+    <div className="page-container">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
         <Link to="/pets">
           <ArrowLeft size={16} aria-hidden />
@@ -85,7 +85,7 @@ export function PetDetail() {
 
 function DetailSkeleton() {
   return (
-    <div className="mx-auto max-w-3xl px-4">
+    <div className="page-container">
       <Skeleton className="bg-elevated h-8 w-32" />
       <div className="mt-6 flex items-center gap-4">
         <Skeleton className="bg-elevated h-24 w-24 rounded-lg sm:h-32 sm:w-32" />

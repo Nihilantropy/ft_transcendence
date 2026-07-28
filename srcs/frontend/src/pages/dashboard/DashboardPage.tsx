@@ -12,7 +12,7 @@ export function DashboardPage() {
   const firstName = user?.first_name?.trim()
 
   return (
-    <div className="mx-auto max-w-5xl px-4">
+    <div className="page-container">
       <div>
         <h1 className="text-text-hi text-3xl font-bold tracking-tight">
           {firstName ? t('greeting.withName', { greeting, name: firstName }) : greeting}

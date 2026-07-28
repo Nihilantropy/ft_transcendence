@@ -31,7 +31,7 @@ export function PetsList() {
   const hasPets = (pets?.length ?? 0) > 0
 
   return (
-    <div className="mx-auto max-w-5xl px-4">
+    <div className="page-container">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-text-hi text-3xl font-bold tracking-tight">{t('title')}</h1>
         {hasPets && (
