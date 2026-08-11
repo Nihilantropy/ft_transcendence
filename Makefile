@@ -6,7 +6,7 @@ PROJECT_NAME = ft_transcendence
 
 # Compose profiles: 'local' = GPU stack (ollama + classification-service),
 # 'cloud' = LiteLLM-only (hosted API key, no GPU). Override: make up COMPOSE_PROFILES=cloud
-COMPOSE_PROFILES ?= local
+COMPOSE_PROFILES ?= cloud
 export COMPOSE_PROFILES
 
 # ft_transcendence service names
