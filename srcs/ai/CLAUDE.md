@@ -1,200 +1,206 @@
-# CLAUDE.md
+# CLAUDE.md - AI Service
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Overview
 
-## Service Overview
+FastAPI vision pipeline for pet breed analysis. Internal port 3003, container
+`ft_transcendence_ai_service`, no host port, `backend-network` only, no compose profile (runs in
+both `local` and `cloud`). Stateless except for an embedded ChromaDB collection on the
+`ai-chroma-data` volume. All LLM traffic goes to the LiteLLM proxy as OpenAI `chat/completions` —
+there is no direct Ollama call anywhere in this codebase, despite the file and test names.
 
-FastAPI microservice that orchestrates multi-stage vision analysis for pet breed identification and health insights. Coordinates between the Classification Service (HuggingFace models, optional), the RAG system (ChromaDB), and an LLM reached through the **LiteLLM proxy** (OpenAI-compatible).
-
-**Port:** 3003 (internal, accessed via API Gateway)
-
-**LLM access:** The service never talks to Ollama directly. It POSTs OpenAI
-chat-completions to the LiteLLM proxy (`LLM_BASE_URL`, default `http://litellm:4000/v1`),
-which routes to a local model (Ollama `qwen3-vl:8b`) or a hosted provider (Mistral)
-based on the model alias in `.env` — no code change to switch. See `srcs/litellm/config.yaml`.
-
-**Two pipelines (via `CLASSIFICATION_ENABLED`):**
-- `true` (default, `local` compose profile): full pipeline — Classification Service does
-  NSFW + species + breed, then RAG + LLM enrich.
-- `false` (`cloud` profile, no GPU): VLM-only — the vision LLM (e.g. Mistral) does
-  species/breed detection itself. **The dedicated NSFW safety filter is NOT applied**
-  in this mode; moderation is delegated to the LLM provider.
-
-**Volume mount:** Full source (`./srcs/ai:/app`) for development.
-
-## Commands
-
-### Testing
+## Essential Commands
 
 ```bash
-# All tests (104 total)
+# tests (104). run --rm is fine: everything is mocked, no cross-service hostname needed.
 docker compose run --rm ai-service python -m pytest tests/ -v
-
-# Specific test file
 docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py -v
+docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=term  # pytest-cov is in the image
 
-# Single test
-docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py::test_function_name -v
+# from the repo root
+make build                 # only needed for requirements.txt / Dockerfile changes
+make up COMPOSE_PROFILES=local     # ollama + classification-service
+make up COMPOSE_PROFILES=cloud     # LiteLLM → Mistral, no GPU
+make logs-ai-service       # compose service name
+make exec-ai_service       # NOTE the underscore: exec-% → ft_transcendence_$*
+make rag                   # scripts/init-rag-kb.sh → POST /api/v1/admin/rag/initialize
 
-# With coverage
-docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=html
+# poke the internal-only endpoints (no host port exists)
+docker exec ft_transcendence_ai_service curl -s http://localhost:3003/api/v1/rag/status
+docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 ```
 
-### RAG Initialization
+## Code Map
 
-ChromaDB starts empty. Initialize the knowledge base:
+| Path | Responsibility |
+|------|----------------|
+| `src/main.py` | Module-level `app` (no factory function), CORS, `/health`, lifespan that constructs every singleton and injects them into route modules |
+| `src/config.py` | The single `Settings` class; every tunable lives here |
+| `src/routes/vision.py` | `POST /api/v1/vision/analyze`, `GET /api/v1/vision/health`; exception→HTTP mapping |
+| `src/routes/rag.py` | `router` (`/api/v1/rag`: query, ingest, status) + `admin_router` (`/api/v1/admin/rag/initialize`) |
+| `src/services/vision_orchestrator.py` | Pipeline coordinator; branches full vs VLM-only, owns the rejection gates |
+| `src/services/ollama_client.py` | `OllamaVisionClient` — OpenAI chat-completions client for LiteLLM; prompts, JSON parsing, crossbreed post-processing |
+| `src/services/classification_client.py` | httpx client for `POST /classify/{content,species,breed}` on classification-service |
+| `src/services/rag_service.py` | ChromaDB client, `query`, `add_documents`, `get_breed_context`, `get_crossbreed_context`, `enrich_breed`, `get_stats` |
+| `src/services/document_processor.py` | Frontmatter parsing, header split, tiktoken chunking, ChromaDB metadata sanitisation |
+| `src/services/embedder.py` | sentence-transformers wrapper: `embed`, `embed_batch` |
+| `src/services/image_processor.py` | Data-URI parse, size/dimension validation, resize, re-encode |
+| `src/middleware/localhost.py` | `require_localhost` FastAPI dependency (127.0.0.1/localhost/::1/`172.*`) |
+| `src/models/requests.py` | `RAGQueryRequest`, `RAGIngestRequest` (+ dead `VisionAnalysisRequest`/`VisionAnalysisOptions`) |
+| `src/models/responses.py` | Vision + RAG pydantic response models |
+| `src/utils/responses.py` | `success_response(data)` / `error_response(code, message, details=None)` |
+| `src/utils/logger.py` | JSON log formatter, mutes uvicorn/fastapi/httpx to WARNING |
+| `data/knowledge_base/spiecies/` | 34 markdown docs (dogs/cats × purebreeds/crossbreeds/health). Mounted read-only. Directory name misspelled on purpose-by-accident — do not rename |
+| `data/chroma/` | ChromaDB persistence mount point (`ai-chroma-data` volume) |
+| `tests/` | 104 unit tests, no conftest.py |
 
-```bash
-# Preferred: use the Makefile rule from project root
-make rag
-
-# Direct (from inside container — localhost-only endpoint)
-docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize
-```
-
-### Docker Operations
-
-```bash
-# From project root
-make build              # Rebuild images
-make up                 # Start services
-make logs-ai-service    # View logs
-make exec-ai-service    # Shell into container
-```
-
-## Architecture
-
-### Project Structure
-
-```
-src/
-  main.py                         # FastAPI app, lifespan
-  config.py                       # Pydantic Settings, thresholds
-  routes/
-    vision.py                     # POST /api/v1/vision/analyze
-    rag.py                        # RAG admin endpoints (localhost-only)
-  services/
-    vision_orchestrator.py        # pipeline coordinator (full + VLM-only paths)
-    classification_client.py      # HTTP client → Classification Service
-    rag_service.py                # ChromaDB query/retrieval
-    ollama_client.py              # LLM client — OpenAI chat-completions → LiteLLM proxy
-    image_processor.py            # Base64 decode, resize, validation
-    document_processor.py         # Markdown chunking for RAG ingestion
-    embedder.py                   # sentence-transformers embeddings
-  models/
-    requests.py                   # ImageAnalysisRequest schema
-    responses.py                  # VisionAnalysisResponse, ClassificationResult
-  middleware/
-    localhost.py                  # Localhost-only access control
-  utils/
-    responses.py                  # success_response / error_response helpers
-    logger.py                     # Structured logging
-data/
-  chroma/                         # ChromaDB persistence (volume mounted)
-  knowledge_base/                 # Markdown docs for RAG ingestion
-    spiecies/                     # Species-level info (dogs.md, cats.md)
-tests/                            # 47 tests
-```
-
-### Vision Pipeline Flow
-
-Full pipeline (`CLASSIFICATION_ENABLED=true`):
+## Request / Data Flow
 
 ```
-1. Image received (base64)
-       ↓
-2. Classification Service
-   - NSFW check (reject unsafe)
-   - Species identification (dog/cat)
-   - Breed classification (purebred or crossbreed)
-       ↓
-3. RAG Service
-   - Query ChromaDB with species + breed
-   - Retrieve health info, breed standards
-       ↓
-4. LLM via LiteLLM proxy (local Ollama qwen3-vl:8b OR cloud Mistral)
-   - Image + classification + RAG context
-   - Generate contextual analysis
-       ↓
-5. Return enriched response
+POST /api/v1/vision/analyze
+  routes/vision.py:analyze_image
+    image_processor.process_image(request.image)            # ValueError → 422
+    vision_orchestrator.analyze_image(processed)
+      if not config.CLASSIFICATION_ENABLED → _analyze_vlm_only
+      classification.check_content   → ValueError CONTENT_POLICY_VIOLATION
+      classification.detect_species  → UNSUPPORTED_SPECIES | SPECIES_DETECTION_FAILED
+      classification.detect_breed(top_k=5) → BREED_DETECTION_FAILED
+      rag.get_breed_context | get_crossbreed_context   # try/except → None on any failure
+      ollama.analyze_with_context(image_base64=, species=, breed_analysis=, rag_context=)
+    VisionAnalysisData(**result) → VisionAnalysisResponse   # 200
 ```
 
-VLM-only pipeline (`CLASSIFICATION_ENABLED=false`, `_analyze_vlm_only`): step 2 is
-skipped (no NSFW filter); the vision LLM performs species/breed/crossbreed detection,
-then RAG (step 3, graceful degradation if empty) and the contextual LLM call (step 4) run.
+VLM-only path (`_analyze_vlm_only`): `ollama.analyze_breed(image, detect_crossbreed=True,
+top_n_breeds=2)` replaces stages 1-3; the LLM's `breed_probabilities` are turned into a
+`breed_analysis` by `_process_crossbreed_result`, then the same RAG + `analyze_with_context` steps
+run. No NSFW check, no species allow-list.
 
-### Rejection Thresholds (config.py)
+Dependency wiring is **not** FastAPI DI. `lifespan` in `src/main.py:49-54` assigns module-level
+globals: `vision.image_processor`, `vision.vision_orchestrator`, `rag.rag_service`,
+`rag.document_processor`. If you add a service, wire it the same way, and remember the routes must
+tolerate it being `None` before startup.
 
-| Threshold | Default | Purpose |
+## Conventions & Patterns
+
+- **Every tunable goes in `src/config.py`** and is read off the injected `config`/`settings`
+  object. Do not read `os.environ` and do not add a module-level constant. (Existing violations are
+  listed in Gotchas — match the convention, not those.)
+- **Constructor injection**: every service takes `config` (and its collaborators) as constructor
+  arguments; `src/main.py` is the only module that touches `src.config` at all — it imports the
+  `Settings` class and builds its own instance (`main.py:18`). The `settings` singleton at
+  `config.py:60` is imported by nothing.
+- **Errors as exception types, not return codes.** The orchestrator raises `ValueError("CODE")` for
+  business rejections and `ConnectionError` for dependency failures; `routes/vision.py` is the only
+  place that maps them to HTTP.
+- **RAG is best-effort.** Any new enrichment step must be wrapped in `try/except Exception` and
+  degrade to `None` — never fail the request because retrieval failed.
+- **Response envelopes**: RAG routes return `success_response(...)` / raise
+  `HTTPException(detail=error_response(...))`. The vision route builds its envelope inline. Keep
+  the `{success, data, error, timestamp}` shape either way.
+- **Logging is `logging.getLogger(__name__)`** with the JSON formatter installed globally; log the
+  decision at each pipeline gate, as the existing stages do.
+- **Prompts live in `_build_*_prompt` methods** on `OllamaVisionClient` and always demand
+  "Return ONLY valid JSON" with an explicit schema, because `_parse_response` only accepts raw JSON
+  or a ```` ```json ```` fence.
+
+## Gotchas
+
+- **`OllamaVisionClient` does not talk to Ollama.** It POSTs OpenAI `chat/completions` to
+  `LLM_BASE_URL` (LiteLLM). Class name, file name, `test_ollama_*.py` and several log/error strings
+  ("Failed to connect to Ollama", "Ollama service timeout") are stale naming. Tests assert on those
+  strings — changing a message breaks `test_ollama_contextual.py`.
+- **Images are multimodal message parts**, not an Ollama `images` array:
+  `[{"type":"text",...},{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,..."}}]`
+  built by `_image_content` (`ollama_client.py:37-44`), which always re-labels the payload as
+  `image/jpeg` regardless of the real format.
+- **Method names**: the embedder exposes `embed()` / `embed_batch()` (not `embed_text`).
+  `analyze_with_context` takes `image_base64=`, not `image=`.
+- **`analyze_with_context` swallows only `ConnectError` and `TimeoutException`**
+  (`ollama_client.py:404-409`). A 4xx/5xx from LiteLLM (e.g. wrong `LLM_API_KEY`) raises
+  `httpx.HTTPStatusError` and surfaces as a 500, while the same failure inside `analyze_breed` /
+  `generate` becomes a 503. Do not "fix" one side without checking the tests on the other.
+- **`routes/vision.py` `error_map` keys are unreachable.** `ImageProcessor` raises `ValueError`
+  with prose (`"Image exceeds 5MB limit"`), so `INVALID_IMAGE_FORMAT`, `IMAGE_TOO_LARGE` and
+  `IMAGE_TOO_SMALL` never appear; the prose lands in `error.code`.
+- **`error_response()` has no status argument.** `routes/rag.py:138-142`, `:198-202`, `:256-260`
+  pass `status.HTTP_503_SERVICE_UNAVAILABLE` as the `details` parameter and `return` (not `raise`),
+  so those branches answer **HTTP 200** with `success: false`.
+- **`require_localhost` accepts any `172.*` client**, i.e. every container on the Docker bridge —
+  it is a network-boundary guard, not loopback-only.
+- **Chunk IDs are `f"chunk_{i}_{hash(content) % 10000}"`** (`rag_service.py:180`). String hashing
+  is salted per process, so re-ingesting the same file after a restart duplicates it, and two
+  chunks can collide within one run.
+- **`uvicorn --workers 2`** (Dockerfile:35): the lifespan runs twice, so two SentenceTransformer
+  instances load and two `chromadb.PersistentClient` handles open the same directory.
+- **`detect_species` accepts a `top_k` argument that the orchestrator never passes**
+  (`vision_orchestrator.py:69`), so the classification default applies.
+- **Dead config**: `RAG_MIN_RELEVANCE` and `DEBUG` are never read. `LOW_CONFIDENCE_THRESHOLD` is
+  only used on the `analyze_breed(detect_crossbreed=False)` branch, which no pipeline takes.
+- **Dead models**: `VisionAnalysisRequest` / `VisionAnalysisOptions` in `src/models/requests.py`
+  are shadowed by a local `VisionAnalysisRequest` in `routes/vision.py`. The route's version has no
+  data-URI validator — validation happens later in `ImageProcessor`.
+- **`routes/vision.py` uses `datetime.utcnow()`** (deprecated on the image's Python 3.12) while
+  `utils/responses.py` uses `datetime.now(UTC)`. Timestamps differ in format across endpoints.
+- **`enriched_info` is `Optional`** in the response model but the LLM output keys
+  (`description`, `traits`, `health_observations`) are indexed directly at
+  `vision_orchestrator.py:125-127` — a missing key is a `KeyError` → 500.
+- **`/api/v1/rag*` is not routed by the API Gateway** (`SERVICE_ROUTES` in
+  `srcs/api-gateway/routes/proxy.py:40-48`). Adding an endpoint here does not make it reachable
+  from the host; adding a slow one also needs an entry in `SERVICE_TIMEOUTS`.
+
+## Testing Notes
+
+- `pytest.ini`: `asyncio_mode = auto`, `--strict-markers`, `testpaths = tests`, markers
+  `integration` / `slow` / `unit`. **No `conftest.py`** — fixtures are per-file.
+- `docker compose run --rm ai-service ...` is always sufficient. `src/` and `tests/` are
+  bind-mounted (docker-compose.yml:89-90), so **no rebuild** is needed for code or new test files;
+  only `requirements.txt` / Dockerfile changes require `make build`.
+- **LLM/classification mocking**: patch the class in the module under test, e.g.
+  `patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock)`, where `mock` is an
+  `AsyncMock` with `__aenter__`/`__aexit__` wired and `post` returning a plain `Mock` whose
+  `.json()` yields `{"choices":[{"message":{"content": "<json string>"}}]}`. See
+  `_make_mock_http_client` in `tests/test_ollama_client.py:22-30`.
+- **Orchestrator tests** pass a bare `Mock()` config with only `SPECIES_MIN_CONFIDENCE` and
+  `BREED_MIN_CONFIDENCE` set. `config.CLASSIFICATION_ENABLED` is therefore an auto-created truthy
+  Mock attribute, which is why they exercise the full pipeline. To test `_analyze_vlm_only` you
+  must set `config.CLASSIFICATION_ENABLED = False` explicitly.
+- **Defensive mocking is the house style**: rejection tests still `AsyncMock` the downstream stages
+  (RAG, LLM) so a threshold change turns into a failed assertion instead of an `AttributeError`.
+- **Route tests** (`tests/test_rag_routes.py`) assign the module globals directly
+  (`rag.rag_service = mock`) and build `TestClient(app)` **without** the `with` block, so the
+  lifespan never runs and never overwrites the mocks. If you switch to `with TestClient(app)`, real
+  models load. `require_localhost` is bypassed via
+  `app.dependency_overrides[require_localhost] = ...` and cleared in the fixture teardown.
+- `test_initialize_service_not_initialized` sets `rag.rag_service = None` and never restores it —
+  it relies on later fixtures re-assigning the globals. Keep new route tests fixture-driven.
+- `RAGService` is constructed under `patch('chromadb.PersistentClient')`, then
+  `rag_service._collection.query` is replaced per test with a hand-built ChromaDB result dict
+  (`ids`/`documents`/`metadatas`/`distances`, each a list-of-lists).
+- `Embedder` tests patch `src.services.embedder.SentenceTransformer`; never let a test download a
+  model.
+- `scripts/run-unit-tests.sh:119-121` still claims 37 tests for this service; the real collection is
+  104. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
+
+## Config & Thresholds
+
+`src/config.py` is the only place a tunable may be declared, and `.env.example` documents the
+subset intended to be overridden per deployment. `.env` is gitignored — never read defaults from
+it. Pipeline gates:
+
+| Threshold | Default | Read at |
 |-----------|---------|---------|
-| `SPECIES_MIN_CONFIDENCE` | 0.10 | Reject if species confidence below |
-| `BREED_MIN_CONFIDENCE` | 0.05 | Reject if breed confidence below (low for crossbreeds) |
-| `LOW_CONFIDENCE_THRESHOLD` | 0.50 | General low confidence warning |
+| `SPECIES_MIN_CONFIDENCE` | 0.10 | `config.py:34`, used `vision_orchestrator.py:73` |
+| `BREED_MIN_CONFIDENCE` | 0.05 | `config.py:35`, used `vision_orchestrator.py:85` and `:154` |
+| `LOW_CONFIDENCE_THRESHOLD` | 0.5 | `config.py:33`, used `ollama_client.py:105` (unused branch) |
+| `LLM_TIMEOUT` | 300 | `config.py:17` — must stay ≤ the gateway's 300s `SERVICE_TIMEOUTS` entry |
+| `CLASSIFICATION_TIMEOUT` | 30 | `config.py:24` |
 
-### API Endpoints
+Values that violate the convention and should be migrated to `config.py` if you touch them:
+`ollama_client.py:31-33` (`0.35` crossbreed second-breed probability, `0.75` purebred confidence,
+`0.30` purebred gap), `vision_orchestrator.py:83` (`top_k=5`), `vision_orchestrator.py:150`
+(`top_n_breeds=2`), `rag_service.py:261`/`:310` (`n_results` 5 / 3), `rag_service.py:285-287` and
+`:332-334` (500/300/300-character context truncation).
 
-**Public (via API Gateway):**
-- `POST /api/v1/vision/analyze` - Image analysis pipeline
-
-**Internal (localhost-only):**
-- `POST /api/v1/admin/rag/initialize` - Bulk ingest knowledge base
-- `GET /api/v1/admin/rag/stats` - ChromaDB collection stats
-- `POST /api/v1/admin/rag/query` - Test RAG queries
-
-## Testing Patterns
-
-**Mocking external services:**
-- Classification Service: `AsyncMock` for `ClassificationClient.classify()`
-- Ollama: `AsyncMock` for `OllamaClient.generate_analysis()`
-- RAG: `MagicMock` for `RAGService.query()`
-
-**Defensive mocking:** Always mock ALL async methods in execution path, even when expecting early rejection. Prevents breakage if thresholds change.
-
-**Example:**
-```python
-@pytest.fixture
-def mock_classification_client():
-    with patch('src.services.vision_orchestrator.ClassificationClient') as mock:
-        client = AsyncMock()
-        mock.return_value = client
-        yield client
-```
-
-## Common Gotchas
-
-**RAG embedder method:** ChromaDB embedder uses `embed()` method, NOT `embed_text()`.
-
-**Ollama parameter names:** `OllamaClient.generate_analysis()` expects `image_base64`, NOT `image`.
-
-**Threshold confusion:** Test comments may reference outdated thresholds - always trust config.py values.
-
-**Crossbreed confidence:** Crossbreeds naturally have low confidence (5-10%) vs purebreds (20-30%+). This is expected behavior.
-
-## Key Dependencies
-
-- **LiteLLM proxy** (port 4000): OpenAI-compatible gateway; the only LLM endpoint this
-  service calls. Routes to Ollama (local) or Mistral (cloud). Config: `srcs/litellm/config.yaml`.
-- **Classification Service** (port 3004, `local` profile only): HuggingFace model inference.
-  Skipped when `CLASSIFICATION_ENABLED=false`.
-- **Ollama** (port 11434, `local` profile only): qwen3-vl:8b multimodal LLM, behind LiteLLM.
-- **ChromaDB**: Vector store for RAG (sentence-transformers embeddings)
-
-### LLM Configuration (config.py / .env)
-
-| Var | Default | Purpose |
-|-----|---------|---------|
-| `LLM_BASE_URL` | `http://litellm:4000/v1` | LiteLLM proxy endpoint |
-| `LLM_API_KEY` | `sk-smartbreeds-local` | Must match LiteLLM `LITELLM_MASTER_KEY` |
-| `LLM_VISION_MODEL` | `vision-model` | Alias: `vision-model` (Ollama) or `vision-model-cloud` (Mistral) |
-| `LLM_TEXT_MODEL` | `text-model` | Alias: `text-model` (Ollama) or `text-model-cloud` (Mistral) |
-| `CLASSIFICATION_ENABLED` | `true` | `false` → VLM-only pipeline (must be `false` in the `cloud` profile) |
-
-**Gotcha:** In the `cloud` profile the classification-service does not run, so
-`CLASSIFICATION_ENABLED` **must** be `false` there, otherwise the orchestrator calls a
-dead host and returns 503.
-
-## Current State
-
-**Status:** 104 passing tests (86% coverage)
-- New test files: `test_image_processor.py`, `test_embedder.py`, `test_ollama_client.py`
-- pytest-cov not in requirements — install temporarily: `docker exec ft_transcendence_ai_service pip install pytest-cov`
+Profile-dependent settings: `CLASSIFICATION_ENABLED` must be `false` in the `cloud` profile (the
+classification-service container is `profiles: ["local"]`), and `LLM_VISION_MODEL` /
+`LLM_TEXT_MODEL` must switch to the `*-cloud` aliases defined in `srcs/litellm/config.yaml`.
+`LLM_API_KEY` must equal the root `LITELLM_MASTER_KEY`.
