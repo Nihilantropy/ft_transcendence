@@ -10,9 +10,9 @@ COMPOSE_PROFILES ?= cloud
 export COMPOSE_PROFILES
 
 # ft_transcendence service names
-TRANSCENDENCE_SERVICES = nginx frontend backend db
+TRANSCENDENCE_SERVICES = nginx litellm ollama ai-service classification-service auth-service user-service redis db api-gateway recommendation-service
 
-TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_frontend-data
+TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache
 
 TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 

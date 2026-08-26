@@ -4,12 +4,6 @@ from pathlib import Path
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
-    # Server Configuration
-    PORT: int = 8001
-    HOST: str = "0.0.0.0"
-    DEBUG: bool = False
-    LOG_LEVEL: str = "info"
-
     # JWT Configuration (RS256 Asymmetric)
     JWT_PUBLIC_KEY_PATH: str
     JWT_ALGORITHM: str = "RS256"

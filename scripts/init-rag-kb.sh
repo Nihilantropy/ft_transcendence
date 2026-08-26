@@ -54,17 +54,10 @@ echo "✅ Initialization Successful"
 echo "============================"
 echo ""
 
-# Extract metrics using grep and sed (fallback to jq if available)
-if command -v jq &> /dev/null; then
-    FILES_PROCESSED=$(echo "$JSON_RESPONSE" | jq -r '.data.files_processed // 0')
-    TOTAL_CHUNKS=$(echo "$JSON_RESPONSE" | jq -r '.data.total_chunks_created // 0')
-    FILES_SKIPPED=$(echo "$JSON_RESPONSE" | jq -r '.data.files_skipped // 0')
-    ERRORS=$(echo "$JSON_RESPONSE" | jq -r '.data.errors // []')
-else
-    FILES_PROCESSED=$(echo "$JSON_RESPONSE" | grep -o '"files_processed":[0-9]*' | cut -d':' -f2 || echo "0")
-    TOTAL_CHUNKS=$(echo "$JSON_RESPONSE" | grep -o '"total_chunks_created":[0-9]*' | cut -d':' -f2 || echo "0")
-    FILES_SKIPPED=$(echo "$JSON_RESPONSE" | grep -o '"files_skipped":[0-9]*' | cut -d':' -f2 || echo "0")
-fi
+# Extract metrics via python3 (consistent with json.tool usage above)
+FILES_PROCESSED=$(echo "$JSON_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('files_processed',0))" 2>/dev/null || echo "0")
+TOTAL_CHUNKS=$(echo "$JSON_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('total_chunks_created',0))" 2>/dev/null || echo "0")
+FILES_SKIPPED=$(echo "$JSON_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('files_skipped',0))" 2>/dev/null || echo "0")
 
 echo "📊 Ingestion Statistics:"
 echo "   Files Processed: ${FILES_PROCESSED}"
@@ -75,11 +68,7 @@ echo "   Files Skipped: ${FILES_SKIPPED}"
 if [ "$FILES_SKIPPED" -gt 0 ]; then
     echo ""
     echo "⚠️  Warnings:"
-    if command -v jq &> /dev/null; then
-        echo "$JSON_RESPONSE" | jq -r '.data.errors[]' | sed 's/^/   - /'
-    else
-        echo "   Run with jq installed for detailed error messages"
-    fi
+    echo "$JSON_RESPONSE" | python3 -c "import json,sys; [print(f'   - {e}') for e in json.load(sys.stdin).get('data',{}).get('errors',[])]" 2>/dev/null
 fi
 
 echo ""

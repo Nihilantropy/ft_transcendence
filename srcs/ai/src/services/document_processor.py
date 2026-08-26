@@ -113,36 +113,31 @@ class DocumentProcessor:
 
         return sections
 
-    def chunk_text(self, text: str, max_tokens: int = None, overlap: int = None) -> List[str]:
-        """Split text into chunks with token limit and overlap.
+    def chunk_text(self, text: str) -> List[str]:
+        """Split text into chunks using the configured token limit and overlap.
 
         Args:
             text: Text to chunk
-            max_tokens: Maximum tokens per chunk (default: config value)
-            overlap: Token overlap between chunks (default: config value)
 
         Returns:
             List of text chunks
         """
-        max_tokens = max_tokens or self.chunk_size
-        overlap = overlap or self.chunk_overlap
-
         tokens = self._tokenizer.encode(text)
 
-        if len(tokens) <= max_tokens:
+        if len(tokens) <= self.chunk_size:
             return [text]
 
         chunks = []
         start = 0
 
         while start < len(tokens):
-            end = min(start + max_tokens, len(tokens))
+            end = min(start + self.chunk_size, len(tokens))
             chunk_tokens = tokens[start:end]
             chunk_text = self._tokenizer.decode(chunk_tokens)
             chunks.append(chunk_text)
 
             # Move start with overlap
-            start = end - overlap if end < len(tokens) else len(tokens)
+            start = end - self.chunk_overlap if end < len(tokens) else len(tokens)
 
         return chunks
 

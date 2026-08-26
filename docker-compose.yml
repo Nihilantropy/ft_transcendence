@@ -266,22 +266,6 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-### PGADMIN (disabled — dev DB UI; re-enable and move creds out of this file before use) ###
-#  pgadmin:
-#    container_name: ft_transcendence_pgadmin
-#    image: dpage/pgadmin4:9.11.0
-#    ports:
-#      - "8080:80"
-#    environment:
-#      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-smartbreeds_user@email.com}
-#      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?set PGADMIN_PASSWORD in .env}
-#      PGADMIN_SERVER_JSON_FILE: "/pgadmin4/servers.json"
-#    volumes:
-#      - pgadmin-data:/var/lib/pgadmin
-#      - ./srcs/db/config/servers.json:/pgadmin4/servers.json:ro
-#    networks:
-#      - backend-network
-#    restart: on-failure
 ### API GATEWAY ###
   api-gateway:
     container_name: ft_transcendence_api_gateway
@@ -346,19 +330,13 @@ networks:
 
 ### VOLUMES ###
 volumes:
-  frontend-data:
-    driver: local
   db-data:
     driver: local
-#  pgadmin-data:   # re-enable with the pgadmin service
-#    driver: local
   redis-data:
     driver: local
   ollama:
     driver: local
   models:
-    driver: local
-  open-webui:
     driver: local
   ai-chroma-data:
     driver: local
