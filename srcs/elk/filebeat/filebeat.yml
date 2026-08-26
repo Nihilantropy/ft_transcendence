@@ -1,0 +1,21 @@
+filebeat.inputs:
+  - type: container
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    processors:
+      - add_docker_metadata:
+          host: "unix:///var/run/docker.sock"
+      # Drop the ELK stack's own logs to avoid an ingest feedback loop.
+      - drop_event:
+          when:
+            regexp:
+              container.name: "^ft_transcendence_(elasticsearch|logstash|kibana|filebeat|elk_setup)$"
+
+output.logstash:
+  hosts: ["logstash:5044"]
+  ssl.enabled: true
+  ssl.certificate_authorities: ["/usr/share/filebeat/certs/ca/ca.crt"]
+  ssl.verification_mode: "certificate"
+
+logging.level: info
+logging.to_stderr: true
