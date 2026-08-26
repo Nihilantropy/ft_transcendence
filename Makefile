@@ -9,20 +9,28 @@ PROJECT_NAME = ft_transcendence
 COMPOSE_PROFILES ?= cloud
 export COMPOSE_PROFILES
 
-# ft_transcendence service names
-TRANSCENDENCE_SERVICES = nginx frontend backend db
+# Elastic stack image tag, shared by elasticsearch/logstash/kibana/filebeat
+STACK_VERSION ?= 8.17.0
+export STACK_VERSION
 
-TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_frontend-data
+# Profiles torn down by down/downv/purge, regardless of which profile is
+# currently active — otherwise ELK/local-profile containers survive teardown.
+DOWN_PROFILES = local,cloud,elk
+
+# ft_transcendence service names
+TRANSCENDENCE_SERVICES = nginx litellm ollama ai-service classification-service auth-service user-service redis db api-gateway recommendation-service elasticsearch logstash kibana filebeat elk-setup
+
+TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache $(PROJECT_NAME)_es-data $(PROJECT_NAME)_elk-certs $(PROJECT_NAME)_elk-snapshots $(PROJECT_NAME)_filebeat-data
 
 TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
 
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage $(TEST_FLAGS)
+.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage elk elk-creds $(TEST_FLAGS)
 
 # Default target
-all: build up show logs
+all: build up elk show logs
 
 ## init: Init target for setting up environment and running tests
 init: build up migration seed superuser rag
@@ -95,12 +103,12 @@ start-%:
 ## down: Stop and remove containers
 down:
 	@echo "Stopping and removing ft_transcendence containers..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
+	@COMPOSE_PROFILES=$(DOWN_PROFILES) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 
 ## downv: Stop and remove containers and volumes
 downv:
 	@echo "Stopping and removing ft_transcendence containers and volumes..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v
+	@COMPOSE_PROFILES=$(DOWN_PROFILES) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v
 
 ## downv-%: Stop and remove specific service containers
 downv-%:
@@ -131,7 +139,7 @@ logs-%:
 purge:
 	@echo "Full cleanup of ft_transcendence resources..."
 	@echo "Stopping and removing containers..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v 2>/dev/null || true
+	@COMPOSE_PROFILES=$(DOWN_PROFILES) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v 2>/dev/null || true
 	@echo "Removing ft_transcendence containers..."
 	@for service in $(TRANSCENDENCE_SERVICES); do \
 		docker rm -f $(PROJECT_NAME)_$$service 2>/dev/null || true; \
@@ -187,6 +195,14 @@ superuser:
 test:
 	@echo "Running tests..."
 	@scripts/init-and-test.sh $(foreach a,$(wordlist 2,99,$(MAKECMDGOALS)),--$(a))
+
+## elk: Start the ELK logging stack (generates credentials on first run)
+elk:
+	@scripts/init-elk.sh
+
+## elk-creds: Reprint the ELK stack credentials
+elk-creds:
+	@scripts/init-elk.sh --creds-only
 
 ## test-integration: Run integration tests
 test-integration:

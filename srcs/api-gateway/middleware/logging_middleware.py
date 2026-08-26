@@ -2,6 +2,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 import time
+import json
 import logging
 from datetime import datetime
 
@@ -52,7 +53,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "timestamp": datetime.utcnow().isoformat()
         }
 
-        logger.info(str(log_data))
+        logger.info(json.dumps(log_data))
 
         # Add request ID to response headers
         response.headers["X-Request-ID"] = request_id

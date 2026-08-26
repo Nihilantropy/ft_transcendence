@@ -19,7 +19,7 @@ def health_check(request):
     return success_response({"status": "healthy"})
 
 
-class UserProfileViewSet(viewsets.ModelViewSet):
+class UserProfileViewSet(viewsets.GenericViewSet):
     """ViewSet for user profiles - only supports /me endpoint"""
     serializer_class = UserProfileSerializer
     permission_classes = [IsOwnerOrAdmin]

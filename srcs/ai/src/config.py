@@ -6,7 +6,6 @@ class Settings(BaseSettings):
 
     # Service
     SERVICE_NAME: str = "ai-service"
-    DEBUG: bool = False
     LOG_LEVEL: str = "info"
 
     # LLM inference (via LiteLLM proxy — OpenAI-compatible endpoint)
@@ -48,7 +47,6 @@ class Settings(BaseSettings):
 
     # RAG - Query
     RAG_TOP_K: int = 5
-    RAG_MIN_RELEVANCE: float = 0.3
 
     # RAG - Knowledge Base
     KNOWLEDGE_BASE_DIR: str = "./data/knowledge_base"
@@ -56,5 +54,3 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
-
-settings = Settings()

@@ -28,10 +28,6 @@ server {
     # Connection limits
     limit_conn addr 10;  # Max 10 connections per IP
 
-    # Log all HTTPS requests for debugging
-    access_log /var/log/nginx/https_access.log main;
-    error_log /var/log/nginx/https_error.log warn;
-
     # SSL configuration - Production ready
     ssl_certificate /etc/nginx/ssl/selfsigned.crt;
     ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
@@ -71,8 +67,6 @@ server {
 
     # ✅ API Gateway proxy (Microservices entry point)
     location /api {
-        access_log /var/log/nginx/api_access.log main;
-
         # Rate limiting for API
         limit_req zone=general_limit burst=20 nodelay;
         limit_req_status 429;
@@ -130,7 +124,6 @@ server {
 
     # Temporary root location - Returns API info (until frontend is implemented)
     location / {
-        access_log /var/log/nginx/root_access.log main;
         default_type application/json;
         return 200 '{"status":"ok","message":"SmartBreeds API Gateway","api_endpoint":"https://${HOST_DOMAIN}/api","documentation":"Use /api/* endpoints for backend services","note":"Frontend not yet implemented - use direct API calls"}';
     }
@@ -154,9 +147,6 @@ server {
 server {
     listen 80;
     server_name ${HOST_DOMAIN};
-
-    # Log all HTTP requests for debugging
-    access_log /var/log/nginx/http_access.log main;
 
     # Redirect all HTTP traffic to HTTPS on standard port 443
     return 301 https://$host$request_uri;

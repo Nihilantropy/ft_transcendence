@@ -44,13 +44,13 @@ make init          # build + up + migration + seed + superuser + rag (Makefile:2
 make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
 make test-integration  # recommendation-service tests/integration via docker exec
 make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
+make elk           # Start the ELK log management stack (generates credentials on first run)
+make elk-creds     # Reprint the ELK stack credentials without redeploying
 ```
 
 ⚠️ **`make clean` and `make fclean` do not exist.** Both names appear in `.PHONY` (`Makefile:22`) but
 no rule defines them, so make just prints `Nothing to be done for 'clean'` and does nothing. Use
-`make down` / `make downv` / `make purge`. Note `purge` still hardcodes the stale service list
-`nginx frontend backend db` (`Makefile:13`), so its per-name container/image removal is mostly a
-no-op — the real work is its `docker compose down -v`.
+`make down` / `make downv` / `make purge`.
 
 ### Compose Profiles (local vs cloud)
 
@@ -73,6 +73,19 @@ The `litellm` proxy runs in BOTH profiles. Switching backends is config-only: se
 model alias in `srcs/ai/.env` (`LLM_VISION_MODEL`/`LLM_TEXT_MODEL` → `*-cloud` for Mistral)
 and, for cloud, set `CLASSIFICATION_ENABLED=false` (the classification-service is off in
 `cloud`, so leaving it `true` yields 503s). Root config lives in `.env` (see `.env.example`).
+
+### Log Management (ELK)
+
+`make elk` starts Elasticsearch + Logstash + Kibana + Filebeat under a dedicated `elk` compose
+profile — `make up` never touches it, so the default dev loop stays light. It is fully
+zero-config: a one-shot `elk-setup` container generates TLS certs, per-component credentials
+(random, printed to the terminal and stored in the gitignored root `.env`), an ILM retention
+policy, an SLM archiving policy and a Kibana data view on first run. Filebeat ships every
+container's stdout/stderr automatically — no per-service wiring needed. Kibana is at
+`https://localhost:5601` (self-signed cert, same trust model as nginx). `make all` includes it;
+`make down`/`downv`/`purge` tear it down regardless of which profile is active. Full detail,
+including two non-obvious ordering bugs this stack will re-trigger if provisioning is ever
+reordered, is in `srcs/elk/README.md`.
 
 ### Development
 ```bash

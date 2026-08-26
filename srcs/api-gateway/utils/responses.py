@@ -15,15 +15,6 @@ class StandardResponse(BaseModel):
     error: Optional[ErrorDetail] = None
     timestamp: str = datetime.utcnow().isoformat()
 
-def success_response(data: Any) -> Dict[str, Any]:
-    """Create standardized success response"""
-    response = StandardResponse(
-        success=True,
-        data=data,
-        error=None
-    )
-    return response.model_dump()
-
 def error_response(
     code: str,
     message: str,

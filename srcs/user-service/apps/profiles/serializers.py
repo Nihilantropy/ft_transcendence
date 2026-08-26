@@ -2,6 +2,40 @@ from rest_framework import serializers
 from apps.profiles.models import UserProfile, Pet, PetAnalysis
 
 
+def validate_phone(value):
+    """Basic phone validation"""
+    if value and not value.replace('+', '').replace('-', '').replace(' ', '').isdigit():
+        raise serializers.ValidationError("Invalid phone number format")
+    return value
+
+
+def validate_address(value):
+    """Validate address structure if provided"""
+    if value:
+        # Accept both string and dict formats
+        if isinstance(value, dict):
+            allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
+            if not set(value.keys()).issubset(allowed_keys):
+                raise serializers.ValidationError("Invalid address fields")
+        elif not isinstance(value, str):
+            raise serializers.ValidationError("Address must be a string or object")
+    return value
+
+
+def validate_age(value):
+    """Age must be positive if provided"""
+    if value is not None and value < 0:
+        raise serializers.ValidationError("Age cannot be negative")
+    return value
+
+
+def validate_weight(value):
+    """Weight must be positive if provided"""
+    if value is not None and value <= 0:
+        raise serializers.ValidationError("Weight must be positive")
+    return value
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     """Serializer for user profile data"""
 
@@ -14,22 +48,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user_id', 'created_at', 'updated_at']
 
     def validate_phone(self, value):
-        """Basic phone validation"""
-        if value and not value.replace('+', '').replace('-', '').replace(' ', '').isdigit():
-            raise serializers.ValidationError("Invalid phone number format")
-        return value
+        return validate_phone(value)
 
     def validate_address(self, value):
-        """Validate address structure if provided"""
-        if value:
-            # Accept both string and dict formats
-            if isinstance(value, dict):
-                allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
-                if not set(value.keys()).issubset(allowed_keys):
-                    raise serializers.ValidationError("Invalid address fields")
-            elif not isinstance(value, str):
-                raise serializers.ValidationError("Address must be a string or object")
-        return value
+        return validate_address(value)
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
@@ -40,22 +62,10 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         fields = ['phone', 'address', 'preferences']
 
     def validate_phone(self, value):
-        """Basic phone validation"""
-        if value and not value.replace('+', '').replace('-', '').replace(' ', '').isdigit():
-            raise serializers.ValidationError("Invalid phone number format")
-        return value
+        return validate_phone(value)
 
     def validate_address(self, value):
-        """Validate address structure if provided"""
-        if value:
-            # Accept both string and dict formats
-            if isinstance(value, dict):
-                allowed_keys = {'street', 'city', 'state', 'zip', 'country'}
-                if not set(value.keys()).issubset(allowed_keys):
-                    raise serializers.ValidationError("Invalid address fields")
-            elif not isinstance(value, str):
-                raise serializers.ValidationError("Address must be a string or object")
-        return value
+        return validate_address(value)
 
 
 class PetSerializer(serializers.ModelSerializer):
@@ -71,16 +81,10 @@ class PetSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user_id', 'created_at', 'updated_at']
 
     def validate_age(self, value):
-        """Age must be positive if provided"""
-        if value is not None and value < 0:
-            raise serializers.ValidationError("Age cannot be negative")
-        return value
+        return validate_age(value)
 
     def validate_weight(self, value):
-        """Weight must be positive if provided"""
-        if value is not None and value <= 0:
-            raise serializers.ValidationError("Weight must be positive")
-        return value
+        return validate_weight(value)
 
     def validate_breed_confidence(self, value):
         """Confidence must be between 0 and 1"""
@@ -104,16 +108,10 @@ class PetCreateSerializer(serializers.ModelSerializer):
         }
     
     def validate_age(self, value):
-        """Age must be positive if provided"""
-        if value is not None and value < 0:
-            raise serializers.ValidationError("Age cannot be negative")
-        return value
+        return validate_age(value)
 
     def validate_weight(self, value):
-        """Weight must be positive if provided"""
-        if value is not None and value <= 0:
-            raise serializers.ValidationError("Weight must be positive")
-        return value
+        return validate_weight(value)
 
 
 class PetAnalysisSerializer(serializers.ModelSerializer):

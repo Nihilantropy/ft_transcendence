@@ -18,9 +18,7 @@ class Settings(BaseSettings):
     CAT_BREED_MODEL: str = "dima806/cat_breed_image_detection"
 
     # Classification Thresholds
-    NSFW_REJECTION_THRESHOLD: float = 0.70
-    SPECIES_MIN_CONFIDENCE: float = 0.60
-    BREED_MIN_CONFIDENCE: float = 0.40
+    NSFW_REJECTION_THRESHOLD: float = 0.70  # echoed in response payload, see routes/classify.py
 
     # Crossbreed Detection Thresholds
     CROSSBREED_PROBABILITY_THRESHOLD: float = 0.35
