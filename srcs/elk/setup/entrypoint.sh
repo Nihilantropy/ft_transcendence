@@ -58,6 +58,17 @@ else
   echo "[1/6] Certs already present, skipping"
 fi
 
+# Logstash's tcp input — unlike the beats input it replaced — rejects the
+# PKCS#1 key that elasticsearch-certutil emits ("BEGIN RSA PRIVATE KEY").
+# Convert once so the Vector -> Logstash hop can still be TLS.
+if [ ! -f "${CERTS_DIR}/logstash/logstash.pkcs8.key" ]; then
+  openssl pkcs8 -topk8 -nocrypt \
+    -in "${CERTS_DIR}/logstash/logstash.key" \
+    -out "${CERTS_DIR}/logstash/logstash.pkcs8.key"
+  chmod a+r "${CERTS_DIR}/logstash/logstash.pkcs8.key"
+  echo "✓ PKCS#8 key written for the Logstash tcp input"
+fi
+
 # Only now is every cert generated AND readable. The container healthcheck
 # gates on this marker, so Elasticsearch — which waits on
 # `elk-setup: condition: service_healthy` — cannot start before its own

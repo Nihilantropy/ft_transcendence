@@ -21,9 +21,9 @@ DOWN_PROFILES = local,cloud,elk
 # names. The two differ (service `api-gateway` runs as container
 # `ft_transcendence_api_gateway`, and `ollama` has no prefix at all), so deriving
 # one from the other silently matched nothing.
-TRANSCENDENCE_CONTAINERS = ft_transcendence_nginx ft_transcendence_litellm ollama ft_transcendence_ai_service ft_transcendence_classification_service ft_transcendence_auth_service ft_transcendence_user_service ft_transcendence_redis ft_transcendence_db ft_transcendence_api_gateway ft_transcendence_recommendation_service ft_transcendence_elk_setup ft_transcendence_elasticsearch ft_transcendence_logstash ft_transcendence_kibana ft_transcendence_filebeat
+TRANSCENDENCE_CONTAINERS = ft_transcendence_nginx ft_transcendence_litellm ollama ft_transcendence_ai_service ft_transcendence_classification_service ft_transcendence_auth_service ft_transcendence_user_service ft_transcendence_redis ft_transcendence_db ft_transcendence_api_gateway ft_transcendence_recommendation_service ft_transcendence_elk_setup ft_transcendence_elasticsearch ft_transcendence_logstash ft_transcendence_kibana ft_transcendence_vector
 
-TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache $(PROJECT_NAME)_es-data $(PROJECT_NAME)_elk-certs $(PROJECT_NAME)_elk-snapshots $(PROJECT_NAME)_filebeat-data
+TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache $(PROJECT_NAME)_es-data $(PROJECT_NAME)_elk-certs $(PROJECT_NAME)_elk-snapshots $(PROJECT_NAME)_vector-data
 
 # Compose prefixes each network in the `networks:` block with the project name.
 # The old value named a `transcendence_network` that this compose file has never

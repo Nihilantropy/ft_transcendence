@@ -466,21 +466,28 @@ services:
         max-size: "5m"
         max-file: "2"
 
-  filebeat:
-    container_name: ft_transcendence_filebeat
-    image: docker.elastic.co/beats/filebeat:${STACK_VERSION:-8.17.0}
+  # Replaces Filebeat, which read container logs from
+  # /var/lib/docker/containers/*/*.log on the host. That path only holds logs
+  # when the Docker daemon's data root is on the same filesystem — i.e. a
+  # native Linux Docker Engine. Under Docker Desktop (both dev machines here)
+  # the engine keeps them inside its own VM, the bind mount resolved to an
+  # empty directory, and Filebeat ran with zero harvesters: the stack shipped
+  # nothing at all. Vector reads the same logs through the Docker API instead,
+  # which works on Docker Desktop and native Docker alike, and leaves the
+  # json-file driver in place so `docker logs` / `make logs` keep working.
+  vector:
+    container_name: ft_transcendence_vector
+    image: timberio/vector:0.43.1-alpine
     profiles: ["elk"]
-    user: root
-    entrypoint: ["filebeat", "-e", "--strict.perms=false"]
+    user: "0"
     depends_on:
       logstash:
         condition: service_healthy
     mem_limit: 256m
     volumes:
-      - elk-certs:/usr/share/filebeat/certs:ro
-      - ./srcs/elk/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - filebeat-data:/usr/share/filebeat/data
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - elk-certs:/certs:ro
+      - ./srcs/elk/vector/vector.toml:/etc/vector/vector.toml:ro
+      - vector-data:/var/lib/vector
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - backend-network
@@ -513,5 +520,5 @@ volumes:
     driver: local
   elk-snapshots:
     driver: local
-  filebeat-data:
+  vector-data:
     driver: local
