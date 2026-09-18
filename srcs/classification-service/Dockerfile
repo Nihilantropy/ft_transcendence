@@ -11,13 +11,24 @@ WORKDIR /app
 # Copy and install requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Stable torch+torchvision with CUDA 12.8 — supports both Ada (sm_89) and
-# Blackwell (sm_120, RTX 5060 Ti). Replaces the fragile unpinned nightly, which
-# broke once torch/torchvision nightlies drifted out of sync on the index.
-RUN pip3 install \
-    torch==2.11.0+cu128 \
-    torchvision==0.26.0+cu128 \
-    --index-url https://download.pytorch.org/whl/cu128
+
+# Which PyTorch wheel index to build against. CPU by default: this service runs
+# in the default stack on machines with no GPU (including the evaluation
+# machine), and the code already falls back on its own —
+# src/main.py resolves DEVICE=auto to "cpu" when CUDA is absent. The CUDA wheels
+# would only add ~3 GB of libraries that go unused there.
+#
+# docker-compose.gpu.yml overrides this to `cu128` for developer machines with
+# an NVIDIA card: stable CUDA 12.8 wheels cover Ada (sm_89) and Blackwell
+# (sm_120, RTX 5060 Ti). The version pair is pinned and identical on both
+# indexes — only the index changes — and must stay matched (torch 2.11 <->
+# torchvision 0.26): the unpinned nightly this replaced broke once the two
+# drifted apart on the index.
+ARG TORCH_INDEX=cpu
+RUN pip3 install --no-cache-dir \
+    torch==2.11.0 \
+    torchvision==0.26.0 \
+    --index-url https://download.pytorch.org/whl/${TORCH_INDEX}
 
 # Copy application code
 COPY src/ ./src/
