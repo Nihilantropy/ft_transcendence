@@ -322,6 +322,14 @@ services:
       retries: 3
 
 ### ELK LOGGING STACK (log management — `elk` profile only) ###
+# The four ELK secrets below default to empty rather than using Compose's
+# `${VAR:?err}` required form. Compose interpolates the whole file on every
+# command, including for services whose profile is inactive, so `:?` made
+# `make build/up/down/test` and every `docker compose run --rm SERVICE pytest`
+# abort before `make elk` had ever generated the credentials. They are
+# validated where they are actually needed instead: scripts/init-elk.sh
+# generates them, and srcs/elk/setup/entrypoint.sh refuses to provision
+# without them.
   elk-setup:
     container_name: ft_transcendence_elk_setup
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-8.17.0}
@@ -329,9 +337,9 @@ services:
     user: "0"
     entrypoint: ["/bin/bash", "/setup/entrypoint.sh"]
     environment:
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?ELASTIC_PASSWORD is required — run make elk}
-      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:?KIBANA_SYSTEM_PASSWORD is required — run make elk}
-      - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:?LOGSTASH_WRITER_PASSWORD is required — run make elk}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-}
+      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:-}
+      - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:-}
     volumes:
       - elk-certs:/usr/share/elasticsearch/config/certs
       - elk-snapshots:/usr/share/elasticsearch/snapshots
@@ -341,7 +349,11 @@ services:
       - backend-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "test -f /usr/share/elasticsearch/config/certs/ca/ca.crt"]
+      # Gate on .certs-ready, NOT on ca.crt: the CA is written well before the
+      # per-node certs are generated and made readable, so testing for ca.crt
+      # let Elasticsearch start while its own cert/key did not yet exist.
+      # entrypoint.sh creates this marker only once every cert is in place.
+      test: ["CMD-SHELL", "test -f /usr/share/elasticsearch/config/certs/.certs-ready"]
       interval: 2s
       timeout: 5s
       retries: 60
@@ -358,7 +370,7 @@ services:
       - cluster.name=smartbreeds-logs
       - discovery.type=single-node
       - bootstrap.memory_lock=false
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?ELASTIC_PASSWORD is required — run make elk}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-}
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
       - xpack.security.http.ssl.key=certs/elasticsearch/elasticsearch.key
@@ -400,7 +412,7 @@ services:
       elasticsearch:
         condition: service_healthy
     environment:
-      - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:?LOGSTASH_WRITER_PASSWORD is required — run make elk}
+      - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:-}
       - LS_JAVA_OPTS=-Xms256m -Xmx256m
     mem_limit: 768m
     volumes:
@@ -430,8 +442,8 @@ services:
       elasticsearch:
         condition: service_healthy
     environment:
-      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:?KIBANA_SYSTEM_PASSWORD is required — run make elk}
-      - KIBANA_ENCRYPTION_KEY=${KIBANA_ENCRYPTION_KEY:?KIBANA_ENCRYPTION_KEY is required — run make elk}
+      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:-}
+      - KIBANA_ENCRYPTION_KEY=${KIBANA_ENCRYPTION_KEY:-}
       - NODE_OPTIONS=--max-old-space-size=512
     mem_limit: 768m
     ports:

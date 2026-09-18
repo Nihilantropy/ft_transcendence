@@ -87,9 +87,14 @@ while true; do
   if docker exec ft_transcendence_elk_setup test -f /usr/share/elasticsearch/config/certs/.setup-complete 2>/dev/null; then
     break
   fi
+  # elk-setup carries `restart: unless-stopped`, so a failed run rarely sits in
+  # "exited" — Docker restarts it and it reports "restarting" or "running"
+  # again. RestartCount is the reliable signal: the happy path ends in
+  # `sleep infinity` and never exits, so anything above 0 means the script died.
   status=$(docker inspect -f '{{.State.Status}}' ft_transcendence_elk_setup 2>/dev/null || echo "missing")
-  if [ "$status" = "exited" ]; then
-    echo -e "${RED}✗ elk-setup failed (exit $(docker inspect -f '{{.State.ExitCode}}' ft_transcendence_elk_setup))${NC}"
+  restarts=$(docker inspect -f '{{.RestartCount}}' ft_transcendence_elk_setup 2>/dev/null || echo 0)
+  if [ "$status" = "exited" ] || [ "$status" = "restarting" ] || [ "${restarts:-0}" -gt 0 ]; then
+    echo -e "${RED}✗ elk-setup failed (status: $status, restarts: $restarts, exit $(docker inspect -f '{{.State.ExitCode}}' ft_transcendence_elk_setup 2>/dev/null || echo '?'))${NC}"
     docker logs --tail 50 ft_transcendence_elk_setup 2>&1 || true
     exit 1
   fi

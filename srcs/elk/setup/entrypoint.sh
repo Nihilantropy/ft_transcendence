@@ -16,6 +16,13 @@ for v in ELASTIC_PASSWORD KIBANA_SYSTEM_PASSWORD LOGSTASH_WRITER_PASSWORD; do
   fi
 done
 
+# Clear the completion marker up front: it lives in the persistent elk-certs
+# volume, so a marker left by an earlier successful run would otherwise make
+# scripts/init-elk.sh declare "ELK Stack Ready" the instant this run starts —
+# even if this run goes on to fail, and even if it prints a password that no
+# longer works. The marker must only ever describe the current run.
+rm -f "${CERTS_DIR}/.setup-complete" 2>/dev/null || true
+
 # --- 1. CA + per-node certs -------------------------------------------------
 if [ ! -f "${CERTS_DIR}/ca/ca.crt" ]; then
   echo "[1/6] Generating CA..."
@@ -51,12 +58,19 @@ else
   echo "[1/6] Certs already present, skipping"
 fi
 
+# Only now is every cert generated AND readable. The container healthcheck
+# gates on this marker, so Elasticsearch — which waits on
+# `elk-setup: condition: service_healthy` — cannot start before its own
+# cert/key exist. Gating on ca.crt instead raced: the CA lands several
+# seconds and one certutil run before the node certs do.
+touch "${CERTS_DIR}/.certs-ready"
+
 # A fresh named volume is root-owned; Elasticsearch runs as a non-root user
 # and needs write access here for the snapshot repository. Cheap and
 # idempotent, so it just runs every time rather than being gated on state.
 chmod -R a+rwX /usr/share/elasticsearch/snapshots
 
-# From here on, the healthcheck (test -f ca.crt) is already green, so
+# From here on, the healthcheck (test -f .certs-ready) is already green, so
 # Elasticsearch is starting concurrently with the rest of this script.
 
 # --- 2. Wait for Elasticsearch ----------------------------------------------
@@ -89,9 +103,22 @@ put_es_json() {
 
 # --- 3. Built-in / custom users ---------------------------------------------
 echo "[3/6] Setting kibana_system password..."
+# Bounded: a stale es-data volume whose `elastic` password no longer matches
+# ELASTIC_PASSWORD answers 401 forever, and an unbounded loop here hung the
+# whole provisioning run silently.
+attempt=0
 until ${CURL_ES} -X POST "${ES_URL}/_security/user/kibana_system/_password" \
     -H 'Content-Type: application/json' \
     -d "{\"password\":\"${KIBANA_SYSTEM_PASSWORD}\"}" | grep -q '^{}'; do
+  attempt=$((attempt + 1))
+  if [ $attempt -ge $max_attempts ]; then
+    echo "✗ Could not set the kibana_system password."
+    echo "  The 'elastic' password is most likely out of sync with the es-data"
+    echo "  volume — that happens when the root .env was regenerated against an"
+    echo "  existing cluster. Either restore the old ELASTIC_PASSWORD, or wipe"
+    echo "  the stack with 'make downv' and run 'make elk' again."
+    exit 1
+  fi
   sleep 5
 done
 echo "✓ kibana_system password set"

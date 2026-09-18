@@ -23,7 +23,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True
+        case_sensitive=True,
+        # pydantic-settings defaults to extra="forbid", and a dotenv FILE (unlike
+        # the process environment, whose unknown names are ignored) is read key by
+        # key — so a single stale line in .env aborts startup. The Dockerfile's
+        # `COPY . .` bakes this service's .env into the image, and .env is
+        # gitignored, so every developer keeps their own copy: dropping a setting
+        # here would otherwise break each of them at the next build.
+        extra="ignore",
     )
 
     def load_jwt_public_key(self) -> str:

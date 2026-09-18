@@ -136,11 +136,19 @@ def test_rank_products_returns_correct_indices():
     """rank_products returns correct original indices."""
     engine = SimilarityEngine()
     pet = np.array([0.5] * 15)
-    product_zero = np.array([0.1] * 15)   # index 0 — lower similarity
-    product_one = np.array([0.5] * 15)    # index 1 — perfect match
+    # Cosine similarity compares direction, not magnitude, so [0.1]*15 is NOT a
+    # weaker match than [0.5]*15 — both are scalar multiples of `pet` and score
+    # exactly 1.0. Ranking them then came down to float noise and a stable sort.
+    # Index 0 has to differ in *direction* to genuinely rank lower.
+    product_zero = np.array([0.5] * 7 + [0.0] * 8)  # index 0 — partial overlap
+    product_one = np.array([0.5] * 15)              # index 1 — perfect match
 
     results = engine.rank_products(pet, [product_zero, product_one])
 
+    # Both stay above the threshold, so the original indices survive ranking.
+    assert len(results) == 2
     indices = [r[0] for r in results]
     # Product at index 1 is the better match, should appear first
     assert indices[0] == 1
+    assert indices[1] == 0
+    assert results[0][1] > results[1][1]

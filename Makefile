@@ -17,12 +17,18 @@ export STACK_VERSION
 # currently active — otherwise ELK/local-profile containers survive teardown.
 DOWN_PROFILES = local,cloud,elk
 
-# ft_transcendence service names
-TRANSCENDENCE_SERVICES = nginx litellm ollama ai-service classification-service auth-service user-service redis db api-gateway recommendation-service elasticsearch logstash kibana filebeat elk-setup
+# Actual container_name values from docker-compose.yml — NOT the compose service
+# names. The two differ (service `api-gateway` runs as container
+# `ft_transcendence_api_gateway`, and `ollama` has no prefix at all), so deriving
+# one from the other silently matched nothing.
+TRANSCENDENCE_CONTAINERS = ft_transcendence_nginx ft_transcendence_litellm ollama ft_transcendence_ai_service ft_transcendence_classification_service ft_transcendence_auth_service ft_transcendence_user_service ft_transcendence_redis ft_transcendence_db ft_transcendence_api_gateway ft_transcendence_recommendation_service ft_transcendence_elk_setup ft_transcendence_elasticsearch ft_transcendence_logstash ft_transcendence_kibana ft_transcendence_filebeat
 
 TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache $(PROJECT_NAME)_es-data $(PROJECT_NAME)_elk-certs $(PROJECT_NAME)_elk-snapshots $(PROJECT_NAME)_filebeat-data
 
-TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_transcendence_network
+# Compose prefixes each network in the `networks:` block with the project name.
+# The old value named a `transcendence_network` that this compose file has never
+# declared, so the removal loop was a no-op.
+TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
@@ -138,16 +144,17 @@ logs-%:
 ## purge: Full cleanup of containers, images, volumes, networks
 purge:
 	@echo "Full cleanup of ft_transcendence resources..."
-	@echo "Stopping and removing containers..."
-	@COMPOSE_PROFILES=$(DOWN_PROFILES) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v 2>/dev/null || true
-	@echo "Removing ft_transcendence containers..."
-	@for service in $(TRANSCENDENCE_SERVICES); do \
-		docker rm -f $(PROJECT_NAME)_$$service 2>/dev/null || true; \
-	done
-	@echo "Removing ft_transcendence images..."
-	@for service in $(TRANSCENDENCE_SERVICES); do \
-		docker rmi -f $(PROJECT_NAME)_$$service 2>/dev/null || true; \
-		docker rmi -f $$service 2>/dev/null || true; \
+	@echo "Stopping and removing containers, volumes and locally built images..."
+	@# --rmi local removes exactly the images compose built for this project,
+	@# whatever they are tagged. The previous loop guessed tag names (and got
+	@# them wrong), then fell back to `docker rmi -f $$service` on bare names
+	@# like `redis` and `nginx` — which deleted the host's unrelated
+	@# redis:latest / nginx:latest. Errors are no longer sent to /dev/null:
+	@# hiding them is what let a failed teardown look like a successful one.
+	@COMPOSE_PROFILES=$(DOWN_PROFILES) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v --rmi local --remove-orphans || true
+	@echo "Removing any leftover ft_transcendence containers..."
+	@for container in $(TRANSCENDENCE_CONTAINERS); do \
+		docker rm -f $$container 2>/dev/null || true; \
 	done
 	@echo "Removing ft_transcendence volumes..."
 	@for volume in $(TRANSCENDENCE_VOLUMES); do \
