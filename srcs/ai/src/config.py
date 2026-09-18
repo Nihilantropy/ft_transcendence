@@ -54,3 +54,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        # pydantic-settings defaults to extra="forbid", and a dotenv FILE is read
+        # key by key (unlike the process environment, whose unknown names are
+        # ignored), so one stale line in .env aborts startup. Inside Docker this
+        # stays hidden — the image carries no .env and compose injects config as
+        # environment variables — but it bites the moment pytest is run from this
+        # directory on the host. .env is gitignored, so removing a setting here
+        # must not break a checkout that still lists it.
+        extra = "ignore"

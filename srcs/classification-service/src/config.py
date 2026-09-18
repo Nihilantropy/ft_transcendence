@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        # See srcs/ai/src/config.py for the full reasoning: a dotenv file is read
+        # key by key and pydantic-settings forbids unknown keys by default, so a
+        # setting removed here would crash any checkout whose gitignored .env
+        # still lists it. This service's .env still carries the dead
+        # SPECIES_MIN_CONFIDENCE / BREED_MIN_CONFIDENCE pair.
+        extra = "ignore"
 
 
 settings = Settings()

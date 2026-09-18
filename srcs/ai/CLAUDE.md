@@ -11,7 +11,7 @@ there is no direct Ollama call anywhere in this codebase, despite the file and t
 ## Essential Commands
 
 ```bash
-# tests (104). run --rm is fine: everything is mocked, no cross-service hostname needed.
+# tests (98). run --rm is fine: everything is mocked, no cross-service hostname needed.
 docker compose run --rm ai-service python -m pytest tests/ -v
 docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py -v
 docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=term  # pytest-cov is in the image
@@ -51,7 +51,7 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 | `src/utils/logger.py` | JSON log formatter, mutes uvicorn/fastapi/httpx to WARNING |
 | `data/knowledge_base/spiecies/` | 34 markdown docs (dogs/cats × purebreeds/crossbreeds/health). Mounted read-only. Directory name misspelled on purpose-by-accident — do not rename |
 | `data/chroma/` | ChromaDB persistence mount point (`ai-chroma-data` volume) |
-| `tests/` | 104 unit tests, no conftest.py |
+| `tests/` | 98 unit tests, no conftest.py |
 
 ## Request / Data Flow
 

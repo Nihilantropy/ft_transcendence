@@ -137,7 +137,7 @@ docker compose run --rm auth-service python -m pytest tests/ -v
 # User Service tests (91 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# AI Service tests (104 tests total)
+# AI Service tests (98 tests total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
@@ -263,7 +263,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 104 passing tests]
+**AI Service (FastAPI - internal port 3003):** [Complete - 98 passing tests]
 - Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
 - LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
@@ -656,7 +656,7 @@ total; do not trust them.
 - API Gateway (FastAPI) with full middleware stack - 33 passing tests
 - Auth Service (Django) with authentication endpoints - 102 passing tests
 - User Service (Django) with profile and pet management - 91 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 104 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 98 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
 - Crossbreed detection with intelligent thresholding

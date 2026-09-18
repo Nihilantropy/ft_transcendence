@@ -78,22 +78,26 @@ docker compose -f docker-compose.yml up -d elasticsearch logstash kibana filebea
 
 echo -e "${YELLOW}[2/3] Waiting for provisioning (elk-setup) to finish...${NC}"
 # elk-setup stays running after it finishes (see srcs/elk/setup/entrypoint.sh
-# for why), so "done" is a marker file, not the container exiting. A real
-# failure still makes the container exit non-zero (`set -e`), so that's
-# checked on every iteration too.
+# for why), so "done" is a marker file, not the container exiting.
+#
+# Detecting failure is the subtle part. The container carries
+# `restart: unless-stopped`, so a crashed run is restarted by Docker and shows
+# as "restarting" or "running" again rather than "exited" — waiting for
+# "exited" meant sitting out the full timeout instead of reporting the error.
+# RestartCount is the reliable signal, but it is cumulative, so we compare
+# against a baseline taken now: only a NEW restart means this run died, and a
+# re-run over a container that failed previously is not misreported.
+baseline_restarts=$(docker inspect -f '{{.RestartCount}}' ft_transcendence_elk_setup 2>/dev/null || echo 0)
 max_attempts=200
 attempt=0
 while true; do
   if docker exec ft_transcendence_elk_setup test -f /usr/share/elasticsearch/config/certs/.setup-complete 2>/dev/null; then
     break
   fi
-  # elk-setup carries `restart: unless-stopped`, so a failed run rarely sits in
-  # "exited" — Docker restarts it and it reports "restarting" or "running"
-  # again. RestartCount is the reliable signal: the happy path ends in
-  # `sleep infinity` and never exits, so anything above 0 means the script died.
   status=$(docker inspect -f '{{.State.Status}}' ft_transcendence_elk_setup 2>/dev/null || echo "missing")
   restarts=$(docker inspect -f '{{.RestartCount}}' ft_transcendence_elk_setup 2>/dev/null || echo 0)
-  if [ "$status" = "exited" ] || [ "$status" = "restarting" ] || [ "${restarts:-0}" -gt 0 ]; then
+  if [ "$status" = "exited" ] || [ "$status" = "restarting" ] \
+     || [ "${restarts:-0}" -gt "${baseline_restarts:-0}" ]; then
     echo -e "${RED}✗ elk-setup failed (status: $status, restarts: $restarts, exit $(docker inspect -f '{{.State.ExitCode}}' ft_transcendence_elk_setup 2>/dev/null || echo '?'))${NC}"
     docker logs --tail 50 ft_transcendence_elk_setup 2>&1 || true
     exit 1
