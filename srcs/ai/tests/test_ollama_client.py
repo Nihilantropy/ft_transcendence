@@ -92,6 +92,50 @@ def test_parse_response_invalid_json_raises(client):
         client._parse_response("this is definitely not json")
 
 
+# The cases below reproduce what the hosted free-tier models actually emit.
+# A real call through the full stack failed with
+#   "Invalid control character at: line 2 column 19 (char 20)"
+# because ministral put a literal newline inside a JSON string value — which the
+# default strict json parser rejects, even though the intent is unambiguous.
+
+def test_parse_response_tolerates_literal_newline_inside_string(client):
+    # A real newline character inside the string value, not the two chars "\n".
+    content = '{"description": "A friendly dog.\nLoves to play.", "traits": ["loyal"]}'
+    result = client._parse_response(content)
+    assert result["description"] == "A friendly dog.\nLoves to play."
+    assert result["traits"] == ["loyal"]
+
+
+def test_parse_response_tolerates_control_chars_inside_fenced_block(client):
+    # The exact shape of the failure seen end to end: fenced, with a raw newline.
+    content = '```json\n{\n  "description": "Golden coat.\nGentle temperament."\n}\n```'
+    result = client._parse_response(content)
+    assert result["description"] == "Golden coat.\nGentle temperament."
+
+
+def test_parse_response_malformed_fenced_json_raises_runtime_error_not_value_error(client):
+    # A genuinely broken model response is a service fault. It used to leak the
+    # fenced block's json.JSONDecodeError, which IS a ValueError — and
+    # routes/vision.py maps ValueError to 422, blaming the user's image for the
+    # model's output. It must surface as RuntimeError (-> 500) instead.
+    content = '```json\n{"description": "unterminated\n```'
+    with pytest.raises(RuntimeError, match="Failed to parse") as exc_info:
+        client._parse_response(content)
+    assert not isinstance(exc_info.value, ValueError)
+
+
+def test_parse_response_plain_fence_without_language_tag(client):
+    content = '```\n{"breed": "Poodle", "confidence": 0.9}\n```'
+    result = client._parse_response(content)
+    assert result["breed"] == "Poodle"
+
+
+def test_parse_response_json_wrapped_in_prose(client):
+    content = 'Here is the analysis:\n{"breed": "Beagle", "confidence": 0.8}\nHope this helps!'
+    result = client._parse_response(content)
+    assert result["breed"] == "Beagle"
+
+
 # --- _process_crossbreed_result ---
 
 def test_process_crossbreed_result_empty_probs_returns_fallback(client):

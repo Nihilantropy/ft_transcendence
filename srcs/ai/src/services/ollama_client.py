@@ -1,6 +1,7 @@
 import httpx
 import json
 import logging
+import re
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -135,31 +136,48 @@ Return ONLY valid JSON with the TOP {top_n} most likely breeds:
 Probabilities should sum to approximately 1.0."""
 
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse JSON from model response.
+        """Parse the JSON object out of a model response.
+
+        Candidates are tried in order: the whole text, then a fenced
+        ```json / ``` block, then the outermost {...} span — covering the
+        three shapes models actually return (bare, fenced, wrapped in prose).
+
+        Parsed with strict=False. Models, and the small hosted ones in
+        particular, routinely put literal newlines or tabs inside JSON string
+        values. The default strict parser rejects those ("Invalid control
+        character"), even though the intent is unambiguous; that exact error
+        took down every vision request once the cloud models were switched to
+        ministral.
 
         Args:
-            response_text: Raw response text from Ollama
+            response_text: Raw response text from the model
 
         Returns:
             Parsed JSON dict
 
         Raises:
-            RuntimeError: If JSON cannot be parsed (service error, not user input error)
+            RuntimeError: If no candidate parses. Every failure path raises this
+                and never json.JSONDecodeError: that is a ValueError, and
+                routes/vision.py maps ValueError to 422 — which would blame the
+                user's image for a malformed model response. This is a service
+                fault, and must surface as one.
         """
-        try:
-            # Try direct JSON parse
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            # Extract JSON from markdown code blocks if present
-            if "```json" in response_text:
-                start = response_text.find("```json") + 7
-                end = response_text.find("```", start)
-                if end > start:
-                    json_str = response_text[start:end].strip()
-                    return json.loads(json_str)
+        candidates = [response_text]
+        fence = re.search(r"```(?:json)?\s*(.*?)```", response_text, re.DOTALL)
+        if fence:
+            candidates.append(fence.group(1))
+        start, end = response_text.find("{"), response_text.rfind("}")
+        if 0 <= start < end:
+            candidates.append(response_text[start:end + 1])
 
-            logger.error(f"Failed to parse response: {response_text[:200]}")
-            raise RuntimeError("Failed to parse JSON from response")
+        for candidate in candidates:
+            try:
+                return json.loads(candidate.strip(), strict=False)
+            except json.JSONDecodeError:
+                continue
+
+        logger.error(f"Failed to parse response: {response_text[:200]}")
+        raise RuntimeError("Failed to parse JSON from response")
 
     def _process_crossbreed_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """Process crossbreed detection result and add breed_analysis.
