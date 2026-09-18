@@ -3,7 +3,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """Application configuration from environment variables."""
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    # extra="ignore": pydantic-settings defaults to forbidding unknown keys, and
+    # a dotenv file is read key by key, so one leftover line in .env aborts
+    # startup. The whole service directory is bind-mounted at /app, so the
+    # developer's own gitignored .env is what gets read — removing a setting here
+    # must not break their checkout.
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
     DATABASE_URL: str
     USER_SERVICE_URL: str
@@ -11,7 +16,6 @@ class Settings(BaseSettings):
     WEIGHT_AGE_COMPATIBILITY: float = 0.20
     WEIGHT_NUTRITIONAL_PROFILE: float = 0.20
     WEIGHT_SIZE_COMPATIBILITY: float = 0.10
-    WEIGHT_INGREDIENT_PREFERENCES: float = 0.10
     MIN_SIMILARITY_THRESHOLD: float = 0.3
     DEFAULT_RECOMMENDATION_LIMIT: int = 10
     MAX_RECOMMENDATION_LIMIT: int = 50

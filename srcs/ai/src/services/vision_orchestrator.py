@@ -147,7 +147,7 @@ class VisionOrchestrator:
             "(no NSFW filter, LLM-based species/breed detection)"
         )
 
-        vlm = await self.ollama.analyze_breed(image, detect_crossbreed=True, top_n_breeds=2)
+        vlm = await self.ollama.analyze_breed(image, top_n_breeds=2)
         breed_analysis = vlm["breed_analysis"]
         species = vlm.get("species", "dog")
 

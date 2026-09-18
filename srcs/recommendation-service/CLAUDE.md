@@ -16,13 +16,13 @@ The only outbound calls are user-service (HTTP) and PostgreSQL (asyncpg).
 docker compose build recommendation-service        # only needed after requirements.txt changes
 docker compose restart recommendation-service      # needed after ANY src/ or config change
 
-# Unit tests: 48. `run --rm` works, container need not be running.
+# Unit tests: 47. `run --rm` works, container need not be running.
 docker compose run --rm recommendation-service python -m pytest tests/unit/ -v
 
 # Integration tests: 23. MUST be docker exec — they resolve `api-gateway` by hostname.
 docker exec ft_transcendence_recommendation_service python -m pytest tests/integration/ -v
 
-# All 71
+# All 70
 docker exec ft_transcendence_recommendation_service python -m pytest tests/ -v
 
 # Coverage (pytest-cov is in requirements.txt; target is `src`, not `.`)
@@ -66,7 +66,7 @@ make migration
 | `scripts/products.yaml` | 23 seed products (8 dog, 15 cat). Edit here, not in Python. |
 | `scripts/seed_products.py` | YAML → `Product` rows. Idempotent unless `--force`. |
 | `scripts/validate_env.py` | Asserts DB reachable + `recommendation_schema` + 3 tables. |
-| `tests/unit/` | 48 tests, fully mocked. |
+| `tests/unit/` | 47 tests, fully mocked. |
 | `tests/integration/` | 23 tests through the real API Gateway + real DB. |
 
 ## Request / Data Flow

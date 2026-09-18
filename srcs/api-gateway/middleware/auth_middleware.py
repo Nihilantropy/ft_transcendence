@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 from auth.jwt_utils import decode_jwt, JWTValidationError, extract_user_context
-from datetime import datetime
+from utils.responses import error_response
 import uuid
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
@@ -72,14 +72,5 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         """Return standardized 401 error response"""
         return JSONResponse(
             status_code=401,
-            content={
-                "success": False,
-                "data": None,
-                "error": {
-                    "code": "UNAUTHORIZED",
-                    "message": message,
-                    "details": {}
-                },
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            content=error_response("UNAUTHORIZED", message)
         )

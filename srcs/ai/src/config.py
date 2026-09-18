@@ -6,7 +6,6 @@ class Settings(BaseSettings):
 
     # Service
     SERVICE_NAME: str = "ai-service"
-    DEBUG: bool = False
     LOG_LEVEL: str = "info"
 
     # LLM inference (via LiteLLM proxy — OpenAI-compatible endpoint)
@@ -48,7 +47,6 @@ class Settings(BaseSettings):
 
     # RAG - Query
     RAG_TOP_K: int = 5
-    RAG_MIN_RELEVANCE: float = 0.3
 
     # RAG - Knowledge Base
     KNOWLEDGE_BASE_DIR: str = "./data/knowledge_base"
@@ -56,5 +54,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
-
-settings = Settings()
+        # pydantic-settings defaults to extra="forbid", and a dotenv FILE is read
+        # key by key (unlike the process environment, whose unknown names are
+        # ignored), so one stale line in .env aborts startup. Inside Docker this
+        # stays hidden — the image carries no .env and compose injects config as
+        # environment variables — but it bites the moment pytest is run from this
+        # directory on the host. .env is gitignored, so removing a setting here
+        # must not break a checkout that still lists it.
+        extra = "ignore"

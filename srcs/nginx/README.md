@@ -126,7 +126,6 @@ a literal nginx variable.
 | `conf.d/default.conf.template` | `/etc/nginx/conf.d/default.conf.template` | `Dockerfile:23`; rendered to `default.conf` at start |
 | `error_pages/` | `/usr/share/nginx/html/error_pages/` | `Dockerfile:24` — `50x.html`, `429.html`, `404.html` |
 | `docker-entrypoint.sh` | `/docker-entrypoint.sh` (ENTRYPOINT) | `Dockerfile:27-28,34` |
-| `logrotate.conf` | **not copied** | No `COPY` for it in the `Dockerfile`; it is not installed in the image |
 | `ssl/` | **not copied** | Certificates are generated at runtime instead |
 
 `error_pages/404.html` is shipped but no `error_page 404` directive references it.
@@ -146,21 +145,12 @@ Image facts (`Dockerfile`):
 
 ## Logging
 
-`log_format main` (`nginx.conf:23-26`) includes `rt=$request_time`, `up="$upstream_addr"`,
-`urt="$upstream_response_time"` — useful for separating nginx latency from gateway latency.
-
-| File | Written by |
-|------|-----------|
-| `/var/log/nginx/error.log` (level `warn`) | `nginx.conf:9` |
-| `/var/log/nginx/access.log` | `nginx.conf:28` |
-| `/var/log/nginx/https_access.log`, `https_error.log` | 443 server block — `conf.d/default.conf.template:32-33` |
-| `/var/log/nginx/api_access.log` | `location /api` — `:74` |
-| `/var/log/nginx/root_access.log` | `location /` — `:133` |
-| `/var/log/nginx/http_access.log` | 80 server block — `:159` |
-
-No volume is mounted at `/var/log/nginx` (`docker-compose.yml:3-23`), so these files live only
-inside the container and are lost when it is removed. `logrotate.conf` (daily, keep 14, compress,
-`USR1` to the pid file) documents the intended rotation policy but is not installed in the image.
+`log_format main` (`nginx.conf:23-36`) emits one JSON object per access line (`escape=json`), with
+`request_time`, `upstream_addr` and `upstream_response_time` fields for separating nginx latency
+from gateway latency. Both `access_log` and `error_log` go to `/dev/stdout` / `stderr`
+(`nginx.conf:9,39`), the same as every other service — no per-vhost files, no log volume. This
+also means the container's logs are picked up by the ELK stack (`make elk`) with no grok pattern
+needed on the nginx side.
 
 ## Running
 

@@ -266,22 +266,6 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-### PGADMIN (disabled — dev DB UI; re-enable and move creds out of this file before use) ###
-#  pgadmin:
-#    container_name: ft_transcendence_pgadmin
-#    image: dpage/pgadmin4:9.11.0
-#    ports:
-#      - "8080:80"
-#    environment:
-#      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-smartbreeds_user@email.com}
-#      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?set PGADMIN_PASSWORD in .env}
-#      PGADMIN_SERVER_JSON_FILE: "/pgadmin4/servers.json"
-#    volumes:
-#      - pgadmin-data:/var/lib/pgadmin
-#      - ./srcs/db/config/servers.json:/pgadmin4/servers.json:ro
-#    networks:
-#      - backend-network
-#    restart: on-failure
 ### API GATEWAY ###
   api-gateway:
     container_name: ft_transcendence_api_gateway
@@ -337,6 +321,182 @@ services:
       timeout: 10s
       retries: 3
 
+### ELK LOGGING STACK (log management — `elk` profile only) ###
+# The four ELK secrets below default to empty rather than using Compose's
+# `${VAR:?err}` required form. Compose interpolates the whole file on every
+# command, including for services whose profile is inactive, so `:?` made
+# `make build/up/down/test` and every `docker compose run --rm SERVICE pytest`
+# abort before `make elk` had ever generated the credentials. They are
+# validated where they are actually needed instead: scripts/init-elk.sh
+# generates them, and srcs/elk/setup/entrypoint.sh refuses to provision
+# without them.
+  elk-setup:
+    container_name: ft_transcendence_elk_setup
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-8.17.0}
+    profiles: ["elk"]
+    user: "0"
+    entrypoint: ["/bin/bash", "/setup/entrypoint.sh"]
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-}
+      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:-}
+      - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:-}
+    volumes:
+      - elk-certs:/usr/share/elasticsearch/config/certs
+      - elk-snapshots:/usr/share/elasticsearch/snapshots
+      - ./srcs/elk/setup:/setup:ro
+      - ./srcs/elk/kibana:/kibana:ro
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      # Gate on .certs-ready, NOT on ca.crt: the CA is written well before the
+      # per-node certs are generated and made readable, so testing for ca.crt
+      # let Elasticsearch start while its own cert/key did not yet exist.
+      # entrypoint.sh creates this marker only once every cert is in place.
+      test: ["CMD-SHELL", "test -f /usr/share/elasticsearch/config/certs/.certs-ready"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  elasticsearch:
+    container_name: ft_transcendence_elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-8.17.0}
+    profiles: ["elk"]
+    depends_on:
+      elk-setup:
+        condition: service_healthy
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=smartbreeds-logs
+      - discovery.type=single-node
+      - bootstrap.memory_lock=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/elasticsearch/elasticsearch.key
+      - xpack.security.http.ssl.certificate=certs/elasticsearch/elasticsearch.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/elasticsearch/elasticsearch.key
+      - xpack.security.transport.ssl.certificate=certs/elasticsearch/elasticsearch.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.license.self_generated.type=basic
+      - path.repo=/usr/share/elasticsearch/snapshots
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    mem_limit: 1g
+    volumes:
+      - elk-certs:/usr/share/elasticsearch/config/certs
+      - es-data:/usr/share/elasticsearch/data
+      - elk-snapshots:/usr/share/elasticsearch/snapshots
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --cacert config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'"]
+      interval: 10s
+      timeout: 10s
+      retries: 90
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  logstash:
+    container_name: ft_transcendence_logstash
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION:-8.17.0}
+    profiles: ["elk"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:-}
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+    mem_limit: 768m
+    volumes:
+      - elk-certs:/usr/share/logstash/config/certs:ro
+      - ./srcs/elk/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./srcs/elk/logstash/pipeline.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9600 >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  kibana:
+    container_name: ft_transcendence_kibana
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION:-8.17.0}
+    profiles: ["elk"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:-}
+      - KIBANA_ENCRYPTION_KEY=${KIBANA_ENCRYPTION_KEY:-}
+      - NODE_OPTIONS=--max-old-space-size=512
+    mem_limit: 768m
+    ports:
+      - "5601:5601"
+    volumes:
+      - elk-certs:/usr/share/kibana/config/certs:ro
+      - ./srcs/elk/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -s -o /dev/null -w '%{http_code}' https://localhost:5601/api/status | grep -q 200"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Replaces Filebeat, which read container logs from
+  # /var/lib/docker/containers/*/*.log on the host. That path only holds logs
+  # when the Docker daemon's data root is on the same filesystem — i.e. a
+  # native Linux Docker Engine. Under Docker Desktop (both dev machines here)
+  # the engine keeps them inside its own VM, the bind mount resolved to an
+  # empty directory, and Filebeat ran with zero harvesters: the stack shipped
+  # nothing at all. Vector reads the same logs through the Docker API instead,
+  # which works on Docker Desktop and native Docker alike, and leaves the
+  # json-file driver in place so `docker logs` / `make logs` keep working.
+  vector:
+    container_name: ft_transcendence_vector
+    image: timberio/vector:0.43.1-alpine
+    profiles: ["elk"]
+    user: "0"
+    # Explicit: the image's default config path is /etc/vector/vector.yaml, so a
+    # mounted vector.toml is ignored and Vector silently runs its bundled demo
+    # pipeline instead — which looks like it is working until you read the logs.
+    command: ["--config", "/etc/vector/vector.toml"]
+    depends_on:
+      logstash:
+        condition: service_healthy
+    mem_limit: 256m
+    volumes:
+      - elk-certs:/certs:ro
+      - ./srcs/elk/vector/vector.toml:/etc/vector/vector.toml:ro
+      - vector-data:/var/lib/vector
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - backend-network
+    restart: unless-stopped
+
 ### NETWORKS ###
 networks:
   proxy:
@@ -346,21 +506,23 @@ networks:
 
 ### VOLUMES ###
 volumes:
-  frontend-data:
-    driver: local
   db-data:
     driver: local
-#  pgadmin-data:   # re-enable with the pgadmin service
-#    driver: local
   redis-data:
     driver: local
   ollama:
     driver: local
   models:
     driver: local
-  open-webui:
-    driver: local
   ai-chroma-data:
     driver: local
   huggingface-cache:
+    driver: local
+  es-data:
+    driver: local
+  elk-certs:
+    driver: local
+  elk-snapshots:
+    driver: local
+  vector-data:
     driver: local

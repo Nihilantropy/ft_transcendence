@@ -18,9 +18,7 @@ class Settings(BaseSettings):
     CAT_BREED_MODEL: str = "dima806/cat_breed_image_detection"
 
     # Classification Thresholds
-    NSFW_REJECTION_THRESHOLD: float = 0.70
-    SPECIES_MIN_CONFIDENCE: float = 0.60
-    BREED_MIN_CONFIDENCE: float = 0.40
+    NSFW_REJECTION_THRESHOLD: float = 0.70  # echoed in response payload, see routes/classify.py
 
     # Crossbreed Detection Thresholds
     CROSSBREED_PROBABILITY_THRESHOLD: float = 0.35
@@ -35,6 +33,12 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        # See srcs/ai/src/config.py for the full reasoning: a dotenv file is read
+        # key by key and pydantic-settings forbids unknown keys by default, so a
+        # setting removed here would crash any checkout whose gitignored .env
+        # still lists it. This service's .env still carries the dead
+        # SPECIES_MIN_CONFIDENCE / BREED_MIN_CONFIDENCE pair.
+        extra = "ignore"
 
 
 settings = Settings()

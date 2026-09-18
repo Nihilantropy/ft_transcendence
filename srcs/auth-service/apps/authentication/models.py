@@ -104,12 +104,3 @@ class RefreshToken(models.Model):
 
     def __str__(self):
         return f"RefreshToken for {self.user.email}"
-
-    def is_valid(self):
-        """Check if token is valid (not revoked and not expired)"""
-        return not self.is_revoked and self.expires_at > timezone.now()
-
-    def revoke(self):
-        """Revoke this token"""
-        self.is_revoked = True
-        self.save(update_fields=['is_revoked'])

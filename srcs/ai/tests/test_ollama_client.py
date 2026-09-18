@@ -33,42 +33,13 @@ def _make_mock_http_client(response_content: str):
 # --- analyze_breed ---
 
 @pytest.mark.asyncio
-async def test_analyze_breed_standard_success(client):
-    content = '{"breed": "Golden Retriever", "confidence": 0.85, "traits": {"size": "large", "energy_level": "high", "temperament": "friendly"}, "health_considerations": ["hip dysplasia"]}'
-    mock_http = _make_mock_http_client(content)
-    with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
-        result = await client.analyze_breed("/9j/test", detect_crossbreed=False)
-    assert result["breed"] == "Golden Retriever"
-    assert result["confidence"] == 0.85
-
-
-@pytest.mark.asyncio
 async def test_analyze_breed_strips_data_uri_prefix(client):
-    content = '{"breed": "Poodle", "confidence": 0.90, "traits": {"size": "medium", "energy_level": "high", "temperament": "intelligent"}, "health_considerations": []}'
+    content = '{"breed_probabilities": [{"breed": "Poodle", "probability": 0.90}], "traits": {"size": "medium", "energy_level": "high", "temperament": "intelligent"}, "health_considerations": []}'
     mock_http = _make_mock_http_client(content)
     with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
-        await client.analyze_breed("data:image/jpeg;base64,/9j/test", detect_crossbreed=False)
+        await client.analyze_breed("data:image/jpeg;base64,/9j/test")
     content = mock_http.post.call_args[1]["json"]["messages"][0]["content"]
     assert content[1]["image_url"]["url"] == "data:image/jpeg;base64,/9j/test"
-
-
-@pytest.mark.asyncio
-async def test_analyze_breed_low_confidence_adds_note(client):
-    content = '{"breed": "Unknown", "confidence": 0.25, "traits": {"size": "medium", "energy_level": "low", "temperament": "calm"}, "health_considerations": []}'
-    mock_http = _make_mock_http_client(content)
-    with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
-        result = await client.analyze_breed("/9j/test", detect_crossbreed=False)
-    assert "note" in result
-    assert "Low confidence" in result["note"]
-
-
-@pytest.mark.asyncio
-async def test_analyze_breed_high_confidence_no_note(client):
-    content = '{"breed": "Labrador Retriever", "confidence": 0.95, "traits": {"size": "large", "energy_level": "high", "temperament": "playful"}, "health_considerations": []}'
-    mock_http = _make_mock_http_client(content)
-    with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
-        result = await client.analyze_breed("/9j/test", detect_crossbreed=False)
-    assert "note" not in result
 
 
 @pytest.mark.asyncio
@@ -76,7 +47,7 @@ async def test_analyze_breed_crossbreed_mode(client):
     content = '{"breed_probabilities": [{"breed": "Golden Retriever", "probability": 0.55}, {"breed": "Poodle", "probability": 0.40}], "traits": {"size": "medium", "energy_level": "high", "temperament": "friendly"}, "health_considerations": []}'
     mock_http = _make_mock_http_client(content)
     with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
-        result = await client.analyze_breed("/9j/test", detect_crossbreed=True)
+        result = await client.analyze_breed("/9j/test")
     assert "breed_analysis" in result
     assert result["breed_analysis"]["is_likely_crossbreed"] is True
 
@@ -86,19 +57,9 @@ async def test_analyze_breed_uses_crossbreed_prompt_when_requested(client):
     content = '{"breed_probabilities": [{"breed": "Labrador Retriever", "probability": 0.80}], "traits": {"size": "large", "energy_level": "high", "temperament": "friendly"}, "health_considerations": []}'
     mock_http = _make_mock_http_client(content)
     with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
-        await client.analyze_breed("/9j/test", detect_crossbreed=True, top_n_breeds=3)
+        await client.analyze_breed("/9j/test", top_n_breeds=3)
     prompt = mock_http.post.call_args[1]["json"]["messages"][0]["content"][0]["text"]
     assert "TOP 3" in prompt
-
-
-@pytest.mark.asyncio
-async def test_analyze_breed_uses_standard_prompt_when_not_crossbreed(client):
-    content = '{"breed": "Beagle", "confidence": 0.80, "traits": {"size": "small", "energy_level": "high", "temperament": "curious"}, "health_considerations": []}'
-    mock_http = _make_mock_http_client(content)
-    with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
-        await client.analyze_breed("/9j/test", detect_crossbreed=False)
-    prompt = mock_http.post.call_args[1]["json"]["messages"][0]["content"][0]["text"]
-    assert "breed name or Unknown" in prompt
 
 
 @pytest.mark.asyncio
@@ -110,7 +71,7 @@ async def test_analyze_breed_http_error_raises_connection_error(client):
         mock_instance.post = AsyncMock(side_effect=httpx.HTTPError("Connection failed"))
         mock_cls.return_value = mock_instance
         with pytest.raises(ConnectionError, match="Failed to connect"):
-            await client.analyze_breed("/9j/test", detect_crossbreed=False)
+            await client.analyze_breed("/9j/test")
 
 
 # --- _parse_response ---

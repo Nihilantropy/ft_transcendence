@@ -127,7 +127,7 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:
 CORS_ALLOW_CREDENTIALS = True
 
 # JWT Settings
-JWT_ALGORITHM = config('JWT_ALGORITHM', default='RS256')
+JWT_ALGORITHM = 'RS256'  # must match gateway's RS256 public key; never varied via env
 JWT_ACCESS_TOKEN_LIFETIME_MINUTES = config('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=15, cast=int)
 JWT_REFRESH_TOKEN_LIFETIME_DAYS = config('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)
 JWT_PRIVATE_KEY_PATH = config('JWT_PRIVATE_KEY_PATH', default=str(BASE_DIR / 'keys' / 'jwt-private.pem'))

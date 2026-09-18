@@ -44,13 +44,13 @@ make init          # build + up + migration + seed + superuser + rag (Makefile:2
 make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
 make test-integration  # recommendation-service tests/integration via docker exec
 make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
+make elk           # Start the ELK log management stack (generates credentials on first run)
+make elk-creds     # Reprint the ELK stack credentials without redeploying
 ```
 
 ⚠️ **`make clean` and `make fclean` do not exist.** Both names appear in `.PHONY` (`Makefile:22`) but
 no rule defines them, so make just prints `Nothing to be done for 'clean'` and does nothing. Use
-`make down` / `make downv` / `make purge`. Note `purge` still hardcodes the stale service list
-`nginx frontend backend db` (`Makefile:13`), so its per-name container/image removal is mostly a
-no-op — the real work is its `docker compose down -v`.
+`make down` / `make downv` / `make purge`.
 
 ### Compose Profiles (local vs cloud)
 
@@ -73,6 +73,21 @@ The `litellm` proxy runs in BOTH profiles. Switching backends is config-only: se
 model alias in `srcs/ai/.env` (`LLM_VISION_MODEL`/`LLM_TEXT_MODEL` → `*-cloud` for Mistral)
 and, for cloud, set `CLASSIFICATION_ENABLED=false` (the classification-service is off in
 `cloud`, so leaving it `true` yields 503s). Root config lives in `.env` (see `.env.example`).
+
+### Log Management (ELK)
+
+`make elk` starts Elasticsearch + Logstash + Kibana + Vector under a dedicated `elk` compose
+profile — `make up` never touches it, so the default dev loop stays light. It is fully
+zero-config: a one-shot `elk-setup` container generates TLS certs, per-component credentials
+(random, printed to the terminal and stored in the gitignored root `.env`), an ILM retention
+policy, an SLM archiving policy and a Kibana data view on first run. Vector ships every
+container's stdout/stderr automatically — no per-service wiring needed. It reads them over
+the Docker API rather than from `/var/lib/docker/containers`, which is empty under Docker
+Desktop; the json-file driver stays in place, so `docker logs` and `make logs` keep working. Kibana is at
+`https://localhost:5601` (self-signed cert, same trust model as nginx). `make all` includes it;
+`make down`/`downv`/`purge` tear it down regardless of which profile is active. Full detail,
+including two non-obvious ordering bugs this stack will re-trigger if provisioning is ever
+reordered, is in `srcs/elk/README.md`.
 
 ### Development
 ```bash
@@ -113,7 +128,7 @@ docker exec -it CONTAINER sh    # Shell into container
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
-**API Gateway Tests** (30 tests total):
+**API Gateway Tests** (33 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
@@ -121,16 +136,16 @@ docker compose run --rm api-gateway python -m pytest tests/ -v
 # Auth Service tests (102 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
-# User Service tests (91 tests total)
+# User Service tests (89 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# AI Service tests (104 tests total)
+# AI Service tests (98 tests total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
 docker compose run --rm classification-service python -m pytest tests/ -v
 
-# Recommendation Service tests (71 tests total: 48 unit + 23 integration)
+# Recommendation Service tests (70 tests total: 47 unit + 23 integration)
 # Unit tests via run --rm:
 docker compose run --rm recommendation-service python -m pytest tests/unit/ -v
 # Integration tests MUST use exec (need api-gateway hostname):
@@ -163,6 +178,14 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-r
 ### IMPORTANT!
 All services use a single database `smartbreeds`. Django services (auth, user) have pytest-django
 auto-create an isolated test DB at runtime — no separate test database is provisioned or managed.
+
+⚠️ **Both Django services run with `--reuse-db` (`pytest.ini:addopts`), so that test DB survives
+between runs and can go stale.** A run killed partway — a `docker compose run --rm` interrupted, or
+the daemon restarting under it — can leave committed rows behind, and the next run then fails a
+test that asserts on row counts. `TestRefreshView` is the one that shows it first, and the failure
+reads exactly like a code regression: it is reproducible, it passes when the test is run alone, and
+a *different* test in the class fails depending on what ran before. Re-run with `--create-db` before
+investigating anything else; if that comes back green, the code was never the problem.
 Services should keep `tests/` unit-level. The one deliberate exception is recommendation-service,
 which also ships `tests/integration/` (23 tests) that hardcode `http://api-gateway:8001` and mutate
 the live `smartbreeds` database — those MUST run via `docker exec`, never `docker compose run --rm`,
@@ -243,14 +266,14 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
 
-**User Service (Django - internal port 3002):** [Complete - 91 passing tests]
+**User Service (Django - internal port 3002):** [Complete - 89 passing tests]
 - User profile management (GET/PUT/PATCH /users/me)
 - Pet profiles CRUD (name, breed, species, age, weight, health conditions)
 - Pet analysis history (breed detection results from AI service)
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 104 passing tests]
+**AI Service (FastAPI - internal port 3003):** [Complete - 98 passing tests]
 - Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
 - LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
@@ -269,7 +292,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - **Compose profile:** `local` only (disabled in `cloud`)
 - Location: `srcs/classification-service/`
 
-**Recommendation Service (FastAPI - internal port 3005):** [Complete - 71 passing tests (48 unit + 23 integration)]
+**Recommendation Service (FastAPI - internal port 3005):** [Complete - 70 passing tests (47 unit + 23 integration)]
 - Content-based product recommendations using 15-dimensional feature vectors
 - Weighted cosine similarity matching pet profiles to products
 - Product CRUD administration endpoints
@@ -496,9 +519,9 @@ request JSON.
 - Species confidence: < `SPECIES_MIN_CONFIDENCE` = **0.10** — `vision_orchestrator.py:73` (`srcs/ai/src/config.py:34`)
 - Breed confidence: < `BREED_MIN_CONFIDENCE` = **0.05** — `vision_orchestrator.py:85`, and again on
   the VLM-only path at `:154` (`srcs/ai/src/config.py:35`)
-- Note: test comments may reference outdated 0.60/0.40 values — those are the (dead)
-  identically-named fields in `srcs/classification-service/src/config.py:22-23`, which nothing in
-  that service reads
+- Note: test comments may reference outdated 0.60/0.40 values — those were dead, identically-named
+  fields in `srcs/classification-service/src/config.py`, deleted because nothing in that service
+  read them. A stale `.env` may still list them; that service's `Settings` ignores unknown keys
 
 ### Crossbreed Detection Thresholds
 
@@ -640,10 +663,10 @@ total; do not trust them.
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 30 passing tests
+- API Gateway (FastAPI) with full middleware stack - 33 passing tests
 - Auth Service (Django) with authentication endpoints - 102 passing tests
-- User Service (Django) with profile and pet management - 91 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 104 passing tests
+- User Service (Django) with profile and pet management - 89 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 98 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
 - Crossbreed detection with intelligent thresholding
@@ -662,7 +685,7 @@ total; do not trust them.
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
   talks OpenAI chat-completions to the proxy; VLM-only pipeline when classification is disabled
 - Classification Service torch pin moved from unpinned nightly → stable 2.11.0+cu128 (Blackwell)
-- Recommendation Service — content-based filtering with 71 passing tests (48 unit + 23 integration)
+- Recommendation Service — content-based filtering with 70 passing tests (47 unit + 23 integration)
 
 ## Common Troubleshooting
 

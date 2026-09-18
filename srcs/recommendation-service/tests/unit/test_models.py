@@ -2,8 +2,6 @@ import pytest
 from decimal import Decimal
 from datetime import datetime
 from src.models.product import Product
-from src.models.recommendation import Recommendation
-from src.models.user_feedback import UserFeedback
 
 @pytest.mark.unit
 def test_product_model_creation():
@@ -52,20 +50,3 @@ def test_product_nullable_age_range():
 
     assert product.min_age_months is None
     assert product.max_age_months is None
-
-@pytest.mark.unit
-def test_recommendation_model_creation():
-    """Test Recommendation model tracks recommendation history."""
-    recommendation = Recommendation(
-        user_id=123,
-        pet_id=456,
-        product_id=789,
-        similarity_score=Decimal("0.8745"),
-        rank_position=1
-    )
-
-    assert recommendation.user_id == 123
-    assert recommendation.pet_id == 456
-    assert recommendation.product_id == 789
-    assert recommendation.similarity_score == Decimal("0.8745")
-    assert recommendation.rank_position == 1
