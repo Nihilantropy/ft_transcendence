@@ -11,7 +11,7 @@ injects. Only dependency is PostgreSQL. See `README.md` for the full route/field
 ## Essential Commands
 
 ```bash
-# Tests (91) — run --rm is fine everywhere; no test calls another service
+# Tests (89) — run --rm is fine everywhere; no test calls another service
 docker compose run --rm user-service python -m pytest tests/ -v
 docker compose run --rm user-service python -m pytest tests/test_views.py -v
 docker compose run --rm user-service python -m pytest tests/test_views.py::TestPetViewSet::test_create_pet_sets_user_id_from_header -v
@@ -48,7 +48,7 @@ or Nginx (`https://localhost:8443`, host ports are `8000:80` / `8443:443`).
 | `apps/profiles/views.py` | `health_check` + `UserProfileViewSet`, `PetViewSet`, `PetAnalysisViewSet` |
 | `apps/profiles/serializers.py` | 6 serializers: read vs. create variants for profile/pet/analysis |
 | `apps/profiles/models.py` | `UserProfile`, `Pet`, `PetAnalysis` (UUID PKs, soft references) |
-| `apps/profiles/permissions.py` | `IsOwnerOrAdmin`, `IsOwner` — object-level only |
+| `apps/profiles/permissions.py` | `IsOwnerOrAdmin` — object-level only |
 | `apps/profiles/middleware.py` | `UserContextMiddleware` (header → request), `Custom404Middleware` (JSON 404s) |
 | `apps/profiles/utils.py` | `success_response()` / `error_response()` — both return DRF `Response` |
 | `apps/profiles/migrations/` | `0001` creates the schema + tables, `0002` renames indexes, `0003` alters `species` |

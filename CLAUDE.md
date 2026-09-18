@@ -134,7 +134,7 @@ docker compose run --rm api-gateway python -m pytest tests/ -v
 # Auth Service tests (102 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
-# User Service tests (91 tests total)
+# User Service tests (89 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
 # AI Service tests (98 tests total)
@@ -256,7 +256,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
 
-**User Service (Django - internal port 3002):** [Complete - 91 passing tests]
+**User Service (Django - internal port 3002):** [Complete - 89 passing tests]
 - User profile management (GET/PUT/PATCH /users/me)
 - Pet profiles CRUD (name, breed, species, age, weight, health conditions)
 - Pet analysis history (breed detection results from AI service)
@@ -655,7 +655,7 @@ total; do not trust them.
 **Completed:**
 - API Gateway (FastAPI) with full middleware stack - 33 passing tests
 - Auth Service (Django) with authentication endpoints - 102 passing tests
-- User Service (Django) with profile and pet management - 91 passing tests
+- User Service (Django) with profile and pet management - 89 passing tests
 - AI Service (FastAPI) with multi-stage vision pipeline - 98 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
