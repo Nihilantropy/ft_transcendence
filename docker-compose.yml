@@ -275,8 +275,12 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./srcs/api-gateway/.env
-    ports:
-      - "8001:8001"  # Expose for development testing (curl/Postman)
+    # No host port. The subject requires every connection to the backend —
+    # "from a browser, from a script, from an external API" — to use HTTPS, and
+    # this port was plaintext HTTP on 0.0.0.0. All traffic goes through nginx at
+    # https://localhost:8443/api. For the Jupyter notebooks and curl-based dev
+    # testing, `make up-dev` layers docker-compose.dev.yml on top, which
+    # republishes this port bound to 127.0.0.1 only.
     volumes:
       # Mount source code for development hot reload
       - ./srcs/api-gateway/src:/app/src:rw
