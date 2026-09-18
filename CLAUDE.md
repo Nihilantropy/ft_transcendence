@@ -178,6 +178,14 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-r
 ### IMPORTANT!
 All services use a single database `smartbreeds`. Django services (auth, user) have pytest-django
 auto-create an isolated test DB at runtime — no separate test database is provisioned or managed.
+
+⚠️ **Both Django services run with `--reuse-db` (`pytest.ini:addopts`), so that test DB survives
+between runs and can go stale.** A run killed partway — a `docker compose run --rm` interrupted, or
+the daemon restarting under it — can leave committed rows behind, and the next run then fails a
+test that asserts on row counts. `TestRefreshView` is the one that shows it first, and the failure
+reads exactly like a code regression: it is reproducible, it passes when the test is run alone, and
+a *different* test in the class fails depending on what ran before. Re-run with `--create-db` before
+investigating anything else; if that comes back green, the code was never the problem.
 Services should keep `tests/` unit-level. The one deliberate exception is recommendation-service,
 which also ships `tests/integration/` (23 tests) that hardcode `http://api-gateway:8001` and mutate
 the live `smartbreeds` database — those MUST run via `docker exec`, never `docker compose run --rm`,
