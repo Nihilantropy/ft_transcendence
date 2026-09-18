@@ -1,6 +1,6 @@
 # ELK — Log Management Stack
 
-Elasticsearch + Logstash + Kibana + Filebeat, started with a single command
+Elasticsearch + Logstash + Kibana + Vector, started with a single command
 (`make elk`) and requiring **no manual configuration**: certificates, service
 accounts, retention policy, archiving policy and the Kibana data view are all
 generated and installed by a one-shot setup container the first time the
@@ -10,17 +10,26 @@ convenience, not a production credential-management story.
 
 Every container log on the host — from every service, in every compose
 profile — is picked up automatically. Nothing needs to be pointed at ELK
-per-service; Filebeat reads Docker's own log files directly.
+per-service, and no service changes its log driver: Vector reads the logs
+Docker already keeps, over the Docker API. That last part matters. This stack
+originally used Filebeat, which harvested
+`/var/lib/docker/containers/*/*.log` from the host — a path that only holds
+anything when the daemon's data root is on that same filesystem, i.e. a
+native Linux Docker Engine. Under Docker Desktop the engine keeps those files
+inside its own VM, the bind mount resolved to an empty directory, and
+Filebeat ran with zero harvesters while looking perfectly healthy. Reading
+the API instead works on both, and leaves `docker logs` / `make logs`
+untouched — which switching to the `gelf` log driver would not.
 
 ## Architecture
 
 ```
                     ┌─────────────┐
- all containers ──▶ │  Filebeat   │  reads /var/lib/docker/containers/*/*.log
- (stdout/stderr)    │ (+docker    │  (json-file driver), enriches with
-                    │  metadata)  │  container.name / image / labels
-                    └──────┬──────┘
-                           │ beats protocol, TLS
+ all containers ──▶ │   Vector    │  reads container logs over the Docker
+ (stdout/stderr)    │ (docker_logs│  API (json-file driver left in place, so
+                    │  source)    │  `docker logs` still works), reshapes to
+                    └──────┬──────┘  message + container.name / image
+                           │ newline-delimited JSON over TCP, TLS
                            ▼
                     ┌─────────────┐
                     │  Logstash   │  json filter (api-gateway, ai-service,
@@ -67,7 +76,7 @@ request, the same way the API Gateway and Ollama are.
 
 JVM heaps are capped for a resource-constrained dev host: Elasticsearch
 512m/1g limit, Logstash 256m/768m limit, Kibana Node `--max-old-space-size`
-512m/768m limit, Filebeat 256m limit. Elasticsearch's first boot builds
+512m/768m limit, Vector 256m limit. Elasticsearch's first boot builds
 ~90 built-in index templates and can take several minutes on a slow host —
 the healthcheck budget is generous (up to ~17 minutes) specifically for that
 cold start; a warm restart is seconds.
@@ -100,7 +109,7 @@ docker exec ft_transcendence_elasticsearch curl -s --cacert config/certs/ca/ca.c
 ## Security
 
 - **TLS everywhere**: Elasticsearch's HTTP and transport layers, Kibana's
-  server, and the Filebeat→Logstash beats connection all use certificates
+  server, and the Vector→Logstash connection all use certificates
   signed by a CA generated at first boot (`setup/entrypoint.sh` step 1),
   shared via the `elk-certs` volume. Self-signed, dev-only — the same trust
   model nginx already uses in this repo.

@@ -76,12 +76,14 @@ and, for cloud, set `CLASSIFICATION_ENABLED=false` (the classification-service i
 
 ### Log Management (ELK)
 
-`make elk` starts Elasticsearch + Logstash + Kibana + Filebeat under a dedicated `elk` compose
+`make elk` starts Elasticsearch + Logstash + Kibana + Vector under a dedicated `elk` compose
 profile — `make up` never touches it, so the default dev loop stays light. It is fully
 zero-config: a one-shot `elk-setup` container generates TLS certs, per-component credentials
 (random, printed to the terminal and stored in the gitignored root `.env`), an ILM retention
-policy, an SLM archiving policy and a Kibana data view on first run. Filebeat ships every
-container's stdout/stderr automatically — no per-service wiring needed. Kibana is at
+policy, an SLM archiving policy and a Kibana data view on first run. Vector ships every
+container's stdout/stderr automatically — no per-service wiring needed. It reads them over
+the Docker API rather than from `/var/lib/docker/containers`, which is empty under Docker
+Desktop; the json-file driver stays in place, so `docker logs` and `make logs` keep working. Kibana is at
 `https://localhost:5601` (self-signed cert, same trust model as nginx). `make all` includes it;
 `make down`/`downv`/`purge` tear it down regardless of which profile is active. Full detail,
 including two non-obvious ordering bugs this stack will re-trigger if provisioning is ever
