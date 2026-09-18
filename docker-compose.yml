@@ -480,6 +480,10 @@ services:
     image: timberio/vector:0.43.1-alpine
     profiles: ["elk"]
     user: "0"
+    # Explicit: the image's default config path is /etc/vector/vector.yaml, so a
+    # mounted vector.toml is ignored and Vector silently runs its bundled demo
+    # pipeline instead — which looks like it is working until you read the logs.
+    command: ["--config", "/etc/vector/vector.toml"]
     depends_on:
       logstash:
         condition: service_healthy
