@@ -126,7 +126,7 @@ docker exec -it CONTAINER sh    # Shell into container
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
-**API Gateway Tests** (30 tests total):
+**API Gateway Tests** (33 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
@@ -143,7 +143,7 @@ docker compose run --rm ai-service python -m pytest tests/ -v
 # Classification Service tests (28 tests total)
 docker compose run --rm classification-service python -m pytest tests/ -v
 
-# Recommendation Service tests (71 tests total: 48 unit + 23 integration)
+# Recommendation Service tests (70 tests total: 47 unit + 23 integration)
 # Unit tests via run --rm:
 docker compose run --rm recommendation-service python -m pytest tests/unit/ -v
 # Integration tests MUST use exec (need api-gateway hostname):
@@ -282,7 +282,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - **Compose profile:** `local` only (disabled in `cloud`)
 - Location: `srcs/classification-service/`
 
-**Recommendation Service (FastAPI - internal port 3005):** [Complete - 71 passing tests (48 unit + 23 integration)]
+**Recommendation Service (FastAPI - internal port 3005):** [Complete - 70 passing tests (47 unit + 23 integration)]
 - Content-based product recommendations using 15-dimensional feature vectors
 - Weighted cosine similarity matching pet profiles to products
 - Product CRUD administration endpoints
@@ -653,7 +653,7 @@ total; do not trust them.
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 30 passing tests
+- API Gateway (FastAPI) with full middleware stack - 33 passing tests
 - Auth Service (Django) with authentication endpoints - 102 passing tests
 - User Service (Django) with profile and pet management - 91 passing tests
 - AI Service (FastAPI) with multi-stage vision pipeline - 104 passing tests
@@ -675,7 +675,7 @@ total; do not trust them.
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
   talks OpenAI chat-completions to the proxy; VLM-only pipeline when classification is disabled
 - Classification Service torch pin moved from unpinned nightly → stable 2.11.0+cu128 (Blackwell)
-- Recommendation Service — content-based filtering with 71 passing tests (48 unit + 23 integration)
+- Recommendation Service — content-based filtering with 70 passing tests (47 unit + 23 integration)
 
 ## Common Troubleshooting
 

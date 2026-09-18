@@ -14,7 +14,7 @@ Read `README.md` first for routes, config table and error codes. This file is on
 ## Essential Commands
 
 ```bash
-# Tests (30, flat tests/ — there is no tests/unit or tests/integration)
+# Tests (33, flat tests/ — there is no tests/unit or tests/integration)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 docker compose run --rm --no-deps api-gateway python -m pytest tests/ -v   # skip starting auth/user/db
 docker exec ft_transcendence_api_gateway python -m pytest tests/test_proxy.py -v
