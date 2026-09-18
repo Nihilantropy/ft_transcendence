@@ -58,7 +58,7 @@ than exiting — see [Gotchas](#gotchas) for why that matters.
 | `elasticsearch` | `ft_transcendence_elasticsearch` | Storage + indexing | none |
 | `logstash` | `ft_transcendence_logstash` | Parse + route to ES | none |
 | `kibana` | `ft_transcendence_kibana` | UI | `5601` |
-| `filebeat` | `ft_transcendence_filebeat` | Log shipper (all containers) | none |
+| `vector` | `ft_transcendence_vector` | Log shipper — reads every container's logs over the Docker API | none |
 
 All five run under the `elk` compose profile only — `make up` never starts
 them. All are on `backend-network`, matching every other backend service in
@@ -136,7 +136,7 @@ See `.env.example` in this directory for more detail. `STACK_VERSION`
 ```bash
 make elk              # the one command: generate creds, start, provision, print creds
 make elk-creds         # reprint the credentials without redeploying
-make logs-elasticsearch / make logs-kibana / make logs-logstash / make logs-filebeat
+make logs-elasticsearch / make logs-kibana / make logs-logstash / make logs-vector
 make exec-elasticsearch   # shell into ft_transcendence_elasticsearch
 ```
 

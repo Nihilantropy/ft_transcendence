@@ -74,7 +74,7 @@ echo -e "${GREEN}✓ Credentials ready${NC}"
 echo -e "${YELLOW}[2/3] Starting ELK services...${NC}"
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-cloud},elk"
 cd "$ROOT_DIR"
-docker compose -f docker-compose.yml up -d elasticsearch logstash kibana filebeat elk-setup
+docker compose -f docker-compose.yml up -d elasticsearch logstash kibana vector elk-setup
 
 echo -e "${YELLOW}[2/3] Waiting for provisioning (elk-setup) to finish...${NC}"
 # elk-setup stays running after it finishes (see srcs/elk/setup/entrypoint.sh

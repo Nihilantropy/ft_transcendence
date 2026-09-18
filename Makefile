@@ -9,7 +9,8 @@ PROJECT_NAME = ft_transcendence
 COMPOSE_PROFILES ?= cloud
 export COMPOSE_PROFILES
 
-# Elastic stack image tag, shared by elasticsearch/logstash/kibana/filebeat
+# Elastic stack image tag, shared by elasticsearch/logstash/kibana (the log
+# shipper is Vector, pinned separately in docker-compose.yml)
 STACK_VERSION ?= 8.17.0
 export STACK_VERSION
 
