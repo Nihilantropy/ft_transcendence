@@ -120,10 +120,11 @@ response validation, not just a log line.
 - **NSFW probability is read positionally** as softmax index 1 (`nsfw_detector.py:58`) instead of
   looking up `id2label`. The code comments acknowledge the assumption. Swapping `NSFW_MODEL` for a
   model with different label ordering silently inverts the safety verdict.
-- **`SPECIES_MIN_CONFIDENCE` and `BREED_MIN_CONFIDENCE` in this service's config are dead.** Nothing
-  reads them (`grep "settings\." src/` returns only NSFW/log/model/device/service keys). The
-  effective thresholds are the identically named vars in `srcs/ai/src/config.py`. Do not "tune" them
-  here and expect behaviour to change.
+- **`SPECIES_MIN_CONFIDENCE` and `BREED_MIN_CONFIDENCE` no longer exist here.** They were dead
+  config — nothing in `src/` ever read them — and were deleted from `Settings`. The effective
+  thresholds are the identically named vars in `srcs/ai/src/config.py`. A gitignored `.env` may
+  still carry the old 0.60/0.40 pair; `Settings` sets `extra = "ignore"` so those stale lines are
+  skipped rather than aborting startup.
 - **`DOG_BREED_MODEL` disagrees between layers**: `.env.example:9` says `prithivMLmods/Dog-Breed-120`,
   `config.py:17` defaults to `wesleyacheng/dog-breeds-multiclass-image-classification-with-vit`. The
   env value wins in Docker. `tests/test_breed_classifier.py:66` calls `top_k=120` and asserts the
@@ -185,8 +186,8 @@ Live in this service: `CROSSBREED_PROBABILITY_THRESHOLD` (`config.py:26`),
 (`config.py:15-18`), `LOG_LEVEL` (`config.py:11`).
 
 Echoed but not enforced: `NSFW_REJECTION_THRESHOLD` (`config.py:21`).
-Unused here, enforced by the AI Service instead: `SPECIES_MIN_CONFIDENCE` (`config.py:22`),
-`BREED_MIN_CONFIDENCE` (`config.py:23`).
+Enforced by the AI Service only: `SPECIES_MIN_CONFIDENCE` and `BREED_MIN_CONFIDENCE`
+(`srcs/ai/src/config.py`). They are no longer fields of this service's `Settings`.
 
 Cross-service pairing: this service's `CROSSBREED_MIN_SECOND_BREED` and the AI Service's
 `BREED_MIN_CONFIDENCE` form a two-stage gate — flagging a crossbreed here changes the confidence the

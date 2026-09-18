@@ -509,9 +509,9 @@ request JSON.
 - Species confidence: < `SPECIES_MIN_CONFIDENCE` = **0.10** — `vision_orchestrator.py:73` (`srcs/ai/src/config.py:34`)
 - Breed confidence: < `BREED_MIN_CONFIDENCE` = **0.05** — `vision_orchestrator.py:85`, and again on
   the VLM-only path at `:154` (`srcs/ai/src/config.py:35`)
-- Note: test comments may reference outdated 0.60/0.40 values — those are the (dead)
-  identically-named fields in `srcs/classification-service/src/config.py:22-23`, which nothing in
-  that service reads
+- Note: test comments may reference outdated 0.60/0.40 values — those were dead, identically-named
+  fields in `srcs/classification-service/src/config.py`, deleted because nothing in that service
+  read them. A stale `.env` may still list them; that service's `Settings` ignores unknown keys
 
 ### Crossbreed Detection Thresholds
 
