@@ -207,6 +207,12 @@ rag:
 	@echo "Starting RAG setup..."
 	@scripts/init-rag-kb.sh
 
+## e2e: Real vision analysis on the bundled test images, through nginx over verified HTTPS
+# Needs the stack up (incl. classification-service) and MISTRAL_API_KEY in the root .env.
+# Registers and then deletes a throwaway user. Stdlib-only Python: no venv required.
+e2e:
+	@python3 scripts/e2e-vision.py
+
 ## superuser: Create superuser
 superuser:
 	@echo "Creating superuser..."

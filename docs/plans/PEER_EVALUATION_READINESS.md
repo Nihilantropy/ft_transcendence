@@ -9,6 +9,105 @@ waiting on it — including two items that currently block the frontend from wor
 
 ---
 
+## 0. Status and handoff — read this first
+
+*Updated 2026-09-19. Work lives on branch `feat/exam-readiness` (pushed, no PR yet).*
+
+| Step | State | Commits |
+|---|---|---|
+| 1 — unblock the frontend (nginx limits, plaintext port) | ✅ done, verified | `ca3d6ca`, `6dfdb10` |
+| 2 — AI without a GPU (Mistral + CPU classifiers) | ✅ done, verified | `5d964b7`, `826a205` |
+| docs brought in line (CLAUDE.md ×3) | ✅ done | `bbcf379` |
+| `make e2e` end-to-end check | ✅ done | this commit |
+| **3 — Privacy Policy / ToS served by nginx** | ⏭ **next** | — |
+| 4 — LLM streaming, recommendation feedback loop | not started | — |
+| 5 — README · 6 — buffer modules | not started | — |
+
+**Verified state:** full regression green — auth 102, user 89, gateway 33, ai 103,
+classification 28 (on the CPU image), recommendation 47 unit + 23 integration.
+`make e2e` analyses a purebred dog, a crossbreed and a cat through nginx over verified
+HTTPS, ~4 s each, no GPU.
+
+### Found while doing steps 1-2 (not in the original analysis)
+
+Each of these would have failed the evaluation, and none was caught by the unit suites —
+they mock the LLM with clean JSON. Run `make e2e` after any change to the AI path.
+
+1. **nginx rejected nearly every photo with 413.** No `client_max_body_size`, so the 1 MB
+   default applied; a 5 MB image is ~6.7 MB as base64 JSON. Fixed with the vision location.
+2. **The Mistral config could never have worked on the free tier.** `mistral-medium`,
+   `mistral-small` and `magistral-*` answer 429 with `x-ratelimit-limit-req-minute: 0`;
+   `mistral-large` is not exposed at all — and it fed the RAG answers. Now
+   `ministral-14b` primary + `ministral-8b` fallback, chosen by probing each model.
+   **Before switching models, check that header** — being in the model list proves nothing.
+3. **Every vision call returned 422.** Small models put literal newlines inside JSON
+   strings, and the parser was strict; a parse failure also leaked as `ValueError`, which
+   the route maps to 422. Fixed in TDD (`_parse_response`).
+4. **The TLS certificate had no SAN** and its CN was `ft-transcendence.local`, not
+   `localhost` — Chrome reports `ERR_CERT_COMMON_NAME_INVALID`. Fixed.
+
+Caveat on resilience: the LiteLLM **fallback** is proven (primary pointed at a zero-limit
+model; requests succeeded via the fallback). **Retries** were not observed — the proxy
+reported `attempted_retries=0` — so do not claim them without a test that shows them.
+
+### Open items, known and not yet fixed
+
+- **Non-image upload returns 500, should be 4xx.** `srcs/ai/src/services/image_processor.py:48`
+  — `Image.open()` raises `PIL.UnidentifiedImageError` (an `OSError`, not a `ValueError`),
+  so `routes/vision.py` falls through to its generic handler. Catch it and raise
+  `ValueError`. Backend input validation is a **mandatory** requirement, and a 500 on bad
+  input reads as a crash during evaluation. Reproduce: `python3 scripts/e2e-vision.py README.md`.
+- **Logstash gets OOM-killed** at its 768 MB container limit (seen in the kernel log). ELK
+  can drop logs mid-evaluation.
+- **nginx CORS** allows `https://${HOST_DOMAIN}` with no port, which never matches
+  `https://localhost:8443`. Harmless if the frontend is served same-origin through nginx —
+  tell the frontend owner.
+- The LLM `description` sometimes starts with a newline. Cosmetic.
+
+### Bringing up a dev host after pulling this branch
+
+```bash
+git pull
+docker compose build classification-service nginx   # CPU classifier image; cert with SAN
+make up                                             # cloud profile by default
+docker compose restart litellm ai-service           # new model config; parser fix (src is mounted, no --reload)
+make migration && make superuser                    # fresh database only
+make e2e                                            # must print 3/3
+```
+
+Needs `MISTRAL_API_KEY` in the root `.env`, and in `srcs/ai/.env`:
+`CLASSIFICATION_ENABLED=true` plus the `*-cloud` model aliases (see `.env.example`).
+The Jupyter notebooks need `make up-dev`: plain `make up` no longer publishes port 8001.
+
+### Notes specific to the second dev host (WSL + Docker Desktop, `~/projects/ft_transcendence`)
+
+- **Never run `docker desktop restart` from inside WSL.** It takes the Ubuntu distro down —
+  and with it any Claude Code session running there. If the Docker CLI or socket goes
+  missing, restart Docker Desktop **from Windows**. The distro also restarted on its own at
+  least once during a long build; cause not found. Keep long builds short or detached.
+- **Machine-local state that git does not carry**, all deliberate:
+  - `srcs/auth-service/keys/jwt-public.pem` shows as modified — it was regenerated from that
+    host's own private key, which did not match the committed public key (every JWT would be
+    rejected). **Do not `git checkout` it.**
+  - `~/.docker/config.json` has `credsStore` removed (backup alongside): it pointed at
+    `docker-credential-desktop.exe`, unreachable over SSH, and broke every build.
+  - Root `.env` holds the Mistral key and the ELK credentials; `srcs/ai/.env` and
+    `srcs/api-gateway/.env` were completed against their `.env.example` (both predated
+    LiteLLM and the recommendation service).
+  - Branch `wip/preexisting-local-work` holds 15 files that were uncommitted on that host
+    before alignment. Mostly superseded (torch 2.9.1, Django 6.0.7 on python 3.11), but its
+    two Django `conftest.py` fixture fixes may be worth salvaging.
+
+### Test gotchas learned the hard way
+
+- A Django suite failing one row-counting test that **passes when run alone** is a stale
+  `--reuse-db` test database, not a bug: re-run with `--create-db`.
+- Recommendation integration tests need `make superuser`, or their fixtures **skip** — and a
+  run of skips looks like a pass. Two runs back to back also trip the gateway's 60 req/min
+  rate limit; wait a minute between them.
+
+---
+
 ## 1. Where the project stands
 
 The subject rejects a project outright on general requirements, before module points are
