@@ -42,6 +42,7 @@ def test_logging_includes_user_context(caplog):
         "user_id": "user123",
         "email": "test@example.com",
         "role": "user",
+        "token_type": "access",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1)
     }

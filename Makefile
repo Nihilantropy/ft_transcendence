@@ -34,7 +34,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage elk elk-creds $(TEST_FLAGS)
+.PHONY: all setup build up keys show stop start down restart re clean fclean help test test-coverage elk elk-creds $(TEST_FLAGS)
 
 # Default target
 all: build up elk show logs
@@ -62,8 +62,12 @@ build-%:
 build-zero-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache $*
 
-## up: Start all services
-up:
+## keys: Generate the JWT key pair if it is missing (idempotent; `make up` runs it for you)
+keys:
+	@srcs/auth-service/keys/generate-keys.sh
+
+## up: Generate the JWT keys if missing, then start all services
+up: keys
 	@echo "Starting ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
 	@echo ""
@@ -72,8 +76,8 @@ up:
 	@echo "📊 View logs with: make logs"
 	@echo ""
 
-## up-%: Start specific service
-up-%:
+## up-%: Start specific service (generates the JWT keys first if missing)
+up-%: keys
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up $* -d
 
 ## show: Show system status

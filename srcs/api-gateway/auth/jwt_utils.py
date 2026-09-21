@@ -42,14 +42,28 @@ def extract_user_context(payload: Dict[str, Any]) -> Dict[str, str]:
     """
     Extract user context from JWT payload for forwarding to backend services.
 
+    Only access tokens authenticate a request. The auth-service signs refresh tokens
+    (7 days) and the two-factor challenge token ("mfa", issued after the password step
+    alone) with the same key, so the signature alone proves nothing about the token's purpose.
+
     Args:
         payload: Decoded JWT payload
 
     Returns:
-        Dict with user_id and role
+        Dict with user_id, role and email
+
+    Raises:
+        JWTValidationError: If the token is not an access token or carries no user_id
     """
+    if payload.get("token_type") != "access":
+        raise JWTValidationError("Invalid token type")
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise JWTValidationError("Invalid token: missing user_id")
+
     return {
-        "user_id": payload.get("user_id", ""),
+        "user_id": user_id,
         "role": payload.get("role", "user"),
         "email": payload.get("email", "")
     }

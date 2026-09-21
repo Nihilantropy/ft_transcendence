@@ -128,6 +128,78 @@ curl http://localhost:8001/api/v1/users/me \
   -b cookies.txt
 ```
 
+### 3. Update Name, Email or Password
+
+All three live in the auth-service, so they go through `/api/v1/auth/*` (the only prefix for which the gateway
+forwards cookies). Direct gateway shown; through NGINX use `https://localhost:8443` with `-k`.
+
+```bash
+# Name: no extra credentials needed
+curl -X PATCH http://localhost:8001/api/v1/auth/me -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"first_name": "Ada", "last_name": "Lovelace"}'
+
+# Email: re-authenticates with the current password (plus "code" if 2FA is on).
+# All sessions are revoked and fresh cookies come back, so pass -c to keep them.
+curl -X PATCH http://localhost:8001/api/v1/auth/me -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"email": "ada@example.com", "current_password": "password123"}'
+
+# Password (PUT; add "code" when 2FA is on)
+curl -X PUT http://localhost:8001/api/v1/auth/change-password -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"current_password": "password123", "new_password": "newSecure456", "new_password_confirm": "newSecure456"}'
+```
+
+Expected errors: `422 VALIDATION_ERROR` (nothing to update, wrong `current_password`, weak/too long/unchanged new
+password), `409 EMAIL_ALREADY_EXISTS`, `422 INVALID_2FA_CODE`, `429 RATE_LIMIT_EXCEEDED` (2FA lockout).
+
+### 4. Two-Factor Authentication (TOTP)
+
+Works with any authenticator app (Aegis, Microsoft Authenticator, Google Authenticator, …). The frontend renders
+`otpauth_uri` as a QR code; from the command line you can enter the `secret` manually or compute codes yourself.
+
+```bash
+# 1. Stage a secret (pending: logins still need only the password)
+curl -X POST http://localhost:8001/api/v1/auth/2fa/setup -b cookies.txt
+#   -> {"data": {"secret": "JBSWY3DP…", "otpauth_uri": "otpauth://totp/SmartBreeds:…", "digits": 6, "period": 30, …}}
+
+# Helper: current 6-digit code for a secret (stdlib only, RFC 6238). Pass an offset in 30 s steps as 2nd arg.
+totp() { python3 - "$1" "${2:-0}" <<'EOF'
+import base64, hashlib, hmac, struct, sys, time
+key = base64.b32decode(sys.argv[1]); counter = int(time.time()) // 30 + int(sys.argv[2])
+d = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest(); o = d[-1] & 15
+print(str((struct.unpack(">I", d[o:o+4])[0] & 0x7FFFFFFF) % 10**6).zfill(6))
+EOF
+}
+SECRET=JBSWY3DPEHPK3PXP   # from the setup response
+
+# 2. Confirm with the password and a code. Returns 10 recovery codes ONCE and re-issues cookies.
+curl -X POST http://localhost:8001/api/v1/auth/2fa/enable -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d "{\"current_password\": \"password123\", \"code\": \"$(totp $SECRET)\"}"
+
+# 3. Two-step login (the code used to enable is spent: use the next 30 s step, offset +1, or wait)
+curl -X POST http://localhost:8001/api/v1/auth/login -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
+#   -> {"data": {"mfa_required": true, "mfa_token": "eyJ…"}}   (no cookies set)
+
+curl -X POST http://localhost:8001/api/v1/auth/login/2fa -c cookies.txt -H "Content-Type: application/json" \
+  -d "{\"mfa_token\": \"eyJ…\", \"code\": \"$(totp $SECRET 1)\"}"
+#   -> {"data": {"user": {…, "two_factor_enabled": true}}} + cookies. A recovery code ("ABCD-EFGH-JKMN") works too, once.
+
+# 4. Turn it off (password + TOTP or recovery code)
+curl -X POST http://localhost:8001/api/v1/auth/2fa/disable -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" -d '{"current_password": "password123", "code": "ABCD-EFGH-JKMN"}'
+```
+
+Things worth trying by hand:
+
+- Send the same code twice → the second is `401 INVALID_2FA_CODE` (replay protection).
+- Send 5 wrong codes → `429 RATE_LIMIT_EXCEEDED` for 15 minutes, even with the right code.
+- Put the `mfa_token` in the `access_token` cookie: `curl http://localhost:8001/api/v1/users/me -H "Cookie: access_token=<mfa_token>"`
+  → `401 Invalid token type`. The same happens with a `refresh_token` value.
+
 ## Rate Limiting Testing
 
 ### NGINX Rate Limiting (200 req/min)
@@ -221,6 +293,7 @@ curl -k https://localhost/api/v1/users/me \
 curl -k https://localhost/api/v1/auth/login
 curl -k https://localhost/api/v1/auth/register
 curl -k https://localhost/api/v1/auth/refresh
+curl -k -X POST https://localhost/api/v1/auth/login/2fa   # second login step (challenge token in the body)
 
 # Direct:
 curl http://localhost:8001/api/v1/auth/login

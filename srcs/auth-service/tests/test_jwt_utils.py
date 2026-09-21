@@ -4,6 +4,7 @@ from django.utils import timezone
 from apps.authentication.jwt_utils import (
     generate_access_token,
     generate_refresh_token,
+    generate_mfa_token,
     decode_token,
     hash_token
 )
@@ -91,3 +92,32 @@ class TestJWTUtilities:
         # Verify it's actually SHA256
         expected = hashlib.sha256(token.encode()).hexdigest()
         assert hashed == expected
+
+
+@pytest.mark.django_db
+class TestMfaToken:
+    """The short-lived challenge issued after the password step when 2FA is on"""
+
+    def test_claims(self):
+        user = User.objects.create_user(email='test@example.com', password='testpass123')
+
+        payload = decode_token(generate_mfa_token(user))
+
+        assert payload['token_type'] == 'mfa'
+        assert payload['user_id'] == str(user.id)
+
+    def test_carries_no_identity_beyond_user_id(self):
+        """Nothing a backend could mistake for a session: no role, no email"""
+        user = User.objects.create_user(email='test@example.com', password='testpass123', role='admin')
+
+        payload = decode_token(generate_mfa_token(user))
+
+        assert set(payload) == {'user_id', 'token_type', 'iat', 'exp'}
+
+    def test_lifetime_comes_from_settings(self, settings):
+        settings.TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES = 5
+        user = User.objects.create_user(email='test@example.com', password='testpass123')
+
+        payload = decode_token(generate_mfa_token(user))
+
+        assert payload['exp'] - payload['iat'] == 5 * 60

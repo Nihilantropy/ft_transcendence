@@ -128,12 +128,12 @@ docker exec -it CONTAINER sh    # Shell into container
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
-**API Gateway Tests** (33 tests total):
+**API Gateway Tests** (41 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (102 tests total)
+# Auth Service tests (353 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # User Service tests (89 tests total)
@@ -224,11 +224,18 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
   port 8001 for development (docker-compose.yml:294-295)
 
 **Authentication Flow:**
-1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:59)
+1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:61)
 2. Browser automatically sends cookies with each request
-3. API Gateway validates JWT using RS256 public key, extracts user context (user_id, role)
+3. API Gateway validates JWT using RS256 public key, requires `token_type == "access"`, extracts user context (user_id, role)
 4. Gateway forwards to backend services with headers: `X-User-ID`, `X-User-Role`, `X-Request-ID`
 5. Backend services trust API Gateway validation (network isolation ensures security)
+
+**Two-factor login (accounts with TOTP 2FA enabled):** `POST /api/v1/auth/login` with a correct password returns
+`{"mfa_required": true, "mfa_token": …}` — no cookies, existing sessions untouched. The client then calls the
+gateway-public `POST /api/v1/auth/login/2fa` with `mfa_token` + a 6-digit code (or a recovery code), which issues the
+cookies and revokes previous sessions. The `mfa_token` is a JWT signed with the same key as access tokens but with
+`token_type: "mfa"`; it is only harmless because the gateway and every auth-service view reject any `token_type`
+other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-factor authentication*.
 
 **Why RS256 Asymmetric Keys:** Auth Service signs tokens with private key (never leaves auth-service). API Gateway verifies with public key only (cannot forge tokens). More secure than HS256 symmetric secrets.
 
@@ -258,10 +265,16 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
   are unreachable from the host)
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 102 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 353 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
 - User registration (requires email, password, password_confirm) and login endpoints
-- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens
+- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens; new password
+  must differ from the current one, pass the validators *with the user in scope*, and be ≤128 chars
+- Profile update (PATCH /api/v1/auth/me): first_name, last_name, email. An email change needs the current password
+  (and a 2FA code when 2FA is on) and re-issues the session because the access token embeds the email
+- TOTP two-factor authentication for Aegis / Microsoft Authenticator / Google Authenticator
+  (`POST /api/v1/auth/2fa/{setup,enable,disable}`, `POST /api/v1/auth/login/2fa`): secrets encrypted at rest (Fernet),
+  10 single-use hashed recovery codes, replay protection, per-account lockout (5 failures → 15 min)
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
@@ -456,11 +469,13 @@ Order of execution (bottom to top):
 3. **Rate Limiting Middleware**: Redis-backed, per-user or per-IP
 4. **Authentication Middleware**: JWT validation, extracts user context
 
-Public paths (exact match, `middleware/auth_middleware.py:22-29`): `/health`, `/docs`,
-`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh`.
+Public paths (exact match, `middleware/auth_middleware.py:22-30`): `/health`, `/docs`,
+`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`, `/api/v1/auth/refresh`.
 Everything else requires the `access_token` cookie — including `/redoc` (served by FastAPI but never
-added to the set), `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete` and
-`/api/v1/auth/change-password`.
+added to the set), `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete`,
+`/api/v1/auth/change-password`, `/api/v1/auth/me` and `/api/v1/auth/2fa/{setup,enable,disable}`.
+The cookie's JWT must have `token_type == "access"` and a non-empty `user_id`: refresh and 2FA-challenge
+tokens are signed with the same key and are rejected with 401 (`auth/jwt_utils.py::extract_user_context`).
 
 ### Standardized Error Responses
 
@@ -624,9 +639,9 @@ make test [init] [flags]                              # make shortcut (no -- pre
   (verify with `make -n test init`). Prefer `./scripts/init-and-test.sh --init` if you only want the
   script's build/start/migrate phase
 
-Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — gateway 28 (real 30,
-`:109`), ai 37 (real 104, `:121`), recommendation 42 (real 48, `:129`). They only feed a printed
-total; do not trust them.
+Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 104, `:121`),
+recommendation 42 (real 48, `:129`). (gateway 41 and auth 353 were refreshed with the 2FA work.) They only
+feed a printed total; do not trust them.
 
 **Jupyter Notebook Testing (E2E Integration):**
 - Location: `scripts/jupyter/test_ai_service.ipynb`
@@ -654,6 +669,14 @@ total; do not trust them.
 - **Network Isolation**: Backend services not exposed externally, only via API Gateway
 - **Rate Limiting**: Two layers (NGINX: 200/min, API Gateway: 60/min per user)
 - **Password Hashing**: argon2 in auth service
+- **Two-Factor Authentication**: TOTP (RFC 6238; SHA-1 / 6 digits / 30 s, the only profile all authenticator apps
+  honour), stdlib implementation pinned to the RFC test vectors. Secrets are Fernet-encrypted at rest
+  (`TWO_FACTOR_ENCRYPTION_KEY`, else derived from `SECRET_KEY` — changing either invalidates stored secrets);
+  recovery codes are SHA-256 hashed and consumed atomically; a used time step is never accepted twice; five
+  consecutive failures lock the account's second step for 15 minutes. Because the gateway's rate limits are per
+  user/IP, the lockout lives in the database on the account.
+- **Token types**: the auth service signs `access`, `refresh` and `mfa` JWTs with one key. Every verifier must check
+  `token_type`; the gateway enforces `access` (ROADMAP `GW-01`).
 - **HTTPS**: TLS 1.2+ via Nginx (self-signed cert in dev, replace in production)
 - **Token Blacklist**: **not implemented.** Logout clears the cookies and marks the `refresh_tokens`
   row revoked; a stolen access token remains valid until its 15-minute `exp`. (In a real browser the
@@ -663,8 +686,8 @@ total; do not trust them.
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 33 passing tests
-- Auth Service (Django) with authentication endpoints - 102 passing tests
+- API Gateway (FastAPI) with full middleware stack - 41 passing tests
+- Auth Service (Django) with authentication endpoints, profile update and TOTP 2FA - 353 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
 - AI Service (FastAPI) with multi-stage vision pipeline - 98 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests

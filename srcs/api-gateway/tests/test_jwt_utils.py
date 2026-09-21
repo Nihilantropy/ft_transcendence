@@ -13,6 +13,7 @@ def create_test_token(user_id: str, role: str = "user", exp_minutes: int = 30):
         "user_id": user_id,
         "email": "test@example.com",
         "role": role,
+        "token_type": "access",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(minutes=exp_minutes)
     }

@@ -66,6 +66,25 @@ def generate_refresh_token(user, token_id):
         token_type='refresh'
     )
 
+def generate_mfa_token(user):
+    """
+    Generate the two-factor challenge token issued after a correct password when 2FA is on.
+
+    Deliberately minimal (no role, no email) and short-lived. It is returned in the JSON body,
+    never as a cookie, and the API Gateway rejects it because token_type is not 'access'.
+
+    Args:
+        user: User object
+
+    Returns:
+        JWT token string signed with RS256 private key
+    """
+    return _generate_token(
+        timedelta(minutes=settings.TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES),
+        user_id=str(user.id),
+        token_type='mfa'
+    )
+
 def decode_token(token):
     """
     Decode and validate JWT token.

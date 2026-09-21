@@ -36,6 +36,9 @@ echo ""
 
 # Initialization phase
 if [ "$SKIP_INIT" = false ]; then
+  # The gateway bind-mounts the JWT public key and compose refuses to start without it
+  "$SCRIPT_DIR/../srcs/auth-service/keys/generate-keys.sh"
+
   # Step 1: Build images
   echo -e "${YELLOW}[1/4] Building Docker images...${NC}"
   docker compose build

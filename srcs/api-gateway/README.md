@@ -10,10 +10,10 @@ services (auth, user, ai, recommendation) publish no host port, so the gateway i
 
 ## Responsibilities
 
-- **Authenticate** — decode/verify the JWT from the `access_token` cookie using the RSA **public key only**
+- **Authenticate** — decode/verify the JWT from the `access_token` cookie using the RSA **public key only**, and accept it only if `token_type` is `"access"` (refresh and two-factor challenge tokens are refused)
   (`auth/jwt_utils.py:9`, key loaded once at import in `config.py:46`). The gateway cannot mint tokens.
 - **Inject user context** — `X-User-ID`, `X-User-Role`, `X-Request-ID`, `X-Correlation-ID`
-  (`middleware/auth_middleware.py:57-62`); backend services trust these headers because they are only
+  (`middleware/auth_middleware.py:58-63`); backend services trust these headers because they are only
   reachable on `backend-network`.
 - **Rate limit** — fixed 60-second counter per `user_id` (authenticated) or per client IP
   (`middleware/rate_limit.py:27-72`).
@@ -106,17 +106,26 @@ backend endpoints.
 
 ### Public paths (exact string match)
 
-`middleware/auth_middleware.py:22-29`, compared with `request.url.path in self.public_endpoints`
+`middleware/auth_middleware.py:22-30`, compared with `request.url.path in self.public_endpoints`
 (`:33`) — an **exact** match. `request.url.path` excludes the query string, so `/health?x=1` still
 matches, but `/health/` does not, and prefixes never do:
 
 ```
 /health   /docs   /openapi.json
-/api/v1/auth/login   /api/v1/auth/register   /api/v1/auth/refresh
+/api/v1/auth/login   /api/v1/auth/login/2fa   /api/v1/auth/register   /api/v1/auth/refresh
 ```
 
-Everything else, including `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete` and
-`/api/v1/auth/change-password`, requires a valid `access_token` cookie.
+`/api/v1/auth/login/2fa` is the second step of a two-factor login; the caller has no cookie yet and
+submits the challenge token from `/login` in the body.
+
+Everything else, including `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete`,
+`/api/v1/auth/change-password`, `/api/v1/auth/me` and `/api/v1/auth/2fa/{setup,enable,disable}`, requires a
+valid `access_token` cookie.
+
+"Valid" means: RS256 signature verifies against the auth-service public key, the token is not expired,
+`token_type == "access"`, and `user_id` is non-empty (`auth/jwt_utils.py::extract_user_context`). The
+auth-service signs refresh tokens (7 days) and the 2FA challenge token (`"mfa"`, 5 minutes) with the same key,
+so without the `token_type` check either could be presented as an `access_token` cookie (ROADMAP `GW-01`).
 
 ### Prefix routing table
 
@@ -147,7 +156,7 @@ reason:
 |------|-----------|--------|
 | Headers | all inbound headers forwarded, `host` removed | `routes/proxy.py:94-95` |
 | Cookies | `cookie` header **stripped** unless the path starts with `/api/v1/auth` | `routes/proxy.py:98-99` |
-| Context | `X-User-ID`, `X-User-Role`, `X-Request-ID`, `X-Correlation-ID` merged in — only present for authenticated requests | `auth_middleware.py:57-62`, `proxy.py:91,102` |
+| Context | `X-User-ID`, `X-User-Role`, `X-Request-ID`, `X-Correlation-ID` merged in — only present for authenticated requests | `auth_middleware.py:58-63`, `proxy.py:91,102` |
 | Body | read and forwarded for `POST`/`PUT`/`PATCH` only; a `DELETE` body is dropped | `routes/proxy.py:109-110` |
 | Query | `dict(request.query_params)` — repeated keys collapse to the last value | `routes/proxy.py:125` |
 | Timeout | 30 s default, 300 s for paths under `/api/v1/vision` | `routes/proxy.py:13,16-18,113-116` |
@@ -236,7 +245,7 @@ Values not in `.env`:
 - **CORS origins** are hardcoded in `main.py:71-75`: `http://localhost:5173`, `http://localhost:3000`,
   `https://smartbreeds.local`; credentials allowed, all methods/headers allowed, exposed headers
   `X-Request-ID`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` (`main.py:76-79`).
-- **Public endpoint set** is hardcoded in `middleware/auth_middleware.py:22-29`.
+- **Public endpoint set** is hardcoded in `middleware/auth_middleware.py:22-30`.
 - **Per-service timeouts** are hardcoded in `routes/proxy.py:16-18`.
 
 The public key reaches the container through a read-only bind mount of the auth-service key,
@@ -295,10 +304,10 @@ nothing imports it and it is not tracked by git.
 
 ## Testing
 
-Layout is flat — `tests/*.py`, no `unit/` or `integration/` subdirectories. **30 tests.**
+Layout is flat — `tests/*.py`, no `unit/` or `integration/` subdirectories. **41 tests.**
 
 ```bash
-# all 30 (works even when the container is not running)
+# all 41 (works even when the container is not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
 # skip starting auth-service/user-service/db first
@@ -315,18 +324,22 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-r
 
 | File | Tests | Covers |
 |------|-------|--------|
-| `tests/test_auth_middleware.py` | 4 | valid / missing / expired cookie, `/health` bypass — against a standalone app carrying only `JWTAuthMiddleware` |
+| `tests/test_auth_middleware.py` | 12 | valid / missing / expired cookie, `/health` bypass, refusal of `refresh` / `mfa` / empty / wrong-case / absent `token_type` and of a missing or empty `user_id`, `/api/v1/auth/login/2fa` reachable without a cookie — against a standalone app carrying only `JWTAuthMiddleware` |
 | `tests/test_config.py` | 3 | settings load from env, required attributes present, public key readable |
 | `tests/test_cors.py` | 3 | preflight on `/health`: allow-origin, allow-credentials, allow-headers |
 | `tests/test_error_handling.py` | 5 | 404 on unrouted prefix, 404 on unknown API version, 401 before route resolution, envelope shape on a malformed login body (asserts only the `success`/`error` keys — the call is unmocked, so it actually 503s); one empty placeholder (`test_500_returns_standardized_error`) |
 | `tests/test_health.py` | 2 | status code and body shape |
 | `tests/test_jwt_utils.py` | 4 | decode valid, expired, wrong key, malformed |
-| `tests/test_logging.py` | 3 | request logged, duration logged, `user_id` + `X-Request-ID` on a proxied call |
+| `tests/test_logging.py` | 6 | request logged, duration logged, `user_id` + `X-Request-ID` on a proxied call |
 | `tests/test_proxy.py` | 3 | routing to auth-service and user-service, context headers on the outbound call |
 | `tests/test_rate_limit.py` | 3 | under-limit passthrough + headers, 429 body shape, user-keyed counter |
 
-`scripts/run-unit-tests.sh --gateway` runs the same command but prints a stale hardcoded count of 28
-(`scripts/run-unit-tests.sh:107-109`); the number is cosmetic and is not asserted.
+`scripts/run-unit-tests.sh --gateway` runs the same command but prints a hardcoded count
+(`scripts/run-unit-tests.sh`); the number is cosmetic and is not asserted.
+
+Every test helper that mints a JWT (`create_test_token` in six files) includes `"token_type": "access"`;
+without it the gateway now answers 401. The gateway image bakes `auth/` and `middleware/` in — after editing
+those, `docker compose build api-gateway` before running tests, or the container tests the old code.
 
 `tests/conftest.py` generates a fresh 2048-bit RSA pair per session, writes the public key to a temp file
 and exports `JWT_PUBLIC_KEY_PATH`, `JWT_ALGORITHM`, `AUTH_SERVICE_URL`, `USER_SERVICE_URL`,
@@ -345,8 +358,8 @@ no test currently uses.
 |---------|-------|-------|
 | Container exits immediately, `FileNotFoundError: JWT public key not found` | `JWT_PUBLIC_KEY_PATH` points nowhere; the key is read at import (`config.py:38-39,46`) | `docker exec ft_transcendence_api_gateway ls -l /app/keys/jwt-public.pem`; regenerate with `srcs/auth-service/keys/generate-keys.sh` |
 | Container exits with pydantic `ValidationError` | one of the four `*_SERVICE_URL` settings or `JWT_PUBLIC_KEY_PATH` is absent (no defaults, `config.py:14,18-21`) | compare `srcs/api-gateway/.env` against `.env.example` |
-| Every request 401 `UNAUTHORIZED` | no `access_token` cookie, expired token, or a token signed by a different key pair | send with `-b 'access_token=…'`; confirm the gateway's mounted public key matches `srcs/auth-service/keys/jwt-private.pem` |
-| `/api/v1/auth/logout` returns 401 | only login/register/refresh are public (`middleware/auth_middleware.py:26-28`) | send the access-token cookie |
+| Every request 401 `UNAUTHORIZED` | no `access_token` cookie, expired token, a refresh/2FA-challenge token in the `access_token` cookie (`Invalid token type`), or a token signed by a different key pair | send with `-b 'access_token=…'`; confirm the gateway's mounted public key matches `srcs/auth-service/keys/jwt-private.pem` |
+| `/api/v1/auth/logout` returns 401 | only login/login/2fa/register/refresh are public (`middleware/auth_middleware.py:26-29`) | send the access-token cookie |
 | Browser reports a CORS failure on a protected endpoint | preflight `OPTIONS` carries no cookies → 401 from the auth middleware, which sits outside `CORSMiddleware` | reproduce with `curl -i -X OPTIONS http://localhost:8001/api/v1/users/me` |
 | 404 `NOT_FOUND` for an endpoint that exists in a backend | its prefix is not in `SERVICE_ROUTES` (e.g. `/api/v1/analyses`) | `routes/proxy.py:40-48` |
 | 503 with `error.code = "HTTP_ERROR"` and a dict-looking message | backend unreachable; `httpx.RequestError` wrapped in an `HTTPException` with a dict detail | `docker compose ps`; verify the `*_SERVICE_URL` hostnames resolve on `backend-network` |
@@ -354,4 +367,4 @@ no test currently uses.
 | Rate limiting never triggers | Redis unreachable — the middleware swallows `redis.RedisError` and lets the request through (`middleware/rate_limit.py:56-58`) | `docker exec ft_transcendence_redis redis-cli ping`; look for `Redis error in rate limiting` in the gateway logs |
 | 429 sooner than `RATE_LIMIT_PER_MINUTE` | nginx has its own limiter, 200 r/m with `burst=20` on `/api` (`srcs/nginx/conf.d/default.conf.template:18,77`) | hit `http://localhost:8001` to isolate the gateway layer |
 | Source edit has no effect | only `routes/` and `tests/` are bind-mounted (`docker-compose.yml:299,301`); everything else is baked in at `Dockerfile:13`, and uvicorn runs without `--reload` | `docker compose build api-gateway` for other files; `docker compose restart api-gateway` after editing `routes/` |
-| Log line shows `"user_id": "anonymous"`, `"request_id": "no-request-id"` | public endpoints skip the auth middleware, so `request.state` is never populated | expected for `/health`, `/docs`, `/api/v1/auth/{login,register,refresh}` |
+| Log line shows `"user_id": "anonymous"`, `"request_id": "no-request-id"` | public endpoints skip the auth middleware, so `request.state` is never populated | expected for `/health`, `/docs`, `/api/v1/auth/{login,login/2fa,register,refresh}` |

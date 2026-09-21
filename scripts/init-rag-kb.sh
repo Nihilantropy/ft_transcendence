@@ -14,7 +14,7 @@ echo "======================================"
 # Check if container is running
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "❌ Error: Container ${CONTAINER_NAME} is not running"
-    echo "   Run 'make up' or 'docker compose up -d' first"
+    echo "   Run 'make up' first"
     exit 1
 fi
 

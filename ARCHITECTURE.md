@@ -258,7 +258,7 @@ All microservices communicate via **synchronous REST APIs** over HTTP. This prov
 
 ### Inter-Service Communication Standards
 
-**Headers passed by API Gateway to backend services** (set only for authenticated requests — the public endpoints `/health`, `/docs`, `/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh` bypass the auth middleware and receive none of them):
+**Headers passed by API Gateway to backend services** (set only for authenticated requests — the public endpoints `/health`, `/docs`, `/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`, `/api/v1/auth/refresh` bypass the auth middleware and receive none of them):
 - `X-User-ID`: Authenticated user ID (string)
 - `X-User-Role`: User role (user, admin)
 - `X-Request-ID`: Unique request ID for tracing (UUID, generated per request)
@@ -347,6 +347,18 @@ The gateway also strips the `Cookie` header for every path that does not start w
 }
 ```
 
+**Two-factor challenge token payload** (`jwt_utils.generate_mfa_token`) — issued after a correct password when the account has TOTP 2FA enabled. Minimal on purpose (no email, no role), 5 minutes, returned in a JSON body and **never** set as a cookie:
+```json
+{
+  "user_id": "3f2a1c9e-7b41-4d0a-9c2e-15b8d4a6e701",
+  "token_type": "mfa",
+  "iat": 1705140000,
+  "exp": 1705140300
+}
+```
+
+All three token kinds are signed with the same private key, so the signature says nothing about purpose. Every verifier must check `token_type`: the API Gateway accepts only `"access"` (`extract_user_context`), the auth-service views check the type they expect. Skipping that check on the gateway would turn the challenge token — obtainable with the password alone — into a full session.
+
 **Cookie Attributes** (set in `apps/authentication/utils.py:issue_auth_tokens`):
 
 | Attribute | `access_token` | `refresh_token` |
@@ -412,6 +424,26 @@ The gateway also strips the `Cookie` header for every path that does not start w
    Set-Cookie: refresh_token=yyy; HttpOnly; SameSite=Strict; Max-Age=604800; Path=/api/v1/auth/refresh
 ```
 
+#### 2b. Two-Factor Login Flow (account has TOTP 2FA enabled)
+
+```
+1. Client → API Gateway: POST /api/v1/auth/login   (public path)      Body: {email, password}
+2. Auth Service (LoginView): same checks as above; then, because user.two_factor_enabled:
+   - NO cookies, existing sessions NOT revoked (else the password alone could log the owner out)
+   - Response 200: {data: {mfa_required: true, mfa_token: <JWT token_type=mfa, 5 min>}}
+3. Client → API Gateway: POST /api/v1/auth/login/2fa   (public path)  Body: {mfa_token, code}
+   code = 6-digit TOTP from the authenticator app, or a single-use recovery code
+4. Auth Service (TwoFactorLoginView):
+   - decode mfa_token; require token_type == "mfa"; user exists, active, 2FA still enabled
+   - verify_second_factor: ±1 step window, replay guard (last_used_step), per-account lockout
+     (5 failures → 15 min, stored in auth_schema.two_factor_auth, SELECT … FOR UPDATE)
+     → 401 INVALID_2FA_CODE / 429 RATE_LIMIT_EXCEEDED
+   - now revoke previous refresh tokens, issue the usual access + refresh cookies
+5. Response 200 → Client: {data: {user: {…, two_factor_enabled: true}}} + Set-Cookie ×2
+```
+
+Enrolment: `POST /api/v1/auth/2fa/setup` (stages an encrypted pending secret, returns the `otpauth://` URI for a QR code) → `POST /api/v1/auth/2fa/enable` with the current password and a code (returns 10 recovery codes once). `POST /api/v1/auth/2fa/disable` needs the password and a valid code. See `srcs/auth-service/README.md` → *Two-factor authentication* for the security properties.
+
 #### 3. Authenticated Request Flow
 
 ```
@@ -422,6 +454,7 @@ The gateway also strips the `Cookie` header for every path that does not start w
    - Extract access_token from cookie
    - Verify JWT signature with the RS256 public key only (python-jose; no HS256/shared-secret path)
    - Check expiration
+   - Require token_type == "access" and a non-empty user_id (refresh and 2FA-challenge tokens → 401)
    - Extract user_id, role and email from payload
    - Rate limit (Redis, RATE_LIMIT_PER_MINUTE=60 per user)
    - Match the longest SERVICE_ROUTES prefix (/api/v1/pets → user-service:3002)
