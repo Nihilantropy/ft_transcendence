@@ -177,7 +177,7 @@ tolerate it being `None` before startup.
   (`ids`/`documents`/`metadatas`/`distances`, each a list-of-lists).
 - `Embedder` tests patch `src.services.embedder.SentenceTransformer`; never let a test download a
   model.
-- `scripts/run-unit-tests.sh:119-121` still claims 37 tests for this service; the real collection is
+- `scripts/run-unit-tests.sh:123-125` still claims 37 tests for this service; the real collection is
   104. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
 
 ## Config & Thresholds

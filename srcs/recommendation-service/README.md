@@ -42,14 +42,14 @@ client ──► nginx (host 8000/8443) ──► api-gateway (host 8001)
 
 | Aspect | Value | Source |
 |---|---|---|
-| Container name | `ft_transcendence_recommendation_service` | docker-compose.yml:324 |
+| Container name | `ft_transcendence_recommendation_service` | docker-compose.yml:331 |
 | Internal port | 3005 — **no host port mapping** | Dockerfile:29, docker-compose.yml (no `ports:`) |
-| Network | `backend-network` only | docker-compose.yml:326-327 |
-| Compose profile | none declared → runs in **both** `local` and `cloud` | docker-compose.yml:320-338 |
+| Network | `backend-network` only | docker-compose.yml:333-334 |
+| Compose profile | none declared → runs in **both** `local` and `cloud` | docker-compose.yml:327-345 |
 | GPU | none | — |
-| `depends_on` | `user-service` (plain, no health condition) | docker-compose.yml:328-329 |
-| Volume | `./srcs/recommendation-service:/app` (full source bind mount) | docker-compose.yml:332-333 |
-| Healthcheck | `curl -f http://localhost:3005/health`, 30s/10s/3 | docker-compose.yml:334-338 |
+| `depends_on` | `user-service` (plain, no health condition) | docker-compose.yml:335-336 |
+| Volume | `./srcs/recommendation-service:/app` (full source bind mount) | docker-compose.yml:339-340 |
+| Healthcheck | `curl -f http://localhost:3005/health`, 30s/10s/3 | docker-compose.yml:341-345 |
 
 The gateway routes both prefixes to this service (`srcs/api-gateway/routes/proxy.py:46-47`).
 Because the service has no host port, every request must arrive through the gateway (host
@@ -298,7 +298,7 @@ Indexes on `(user_id, pet_id)` and `created_at`. **No code writes to this table.
 
 Settings are read by `pydantic-settings` in `src/config.py`. `.env` is gitignored and is
 excluded from the image by `.dockerignore`; values reach the container through
-`env_file: ./srcs/recommendation-service/.env` in docker-compose.yml:330-331 and through the
+`env_file: ./srcs/recommendation-service/.env` in docker-compose.yml:337-338 and through the
 bind mount at `/app/.env`.
 
 | Variable | Read at | Code default | `.env.example` | Purpose |
@@ -415,7 +415,7 @@ make test recommendation      # → scripts/init-and-test.sh --recommendation �
 make test-integration         # → scripts/run-integration-tests.sh (docker exec, integration only)
 ```
 
-> `scripts/run-unit-tests.sh:129` still asserts an expected count of `42` for this suite; the
+> `scripts/run-unit-tests.sh:133` still asserts an expected count of `42` for this suite; the
 > real unit count is 48.
 
 ### Unit tests (`tests/unit/`, no network, no DB)

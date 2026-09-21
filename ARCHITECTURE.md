@@ -220,7 +220,7 @@ All microservices communicate via **synchronous REST APIs** over HTTP. This prov
    - API Gateway → Redis (rate limiting); no other service uses Redis
    - AI Service and Classification Service are stateless — no PostgreSQL, no Redis
 
-**Key principle**: **NGINX** is the only service attached to both networks (`docker-compose.yml:14-16`); the API Gateway lives on `backend-network` only (`docker-compose.yml:304-305`) and is reached by NGINX across that network. Auth, User, AI, Classification, Recommendation, LiteLLM, PostgreSQL and Redis publish no host ports. Two exceptions exist for development convenience: the API Gateway publishes `8001:8001` (`docker-compose.yml:294-295`) and, in the `local` profile, Ollama publishes `11434:11434` (`docker-compose.yml:68-69`). NGINX itself is published on `8000:80` and `8443:443`, not 80/443.
+**Key principle**: **NGINX** is the only service attached to both networks (`docker-compose.yml:14-16`); the API Gateway lives on `backend-network` only (`docker-compose.yml:311-312`) and is reached by NGINX across that network. Auth, User, AI, Classification, Recommendation, LiteLLM, PostgreSQL and Redis publish no host ports. Two exceptions exist for development convenience: the API Gateway publishes `8001:8001` (`docker-compose.yml:301-302`) and, in the `local` profile, Ollama publishes `11434:11434` (`docker-compose.yml:68-69`). NGINX itself is published on `8000:80` and `8443:443`, not 80/443.
 
 ### Request Flow Example: Pet Image Analysis
 
@@ -258,7 +258,7 @@ All microservices communicate via **synchronous REST APIs** over HTTP. This prov
 
 ### Inter-Service Communication Standards
 
-**Headers passed by API Gateway to backend services** (set only for authenticated requests — the public endpoints `/health`, `/docs`, `/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh` bypass the auth middleware and receive none of them):
+**Headers passed by API Gateway to backend services** (set only for authenticated requests — the public endpoints `/health`, `/docs`, `/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`, `/api/v1/auth/refresh` bypass the auth middleware and receive none of them):
 - `X-User-ID`: Authenticated user ID (string)
 - `X-User-Role`: User role (user, admin)
 - `X-Request-ID`: Unique request ID for tracing (UUID, generated per request)
@@ -347,6 +347,18 @@ The gateway also strips the `Cookie` header for every path that does not start w
 }
 ```
 
+**Two-factor challenge token payload** (`jwt_utils.generate_mfa_token`) — issued after a correct password when the account has TOTP 2FA enabled. Minimal on purpose (no email, no role), 5 minutes, returned in a JSON body and **never** set as a cookie:
+```json
+{
+  "user_id": "3f2a1c9e-7b41-4d0a-9c2e-15b8d4a6e701",
+  "token_type": "mfa",
+  "iat": 1705140000,
+  "exp": 1705140300
+}
+```
+
+All three token kinds are signed with the same private key, so the signature says nothing about purpose. Every verifier must check `token_type`: the API Gateway accepts only `"access"` (`extract_user_context`), the auth-service views check the type they expect. Skipping that check on the gateway would turn the challenge token — obtainable with the password alone — into a full session.
+
 **Cookie Attributes** (set in `apps/authentication/utils.py:issue_auth_tokens`):
 
 | Attribute | `access_token` | `refresh_token` |
@@ -412,6 +424,26 @@ The gateway also strips the `Cookie` header for every path that does not start w
    Set-Cookie: refresh_token=yyy; HttpOnly; SameSite=Strict; Max-Age=604800; Path=/api/v1/auth/refresh
 ```
 
+#### 2b. Two-Factor Login Flow (account has TOTP 2FA enabled)
+
+```
+1. Client → API Gateway: POST /api/v1/auth/login   (public path)      Body: {email, password}
+2. Auth Service (LoginView): same checks as above; then, because user.two_factor_enabled:
+   - NO cookies, existing sessions NOT revoked (else the password alone could log the owner out)
+   - Response 200: {data: {mfa_required: true, mfa_token: <JWT token_type=mfa, 5 min>}}
+3. Client → API Gateway: POST /api/v1/auth/login/2fa   (public path)  Body: {mfa_token, code}
+   code = 6-digit TOTP from the authenticator app, or a single-use recovery code
+4. Auth Service (TwoFactorLoginView):
+   - decode mfa_token; require token_type == "mfa"; user exists, active, 2FA still enabled
+   - verify_second_factor: ±1 step window, replay guard (last_used_step), per-account lockout
+     (5 failures → 15 min, stored in auth_schema.two_factor_auth, SELECT … FOR UPDATE)
+     → 401 INVALID_2FA_CODE / 429 RATE_LIMIT_EXCEEDED
+   - now revoke previous refresh tokens, issue the usual access + refresh cookies
+5. Response 200 → Client: {data: {user: {…, two_factor_enabled: true}}} + Set-Cookie ×2
+```
+
+Enrolment: `POST /api/v1/auth/2fa/setup` (stages an encrypted pending secret, returns the `otpauth://` URI for a QR code) → `POST /api/v1/auth/2fa/enable` with the current password and a code (returns 10 recovery codes once). `POST /api/v1/auth/2fa/disable` needs the password and a valid code. See `srcs/auth-service/README.md` → *Two-factor authentication* for the security properties.
+
 #### 3. Authenticated Request Flow
 
 ```
@@ -422,6 +454,7 @@ The gateway also strips the `Cookie` header for every path that does not start w
    - Extract access_token from cookie
    - Verify JWT signature with the RS256 public key only (python-jose; no HS256/shared-secret path)
    - Check expiration
+   - Require token_type == "access" and a non-empty user_id (refresh and 2FA-challenge tokens → 401)
    - Extract user_id, role and email from payload
    - Rate limit (Redis, RATE_LIMIT_PER_MINUTE=60 per user)
    - Match the longest SERVICE_ROUTES prefix (/api/v1/pets → user-service:3002)
@@ -522,7 +555,7 @@ DELETE /api/v1/auth/delete
 - Not implemented: signed/authenticated gateway headers, or mTLS between services
 
 **Key Storage:**
-- **RSA key pair, not a shared secret**: 4096-bit keys generated once by `srcs/auth-service/keys/generate-keys.sh`. `jwt-private.pem` (chmod 600, gitignored) never leaves auth-service; `jwt-public.pem` (chmod 644) is bind-mounted read-only into the API Gateway at `/app/keys/jwt-public.pem`
+- **RSA key pair, not a shared secret**: 4096-bit keys generated on demand by `make keys` (`srcs/auth-service/keys/generate-keys.sh`, idempotent; `make up` runs it). Neither file is tracked by git. `jwt-private.pem` (chmod 600) never leaves auth-service; `jwt-public.pem` (chmod 644) is bind-mounted read-only into the API Gateway at `/app/keys/jwt-public.pem`
 - Only the *paths* are environment-driven (`JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH`); both keys are loaded from disk once at startup by `load_jwt_keys()`
 - **Key Rotation**: not implemented. There is no dual-key grace period — regenerating the pair invalidates every outstanding token immediately
 - With `DEBUG=True`, a missing key file is swallowed: `JWT_KEYS` falls back to empty strings and the service boots and passes its healthcheck while every token operation fails (`config/settings.py:158-164`)
@@ -1193,7 +1226,7 @@ networks:
 - **Nginx bridges both networks** — it is the only service on `proxy`, and it proxies
   `/api` to `api-gateway:8001` (srcs/nginx/conf.d/default.conf.template:81)
 - The API Gateway sits on `backend-network` only; its `8001:8001` host publish exists
-  purely for local curl/Postman testing (docker-compose.yml:294-295)
+  purely for local curl/Postman testing (docker-compose.yml:301-302)
 - Neither network is declared `internal: true` — `backend-network` needs egress for the
   cloud profile (Mistral API) and for Ollama model pulls
 

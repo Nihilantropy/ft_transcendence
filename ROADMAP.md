@@ -102,6 +102,8 @@ _Something lets a user do what they must not be able to do, exposes a credential
 <!-- item id=GW-01 priority=P0 effort=S service=api-gateway -->
 ### GW-01 - Gateway accepts a refresh token as an access token
 
+> **Status: fixed** alongside the TOTP 2FA work — `extract_user_context` now requires `token_type == "access"` and a non-empty `user_id`, the six test helpers mint `token_type: "access"`, and `tests/test_auth_middleware.py` covers `refresh`, `mfa`, empty, wrong-case and absent `token_type` plus a missing `user_id`. It was a hard prerequisite for 2FA: the challenge token issued after the password step would otherwise have been a full session. The description below is the original finding.
+
 **Where:** `srcs/api-gateway/auth/jwt_utils.py:26-55`, `srcs/api-gateway/middleware/auth_middleware.py:37-45`
 
 **Problem:** `decode_jwt` verifies only signature and expiry — it never inspects the `token_type` claim. A refresh token (7-day lifetime, `srcs/auth-service/config/settings.py:132`) placed in the `access_token` cookie authenticates every protected route, turning the intended 15-minute access window (`settings.py:131`) into 7 days. `extract_user_context` then silently defaults `role` to `"user"` because refresh payloads carry no `role`/`email` claim (`srcs/auth-service/apps/authentication/jwt_utils.py:51-57`). Auth-service's own views do check `token_type`; the gateway does not. Derived from reading code, not observed at runtime.
@@ -146,7 +148,7 @@ then `forward_headers.update(backend_headers)` as today. Keep the list next to `
 <!-- item id=INFRA-01 priority=P0 effort=S service=repo -->
 ### INFRA-01 - `make init` provisions an admin account whose password is published in the repo
 
-**Where:** `scripts/create-superuser.sh:1`, `Makefile:28`, `Makefile:182-184`
+**Where:** `scripts/create-superuser.sh:1`, `Makefile:28`, `Makefile:186-188`
 
 **Problem:** The script runs `createsuperuser --no-input` with `DJANGO_SUPERUSER_EMAIL=test_admin@example.com` and `DJANGO_SUPERUSER_PASSWORD=Password123!` hardcoded. `make init` (`build up migration seed superuser rag`) runs it unconditionally, so every environment provisioned this way ends up with a `role='admin'`, `is_superuser=True` account (`srcs/auth-service/apps/authentication/models.py:23-25`) whose credentials are in git. The role lands in the JWT (`jwt_utils.py:23`) and is forwarded downstream as `X-User-Role`.
 
@@ -219,7 +221,7 @@ _A feature that is documented or clearly intended does not work at all. Size of 
 <!-- item id=GW-15 priority=P1 effort=S service=api-gateway -->
 ### GW-15 - Logout is unreachable once the access token expires, so the session cannot be ended
 
-**Where:** `srcs/api-gateway/middleware/auth_middleware.py:22-33`, `srcs/auth-service/apps/authentication/views.py:247-276`
+**Where:** `srcs/api-gateway/middleware/auth_middleware.py:22-33`, `srcs/auth-service/apps/authentication/views.py:376-405`
 
 **Problem:** `public_endpoints` lists `login`, `register` and `refresh` but not `/api/v1/auth/logout`, so the gateway 401s logout whenever the `access_token` cookie is missing or expired. Access tokens live 15 minutes (`JWT_ACCESS_TOKEN_LIFETIME_MINUTES`, `srcs/auth-service/config/settings.py:131`), so any user who returns to an idle tab cannot log out at all. `LogoutView` is written for exactly this case — its docstring says "Always succeeds - gracefully handles missing/invalid/expired tokens" and every branch is guarded — but the gateway never lets the request through. The consequence is not cosmetic: the 401 short-circuits before auth-service can send `clear_auth_cookies`, so the browser keeps both cookies and the `refresh_token` (valid 7 days, still not revoked) can mint a fresh access token through the public `/api/v1/auth/refresh`. "Log out" leaves a fully resurrectable session.
 
@@ -232,7 +234,7 @@ _A feature that is documented or clearly intended does not work at all. Size of 
 <!-- item id=AUTH-01 priority=P1 effort=M service=auth-service -->
 ### AUTH-01 - Logout never revokes the refresh token in a real browser
 
-**Where:** `srcs/auth-service/apps/authentication/utils.py:52-61`, `srcs/auth-service/apps/authentication/views.py:255-276`
+**Where:** `srcs/auth-service/apps/authentication/utils.py:54-63`, `srcs/auth-service/apps/authentication/views.py:384-405`
 
 **Problem:** The `refresh_token` cookie is issued with `path='/api/v1/auth/refresh'`, so a browser (and curl) never sends it to `POST /api/v1/auth/logout`. `LogoutView`'s revocation branch reads `request.COOKIES.get('refresh_token')`, gets `None`, and returns success without touching the DB — the refresh token stays valid server-side for its full 7 days after the user logged out. The four `TestLogoutView` tests pass only because Django's test client ignores cookie paths. Found by reading code; the curl repro below confirms it.
 
@@ -240,7 +242,7 @@ _A feature that is documented or clearly intended does not work at all. Size of 
 
 **Verify:** `curl -s -c /tmp/j -X POST http://localhost:8001/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"E","password":"P"}' >/dev/null && cp /tmp/j /tmp/j2 && curl -s -b /tmp/j -X POST http://localhost:8001/api/v1/auth/logout >/dev/null && curl -s -b /tmp/j2 -X POST http://localhost:8001/api/v1/auth/refresh` — must return 401 `TOKEN_REVOKED`; today it returns 200 with fresh tokens.
 
-**Effort:** M - **Risk:** logout must keep returning 200 for missing/expired/garbage tokens — `srcs/auth-service/tests/test_views.py:778-840` (`TestLogoutView`) covers that surface. Adding tests means bumping the hardcoded expected count at `scripts/run-unit-tests.sh:113`, which INFRA-09 deletes outright. Separately, `/api/v1/auth/logout` is not in the gateway's public set (`srcs/api-gateway/middleware/auth_middleware.py:22-29`), so a user whose access token already expired is 401'd before reaching this code — that is GW-15, and the two are only jointly sufficient: this item without GW-15 fixes logout for unexpired sessions only, GW-15 without this item makes logout reachable but still non-revoking. No `Depends on` in either direction, since each is independently shippable and a mutual one would be a cycle; schedule them together.
+**Effort:** M - **Risk:** logout must keep returning 200 for missing/expired/garbage tokens — `srcs/auth-service/tests/test_views.py:778-840` (`TestLogoutView`) covers that surface. Adding tests means bumping the hardcoded expected count at `scripts/run-unit-tests.sh:117`, which INFRA-09 deletes outright. Separately, `/api/v1/auth/logout` is not in the gateway's public set (`srcs/api-gateway/middleware/auth_middleware.py:22-29`), so a user whose access token already expired is 401'd before reaching this code — that is GW-15, and the two are only jointly sufficient: this item without GW-15 fixes logout for unexpired sessions only, GW-15 without this item makes logout reachable but still non-revoking. No `Depends on` in either direction, since each is independently shippable and a mutual one would be a cycle; schedule them together.
 
 <!-- item id=CLS-01 priority=P1 effort=S service=classification-service -->
 ### CLS-01 - NSFW safety verdict ignores its configured threshold
@@ -500,7 +502,7 @@ _Wrong status codes, unhandled inputs that produce a 500, silent failures, misle
 <!-- item id=AUTH-02 priority=P2 effort=S service=auth-service -->
 ### AUTH-02 - Concurrent token issuance collides on the `placeholder` token hash
 
-**Where:** `srcs/auth-service/apps/authentication/utils.py:28-39`, `srcs/auth-service/apps/authentication/models.py:90`
+**Where:** `srcs/auth-service/apps/authentication/utils.py:30-41`, `srcs/auth-service/apps/authentication/models.py:95`
 
 **Problem:** `issue_auth_tokens` inserts a `RefreshToken` row with the literal `token_hash='placeholder'`, generates the JWT from the row id, then updates the hash. `token_hash` is `unique=True`, so two token issuances overlapping in that window raise `IntegrityError` and the second request 500s. Every login, register, refresh and password change goes through this path. Derived from reading code; not observed at runtime.
 
@@ -513,7 +515,7 @@ _Wrong status codes, unhandled inputs that produce a 500, silent failures, misle
 <!-- item id=AUTH-03 priority=P2 effort=S service=auth-service -->
 ### AUTH-03 - `DeleteUserView` accepts disabled accounts
 
-**Where:** `srcs/auth-service/apps/authentication/views.py:396-412`
+**Where:** `srcs/auth-service/apps/authentication/views.py:525-541`
 
 **Problem:** Every other authenticated view (`VerifyView:333`, `ChangePasswordView:487`, `RefreshView:223`) rejects `user.is_active is False` with 403 `ACCOUNT_DISABLED`. `DeleteUserView` does not, so an account disabled by an admin can still trigger the full cross-service cascade delete with a still-valid access token (up to 15 minutes after being disabled).
 
@@ -526,7 +528,7 @@ _Wrong status codes, unhandled inputs that produce a 500, silent failures, misle
 <!-- item id=AUTH-04 priority=P2 effort=M service=auth-service -->
 ### AUTH-04 - Cascade delete destroys remote data before the local delete, with no compensation
 
-**Where:** `srcs/auth-service/apps/authentication/utils.py:168-206`
+**Where:** `srcs/auth-service/apps/authentication/utils.py:242-280`
 
 **Problem:** `delete_user_cascade` calls user-service's `DELETE /api/v1/users/delete` first (single `httpx` call, hardcoded 10 s timeout, no retry), then deletes the local `User` row. If the local delete fails, the user's profile, pets and analyses are already gone while the account still exists and can log in — an unrecoverable half-deleted state. A user-service timeout on an already-committed delete is reported to the caller as `DELETION_FAILED` even though the remote side succeeded.
 
@@ -539,7 +541,7 @@ _Wrong status codes, unhandled inputs that produce a 500, silent failures, misle
 <!-- item id=AUTH-05 priority=P2 effort=S service=auth-service -->
 ### AUTH-05 - Refresh-token row lifecycle is half-implemented
 
-**Where:** `srcs/auth-service/apps/authentication/models.py:93-115`, `srcs/auth-service/apps/authentication/views.py:194-232`
+**Where:** `srcs/auth-service/apps/authentication/models.py:93-115`, `srcs/auth-service/apps/authentication/views.py:323-361`
 
 **Problem:** `refresh_tokens.expires_at` is written at creation and never read — `RefreshView` checks only `is_revoked` and the hash, so server-side expiry is enforced solely by the JWT `exp` claim. `last_used_at` is declared but never written by any code. `RefreshToken.is_valid()` and `.revoke()` exist and are called by nothing (`test_models.py:138-155` sets `is_revoked` by hand rather than calling `.revoke()`). Three columns/methods of stored state that nothing depends on.
 
@@ -558,9 +560,9 @@ _Wrong status codes, unhandled inputs that produce a 500, silent failures, misle
 
 **Fix:** Step 1 is to confirm the exposure: `docker compose run --rm auth-service sh -c "pip install -q pip-audit && pip-audit"`. Then move to the current Django LTS line (5.2.x) and current `cryptography`, `djangorestframework` and `PyJWT`, one bump per commit, running the suite between each. Keep Python 3.11 in mind — Django 6.x requires 3.12, so an LTS bump within 5.2 is the low-risk target.
 
-**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` (102 passing) followed by `docker compose run --rm auth-service sh -c "pip install -q pip-audit && pip-audit"` reporting no known vulnerabilities.
+**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` (353 passing) followed by `docker compose run --rm auth-service sh -c "pip install -q pip-audit && pip-audit"` reporting no known vulnerabilities.
 
-**Effort:** M - **Risk:** Django 5.1/5.2 tightened `USE_TZ`, `CSRF_TRUSTED_ORIGINS` and password-hasher defaults; the Argon2 hasher config (`settings.py:97-100`) and `Custom404Middleware`'s `MiddlewareMixin` usage are the likely breakage points. `srcs/auth-service/tests/` (102 tests) is the whole safety net; `srcs/user-service` pins Django independently and should be bumped in step with it by that agent.
+**Effort:** M - **Risk:** Django 5.1/5.2 tightened `USE_TZ`, `CSRF_TRUSTED_ORIGINS` and password-hasher defaults; the Argon2 hasher config (`settings.py:97-100`) and `Custom404Middleware`'s `MiddlewareMixin` usage are the likely breakage points. `srcs/auth-service/tests/` (353 tests) is the whole safety net; `srcs/user-service` pins Django independently and should be bumped in step with it by that agent.
 
 <!-- item id=CLS-02 priority=P2 effort=S service=classification-service -->
 ### CLS-02 - NSFW probability is read by tensor position, not by label
@@ -912,7 +914,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 
 **Verify:** from the repo root on the host, `python -m pytest srcs/api-gateway/tests -q` aborts during collection today and collects after the fix. In-container: `docker exec ft_transcendence_api_gateway sh -c 'cd /tmp && env -u RECOMMENDATION_SERVICE_URL python -m pytest /app/tests -q'` (the `cd` is what defeats the baked `/app/.env`).
 
-**Effort:** S - **Risk:** none. `tests/` is bind-mounted (`docker-compose.yml:301`) so no rebuild is needed.
+**Effort:** S - **Risk:** none. `tests/` is bind-mounted (`docker-compose.yml:308`) so no rebuild is needed.
 
 <!-- item id=GW-11 priority=P3 effort=S service=api-gateway -->
 ### GW-11 - No .dockerignore, so the local .env and caches are baked into the image
@@ -930,7 +932,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 <!-- item id=AUTH-06 priority=P3 effort=S service=auth-service -->
 ### AUTH-06 - With DEBUG=True, missing JWT keys are swallowed and the healthcheck stays green
 
-**Where:** `srcs/auth-service/config/settings.py:142-164`
+**Where:** `srcs/auth-service/config/settings.py:152-174`
 
 **Problem:** `load_jwt_keys()` raises `FileNotFoundError` for a missing `jwt-private.pem`/`jwt-public.pem`, but the caller re-raises **only when `DEBUG` is falsy** (`settings.py:158-164`); otherwise it prints a warning and sets `JWT_KEYS = {'private': '', 'public': ''}`. The container then boots and passes its `/health` healthcheck (`views.py:527-539` touches nothing) while every login, refresh and verify fails with an opaque JWT error. Scope: the shipped `srcs/auth-service/.env:2` and `.env.example:2` both set `DEBUG=False`, and compose injects that file (`docker-compose.yml` `env_file`), so the running stack currently fails fast as intended — this is latent, reachable only by flipping `DEBUG` or by writing a `.env` that omits the key (the code default at `settings.py:12` is `True`, see AUTH-08).
 
@@ -956,7 +958,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 <!-- item id=AUTH-09 priority=P3 effort=M service=auth-service -->
 ### AUTH-09 - `refresh_tokens` grows without bound
 
-**Where:** `srcs/auth-service/apps/authentication/utils.py:28-32`, `srcs/auth-service/apps/authentication/models.py:85-103`
+**Where:** `srcs/auth-service/apps/authentication/utils.py:30-34`, `srcs/auth-service/apps/authentication/models.py:90-108`
 
 **Problem:** A row is inserted on every login, register, refresh and password change, and nothing ever deletes one. Revoked and long-expired rows accumulate forever in `auth_schema.refresh_tokens`; with token rotation on every refresh, an active user generates a row per access-token lifetime (15 minutes). The only deletions are the FK cascade when a user is deleted.
 
@@ -1086,7 +1088,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 <!-- item id=INFRA-05 priority=P3 effort=S service=repo -->
 ### INFRA-05 - `make exec-<service>` builds a container name that never exists
 
-**Where:** `Makefile:163-164`, `docker-compose.yml:47,83,105,179,203,287,324`
+**Where:** `Makefile:167-168`, `docker-compose.yml:47,83,105,179,203,287,324`
 
 **Problem:** `exec-%` expands to `docker exec -it ft_transcendence_$*`, splicing the compose service name in verbatim. The containers are named with underscores (`ft_transcendence_api_gateway`, `ft_transcendence_ai_service`, `ft_transcendence_classification_service`, `ft_transcendence_auth_service`, `ft_transcendence_user_service`, `ft_transcendence_recommendation_service`), so every hyphenated service fails with "No such container". `make exec-ollama` fails for a different reason: that container is named plain `ollama`, breaking the `ft_transcendence_*` convention every other service follows. Only `nginx`, `litellm`, `redis` and `db` work.
 
@@ -1099,7 +1101,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 <!-- item id=INFRA-06 priority=P3 effort=S service=repo -->
 ### INFRA-06 - The cleanup targets either do not exist or remove nothing
 
-**Where:** `Makefile:22`, `Makefile:13-17`, `Makefile:130-154`, `Makefile:160`
+**Where:** `Makefile:22`, `Makefile:13-17`, `Makefile:134-158`, `Makefile:164`
 
 **Problem:** `.PHONY` declares `clean`, `fclean`, `setup` and `test-coverage`, none of which has a recipe — `make clean` and `make fclean` die with "No rule to make target". The target that does exist, `purge` (and `ref: purge all`), is close to a no-op: `TRANSCENDENCE_SERVICES` lists a `backend` service that is not in this compose file and omits every application service (api-gateway, auth-service, user-service, ai-service, classification-service, litellm), `TRANSCENDENCE_NETWORKS` names `ft_transcendence_transcendence_network` while the real networks are `ft_transcendence_proxy` and `ft_transcendence_backend-network`, and the image removal uses untagged names (`ft_transcendence_nginx`) while the images are built as `ft_transcendence_nginx:local`. Every command is `|| true`, so `make ref` prints a full success banner while leaving all images and networks in place.
 
@@ -1295,7 +1297,7 @@ _Dead code, unused dependencies, deprecated APIs, naming drift. Safe to batch._
 <!-- item id=AUTH-11 priority=P4 effort=S service=auth-service -->
 ### AUTH-11 - Deprecated `datetime.utcnow()` and inconsistent timestamp suffixes
 
-**Where:** `srcs/auth-service/apps/authentication/utils.py:81,105`, `srcs/auth-service/apps/authentication/middleware.py:36`
+**Where:** `srcs/auth-service/apps/authentication/utils.py:83,105`, `srcs/auth-service/apps/authentication/middleware.py:36`
 
 **Problem:** `success_response`/`error_response` emit `datetime.utcnow().isoformat() + 'Z'` while `Custom404Middleware` emits `datetime.utcnow().isoformat()` with no suffix, so a 404 body and every other body in the same service carry differently-formatted timestamps. `datetime.utcnow()` is deprecated from Python 3.12 (the image is still 3.11) and produces a naive datetime that is then mislabelled as UTC by the manual `'Z'`.
 
@@ -1308,7 +1310,7 @@ _Dead code, unused dependencies, deprecated APIs, naming drift. Safe to batch._
 <!-- item id=AUTH-12 priority=P4 effort=S service=auth-service -->
 ### AUTH-12 - `last_login` is never written
 
-**Where:** `srcs/auth-service/apps/authentication/views.py:74-87`, `srcs/auth-service/apps/authentication/migrations/0001_initial.py:18`
+**Where:** `srcs/auth-service/apps/authentication/views.py:129-142`, `srcs/auth-service/apps/authentication/migrations/0001_initial.py:18`
 
 **Problem:** The `last_login` column inherited from `AbstractBaseUser` exists in the table but no code path writes it — `LoginView` authenticates by hand and never calls `django.contrib.auth.login()` or fires the `user_logged_in` signal. The column is permanently null, so there is no way to tell an active account from a dormant one.
 
@@ -1321,13 +1323,15 @@ _Dead code, unused dependencies, deprecated APIs, naming drift. Safe to batch._
 <!-- item id=AUTH-13 priority=P4 effort=S service=auth-service -->
 ### AUTH-13 - Unused test dependencies pinned and installed
 
+> **Status: half done** by the TOTP 2FA work — `freezegun` is now used (TOTP steps, lock timers and expired tokens in `tests/test_two_factor.py`, `test_utils.py`, `test_views_two_factor.py`; a shared `frozen_time` fixture in `tests/conftest.py`). `factory-boy` is still unused, and the older expiry tests still hand-roll `jwt.encode`. Fixtures are no longer only in `test_views.py`: `conftest.py` now holds them.
+
 **Where:** `srcs/auth-service/requirements-dev.txt:4-5`
 
 **Problem:** `factory-boy==3.3.0` and `freezegun==1.4.0` are installed into the image but referenced by no test — `grep -rn "freezegun\|factory" srcs/auth-service/tests/` returns nothing. Expired-token tests hand-roll `jwt.encode` with a past `exp` instead of freezing time, and fixtures are plain module-level functions in `test_views.py`.
 
 **Fix:** Either delete both pins, or actually use `freezegun` for the token-expiry tests (which currently depend on hand-built JWTs that bypass `generate_access_token`). Pick one; leaving them installed and unused is the only wrong answer.
 
-**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` still reports 102 passing, and `docker compose run --rm auth-service pip show freezegun` reflects the choice.
+**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` still reports 353 passing, and `docker compose run --rm auth-service pip show freezegun` reflects the choice.
 
 **Effort:** S - **Risk:** none beyond an image rebuild; `srcs/auth-service/tests/` is unaffected either way.
 
@@ -1492,9 +1496,9 @@ _Dead code, unused dependencies, deprecated APIs, naming drift. Safe to batch._
 <!-- item id=INFRA-09 priority=P4 effort=S service=repo -->
 ### INFRA-09 - The unit-test runner prints invented test counts
 
-**Where:** `scripts/run-unit-tests.sh:86-100,107-129`
+**Where:** `scripts/run-unit-tests.sh:90-104,107-129`
 
-**Problem:** `run_test_suite` takes an `expected_tests` literal (`:107-129`) and prints `✓ <service> tests passed (<n> tests)` plus a grand total built from those literals — the numbers are never read from pytest, so the summary is fiction the moment a test is added or removed. Three of the six have already drifted: api-gateway 28 (30 collected), ai-service 37 (104), recommendation-service 42 (48 in `tests/unit/`, which is all the runner invokes). The other three happen to still be right — auth-service 102, user-service 91, classification-service 28 — which is what makes the literals look trustworthy. Anyone using `make test` output as a regression signal is reading a constant.
+**Problem:** `run_test_suite` takes an `expected_tests` literal (`:107-129`) and prints `✓ <service> tests passed (<n> tests)` plus a grand total built from those literals — the numbers are never read from pytest, so the summary is fiction the moment a test is added or removed. Three of the six have already drifted: api-gateway 28 (30 collected), ai-service 37 (104), recommendation-service 42 (48 in `tests/unit/`, which is all the runner invokes). The other three happen to still be right — auth-service, user-service 91, classification-service 28 — which is what makes the literals look trustworthy. (The api-gateway literal was refreshed to 41 and auth-service to 353 with the 2FA work; the mechanism is unchanged, so they drift again on the next test.) Anyone using `make test` output as a regression signal is reading a constant.
 
 **Fix:** Drop the third argument entirely. Either print only pass/fail per suite, or capture pytest's own summary line — e.g. run with `--json-report` or grep the tail of the captured output for `N passed` and sum that.
 
@@ -1563,7 +1567,7 @@ _The right fix depends on a product call. Each item states the options and the t
 <!-- item id=AUTH-15 priority=DEC effort=M service=auth-service -->
 ### AUTH-15 - Auth service calls user-service directly, bypassing the API Gateway
 
-**Where:** `srcs/auth-service/apps/authentication/utils.py:169-194`, `srcs/auth-service/config/settings.py:167`
+**Where:** `srcs/auth-service/apps/authentication/utils.py:243-268`, `srcs/auth-service/config/settings.py:177`
 
 **Problem:** `delete_user_cascade` posts straight to `http://user-service:3002/api/v1/users/delete` with self-minted `X-User-ID`/`X-User-Role`/`X-Request-ID` headers. Those headers are exactly what the gateway injects after validating a JWT, so any service on `backend-network` can impersonate any user against user-service; auth-service doing it makes that trust model explicit. It also contradicts the repo rule that cross-service access goes through the gateway, and the code carries a `# TODO this will be replaced with a message queue` marker.
 
@@ -1576,7 +1580,7 @@ _The right fix depends on a product call. Each item states the options and the t
 <!-- item id=AUTH-16 priority=DEC effort=M service=auth-service -->
 ### AUTH-16 - No access-token revocation exists anywhere, so nothing invalidates a token before its `exp`
 
-**Where:** `srcs/auth-service/apps/authentication/views.py:247-276`, `srcs/api-gateway/middleware/auth_middleware.py:31-69`, `docker-compose.yml` (redis)
+**Where:** `srcs/auth-service/apps/authentication/views.py:376-405`, `srcs/api-gateway/middleware/auth_middleware.py:31-69`, `docker-compose.yml` (redis)
 
 **Problem:** `grep -rni blacklist srcs scripts` returns nothing, and auth-service has no Redis client in `requirements.txt` or `config/settings.py` — the token blacklist the platform's security model describes (`blacklist:token:{hash}` in Redis, checked by the gateway) was never built. Every revocation path is therefore refresh-only: logout, `change-password` and `DeleteUserView` all flip `refresh_tokens.is_revoked`, but the already-issued access token keeps validating against the public key until its `exp`. Concretely, after a user changes their password because they believe it was stolen, the attacker's access token still authorises every protected route for up to `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` (15 by default, `config/settings.py:131`); after account deletion the same holds, and the gateway does not re-check that the subject still exists, so the token authorises calls against a user row that is gone.
 
@@ -1636,7 +1640,7 @@ _The right fix depends on a product call. Each item states the options and the t
 
 **Verify:** With the stack up, `curl -s -o /dev/null -w '%{http_code}' -b cookies.txt http://localhost:8001/api/v1/analyses` returns 200 (option a) or the route is gone from `docker exec ft_transcendence_user_service python manage.py show_urls` / `grep -rn analyses srcs/user-service/apps` (option b).
 
-**Effort:** S - **Risk:** option (a) adds an unauthenticated-by-ownership write path until USER-01 lands; option (b) deletes tests in `tests/test_views.py` and `tests/test_serializers.py` — the hardcoded suite count in `scripts/run-unit-tests.sh:115-117` is a display label only and is deleted by INFRA-09.
+**Effort:** S - **Risk:** option (a) adds an unauthenticated-by-ownership write path until USER-01 lands; option (b) deletes tests in `tests/test_views.py` and `tests/test_serializers.py` — the hardcoded suite count in `scripts/run-unit-tests.sh:119-121` is a display label only and is deleted by INFRA-09.
 
 **Depends on:** USER-01
 

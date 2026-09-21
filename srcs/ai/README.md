@@ -335,7 +335,7 @@ make exec-ai_service                       # docker exec -it ft_transcendence_ai
 make rag                                   # bulk-ingest the knowledge base
 ```
 
-Note the underscore: `exec-%` expands to `ft_transcendence_$*` (Makefile:163-164), so the target is
+Note the underscore: `exec-%` expands to `ft_transcendence_$*` (Makefile:167-168), so the target is
 `exec-ai_service`, while `logs-%` uses the compose service name, so it is `logs-ai-service`.
 
 The Makefile sets `COMPOSE_PROFILES ?= cloud` (Makefile:9); the root `.env.example` ships

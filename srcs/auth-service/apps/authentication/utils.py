@@ -3,9 +3,11 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework.response import Response
 import httpx
+import json
+import jwt
 import uuid
 
-from apps.authentication.jwt_utils import generate_access_token, generate_refresh_token, hash_token
+from apps.authentication.jwt_utils import decode_token, generate_access_token, generate_refresh_token, hash_token
 
 
 def issue_auth_tokens(user, response):
@@ -104,6 +106,78 @@ def error_response(code, message, details=None, status=400):
         },
         'timestamp': datetime.utcnow().isoformat() + 'Z'
     }, status=status)
+
+
+def parse_json_body(request):
+    """
+    Request body as a dict.
+
+    Empty, malformed or non-object JSON yields {} so the serializer reports what is missing.
+    """
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def get_authenticated_user(request):
+    """
+    Resolve the user behind the access_token cookie.
+
+    Returns (user, None) on success, or (None, error_response) using the same codes and statuses
+    as ChangePasswordView, so a view can simply `return error`. Only a token whose token_type is
+    'access' qualifies: refresh and two-factor challenge tokens are signed with the same key.
+    """
+    from apps.authentication.models import User  # Avoid circular import
+
+    access_token = request.COOKIES.get('access_token')
+    if not access_token:
+        return None, error_response(
+            code='UNAUTHORIZED',
+            message='Authentication required',
+            status=401
+        )
+
+    try:
+        payload = decode_token(access_token)
+    except jwt.ExpiredSignatureError:
+        return None, error_response(
+            code='TOKEN_EXPIRED',
+            message='Access token has expired',
+            status=401
+        )
+    except jwt.InvalidTokenError:
+        return None, error_response(
+            code='INVALID_TOKEN',
+            message='Invalid access token',
+            status=401
+        )
+
+    if payload.get('token_type') != 'access':
+        return None, error_response(
+            code='INVALID_TOKEN',
+            message='Invalid access token',
+            status=401
+        )
+
+    try:
+        user = User.objects.get(id=payload.get('user_id'))
+    except User.DoesNotExist:
+        return None, error_response(
+            code='INVALID_TOKEN',
+            message='Invalid access token',
+            status=401
+        )
+
+    if not user.is_active:
+        return None, error_response(
+            code='ACCOUNT_DISABLED',
+            message='Account is disabled',
+            status=403
+        )
+
+    return user, None
 
 
 def clear_auth_cookies(response):

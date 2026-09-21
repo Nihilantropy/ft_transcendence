@@ -3,7 +3,7 @@
 Public edge of the platform. Terminates TLS, redirects plain HTTP to HTTPS, applies per-IP
 rate/connection limits, serves static error pages, and reverse-proxies `/api` to the API
 Gateway. The other containers that publish host ports are the API Gateway (`8001:8001`,
-`docker-compose.yml:294-295`) and, in the `local` profile only, Ollama (`11434:11434`,
+`docker-compose.yml:301-302`) and, in the `local` profile only, Ollama (`11434:11434`,
 `docker-compose.yml:68-69`); nginx is the only one attached to both the `proxy` and
 `backend-network` Docker networks. The image is
 built from this directory; the server config is rendered from a template at container start by

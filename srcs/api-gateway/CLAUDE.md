@@ -3,11 +3,11 @@
 ## Overview
 
 FastAPI reverse proxy, container `ft_transcendence_api_gateway`, `backend-network` only, host port `8001`
-(`docker-compose.yml:294`). No compose profile is declared, so it behaves identically under `local` and
+(`docker-compose.yml:301`). No compose profile is declared, so it behaves identically under `local` and
 `cloud`. Stateless: the only external state is a Redis counter for rate limiting. Live entry point is the
 flat layout at the service root (`main.py`, `config.py`, `routes/`, `middleware/`, `auth/`, `utils/`) —
 `Dockerfile:21` runs `uvicorn main:app`. The `src/` directory is **empty** and exists only because
-`docker-compose.yml:298` bind-mounts it; nothing imports it, git does not track it, do not put code there.
+`docker-compose.yml:305` bind-mounts it; nothing imports it, git does not track it, do not put code there.
 
 Read `README.md` first for routes, config table and error codes. This file is only what will trip you up.
 
@@ -32,7 +32,7 @@ docker compose restart api-gateway             # enough after editing routes/ on
 docker compose logs -f api-gateway             # make logs-api-gateway also works
 docker exec -it ft_transcendence_api_gateway /bin/sh
 # NOTE: `make exec-api-gateway` is broken — it expands to ft_transcendence_api-gateway,
-# but the container is ft_transcendence_api_gateway (Makefile:163-164 vs docker-compose.yml:287)
+# but the container is ft_transcendence_api_gateway (Makefile:167-168 vs docker-compose.yml:271)
 
 curl http://localhost:8001/health
 ```
@@ -43,7 +43,7 @@ curl http://localhost:8001/health
 |---|---|
 | `main.py` | App construction, four exception handlers, hardcoded CORS origins, middleware registration, `GET /health` |
 | `config.py` | `Settings(BaseSettings)`; module-level `settings` and `JWT_PUBLIC_KEY` (public key read from disk at import, `:46`) |
-| `auth/jwt_utils.py` | `decode_jwt()`, `extract_user_context()`, `JWTValidationError`. Pure functions, no I/O |
+| `auth/jwt_utils.py` | `decode_jwt()`, `extract_user_context()` (also enforces `token_type == "access"` and a non-empty `user_id`), `JWTValidationError`. Pure functions, no I/O |
 | `middleware/auth_middleware.py` | `JWTAuthMiddleware` — cookie → payload → `request.state` → `backend_headers`; hardcoded public-endpoint set |
 | `middleware/rate_limit.py` | `RateLimitMiddleware` + module-level **synchronous** `redis_client` (`:10`) |
 | `middleware/logging_middleware.py` | `LoggingMiddleware` — one INFO line per request, sets `X-Request-ID` on the response |
@@ -68,8 +68,9 @@ Authenticated proxy call:
 
 ```
 GET /api/v1/users/me  (Cookie: access_token=…)
- 1 JWTAuth      path not in public_endpoints (auth_middleware.py:33)
+ 1 JWTAuth      path not in public_endpoints (auth_middleware.py:34)
                 decode_jwt(cookie, JWT_PUBLIC_KEY, "RS256")      → JWTValidationError ⇒ 401 UNAUTHORIZED
+                extract_user_context(payload)  token_type must be "access" and user_id non-empty ⇒ else 401
                 request.state.{user_id,user_role,user_email,request_id,backend_headers}   (:48-62)
  2 RateLimit    key = rate_limit:user:{user_id}  (state.user_id is already set)
                 GET → None ⇒ SETEX key 60 1 | count ≥ limit ⇒ 429 | else INCR          (rate_limit.py:41-54)
@@ -86,7 +87,7 @@ GET /api/v1/users/me  (Cookie: access_token=…)
  ← Logging adds X-Request-ID, RateLimit adds X-RateLimit-Limit/Remaining
 ```
 
-Public paths (`/health`, `/docs`, `/openapi.json`, `/api/v1/auth/{login,register,refresh}`) short-circuit
+Public paths (`/health`, `/docs`, `/openapi.json`, `/api/v1/auth/{login,login/2fa,register,refresh}`) short-circuit
 step 1 via `call_next`, so `request.state` stays empty: the outbound request carries **no** `X-User-ID` /
 `X-Request-ID`, rate limiting falls back to `rate_limit:ip:{client_ip}`, and the log line reads
 `"user_id": "anonymous"`, `"request_id": "no-request-id"`.
@@ -99,8 +100,14 @@ step 1 via `call_next`, so `request.state` stays empty: the outbound request car
 - **Prefix matching is plain `startswith` over dict insertion order** (`proxy.py:63-64`). If a new prefix
   is a prefix of, or prefixed by, an existing one, the more specific string must be inserted **first**.
 - **Making a path public** means adding the exact full path to the `self.public_endpoints` set in
-  `middleware/auth_middleware.py:22-29`. It is a set-membership test on `request.url.path`, not a prefix
-  test — `/api/v1/auth/logout` is protected precisely because it is not listed.
+  `middleware/auth_middleware.py:22-30`. It is a set-membership test on `request.url.path`, not a prefix
+  test — `/api/v1/auth/logout` is protected precisely because it is not listed. `/api/v1/auth/login/2fa`
+  is public because it is the second login step: the caller holds only the challenge token in the JSON body.
+- **Only `token_type == "access"` authenticates.** The auth-service signs refresh tokens and the 2FA
+  challenge token (`"mfa"`) with the same key, so the signature proves nothing about purpose. Before this
+  check (ROADMAP `GW-01`) a refresh token in the `access_token` cookie was a 7-day session, and the
+  challenge token — issued after the password alone — would have bypassed the second factor. Any test that
+  mints a token for the gateway must include `"token_type": "access"` (all six helpers do).
 - **Slow endpoints get an entry in `SERVICE_TIMEOUTS`** (`proxy.py:16-18`), never a bump of the 30 s
   default on `httpx_client` (`proxy.py:13`).
 - **Gateway-generated error bodies always use the envelope**
@@ -158,7 +165,7 @@ step 1 via `call_next`, so `request.state` stays empty: the outbound request car
 - **`PORT`, `HOST`, `DEBUG`, `LOG_LEVEL` are declared in `config.py:8-11` and read by nothing.** The port
   comes from `Dockerfile:21`, the log level from `logging.basicConfig(level=logging.INFO)`
   (`logging_middleware.py:10`).
-- **Only `routes/` and `tests/` are bind-mounted** (`docker-compose.yml:299,301`). Editing `main.py`,
+- **Only `routes/` and `tests/` are bind-mounted** (`docker-compose.yml:306,301`). Editing `main.py`,
   `config.py`, `middleware/`, `auth/` or `utils/` requires `docker compose build api-gateway`. uvicorn runs
   without `--reload`, so even mounted `routes/` changes need a container restart.
 - **There is no `.dockerignore`**, so `Dockerfile:13` (`COPY . .`) bakes the local `.env` into the image.
@@ -206,7 +213,7 @@ Values that are deliberately hardcoded, and where to change them:
 | Value | Location |
 |---|---|
 | CORS origins / exposed headers | `main.py:71-79` |
-| Public (unauthenticated) endpoints | `middleware/auth_middleware.py:22-29` |
+| Public (unauthenticated) endpoints | `middleware/auth_middleware.py:22-30` |
 | Rate-limit window (60 s) | `middleware/rate_limit.py:25` |
 | Default backend timeout (30 s) | `routes/proxy.py:13` and the fallback in `:113-116` |
 | Per-prefix timeout overrides | `routes/proxy.py:16-18` |

@@ -27,15 +27,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 make all           # build + up + show + logs (Makefile:25) — ends tailing logs in the foreground
 make build         # Build Docker images (bakes in requirements)
-make up            # Start services in detached mode
+make up            # Generate the JWT keys if missing (make keys), then start services in detached mode
+make keys          # Generate the JWT RS256 key pair if missing — idempotent, never rotates an existing key
 make down          # Stop and remove containers
 make downv         # Stop and remove containers + volumes
 make restart       # Restart all services
 make logs          # Follow all logs
 make logs-SERVICE  # View specific service logs (e.g., make logs-api-gateway)
-make purge         # `down -v` then remove containers/images/volumes/networks (Makefile:131)
-make re            # Soft rebuild — literally `down all` (Makefile:157)
-make ref           # Full rebuild — literally `purge all` (Makefile:160)
+make purge         # `down -v` then remove containers/images/volumes/networks (Makefile:135)
+make re            # Soft rebuild — literally `down all` (Makefile:161)
+make ref           # Full rebuild — literally `purge all` (Makefile:164)
 make show          # Show system status (containers, networks, volumes)
 make migration     # Run database migrations (scripts/run-migrations.sh)
 make seed          # Seed the product catalog (scripts/seed-db.sh)
@@ -111,7 +112,7 @@ docker exec -it CONTAINER sh    # Shell into container
 - Rebuild rules differ per service:
   - **classification-service**: no source bind mount — ANY `src/` or `tests/` edit needs
     `docker compose build classification-service`
-  - **api-gateway**: only `src/`, `routes/`, `tests/` are mounted (docker-compose.yml:298-301) —
+  - **api-gateway**: only `src/`, `routes/`, `tests/` are mounted (docker-compose.yml:305-308) —
     editing `main.py`, `config.py`, `middleware/`, `auth/`, `utils/` needs a rebuild; mounted
     changes still need a restart (uvicorn runs without `--reload`)
   - **auth-service, user-service, recommendation-service**: whole service dir is mounted rw —
@@ -123,17 +124,19 @@ docker exec -it CONTAINER sh    # Shell into container
     `docker compose restart SERVICE` to take effect. Only auth-service and user-service really
     hot-reload — they run `manage.py runserver`, which has Django's autoreloader. The
     "hot reload" comments on the compose volume blocks are aspirational
-- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls)
+- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls). auth-service tests sign real JWTs
+  and the api-gateway container bind-mounts the public key, so on a fresh clone run `make keys` once first
+  (`make test`, `make up` and the scripts do it for you)
 - Integration tests: MUST use `docker exec` on a running container — `run --rm` cannot
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
-**API Gateway Tests** (33 tests total):
+**API Gateway Tests** (41 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (102 tests total)
+# Auth Service tests (353 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # User Service tests (89 tests total)
@@ -220,15 +223,22 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - **Proxy Network**: Nginx only (the `frontend` service is commented out in docker-compose.yml:156-176)
 - **Backend Network**: Nginx ↔ API Gateway ↔ Backend Services ↔ Databases
 - **Nginx** bridges both networks (docker-compose.yml:14-16). The API Gateway lives on
-  `backend-network` only (docker-compose.yml:304-305) and is additionally published on host
-  port 8001 for development (docker-compose.yml:294-295)
+  `backend-network` only (docker-compose.yml:311-312) and is additionally published on host
+  port 8001 for development (docker-compose.yml:301-302)
 
 **Authentication Flow:**
-1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:59)
+1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:61)
 2. Browser automatically sends cookies with each request
-3. API Gateway validates JWT using RS256 public key, extracts user context (user_id, role)
+3. API Gateway validates JWT using RS256 public key, requires `token_type == "access"`, extracts user context (user_id, role)
 4. Gateway forwards to backend services with headers: `X-User-ID`, `X-User-Role`, `X-Request-ID`
 5. Backend services trust API Gateway validation (network isolation ensures security)
+
+**Two-factor login (accounts with TOTP 2FA enabled):** `POST /api/v1/auth/login` with a correct password returns
+`{"mfa_required": true, "mfa_token": …}` — no cookies, existing sessions untouched. The client then calls the
+gateway-public `POST /api/v1/auth/login/2fa` with `mfa_token` + a 6-digit code (or a recovery code), which issues the
+cookies and revokes previous sessions. The `mfa_token` is a JWT signed with the same key as access tokens but with
+`token_type: "mfa"`; it is only harmless because the gateway and every auth-service view reject any `token_type`
+other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-factor authentication*.
 
 **Why RS256 Asymmetric Keys:** Auth Service signs tokens with private key (never leaves auth-service). API Gateway verifies with public key only (cannot forge tokens). More secure than HS256 symmetric secrets.
 
@@ -258,10 +268,16 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
   are unreachable from the host)
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 102 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 353 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
 - User registration (requires email, password, password_confirm) and login endpoints
-- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens
+- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens; new password
+  must differ from the current one, pass the validators *with the user in scope*, and be ≤128 chars
+- Profile update (PATCH /api/v1/auth/me): first_name, last_name, email. An email change needs the current password
+  (and a 2FA code when 2FA is on) and re-issues the session because the access token embeds the email
+- TOTP two-factor authentication for Aegis / Microsoft Authenticator / Google Authenticator
+  (`POST /api/v1/auth/2fa/{setup,enable,disable}`, `POST /api/v1/auth/login/2fa`): secrets encrypted at rest (Fernet),
+  10 single-use hashed recovery codes, replay protection, per-account lockout (5 failures → 15 min)
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
@@ -456,11 +472,13 @@ Order of execution (bottom to top):
 3. **Rate Limiting Middleware**: Redis-backed, per-user or per-IP
 4. **Authentication Middleware**: JWT validation, extracts user context
 
-Public paths (exact match, `middleware/auth_middleware.py:22-29`): `/health`, `/docs`,
-`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh`.
+Public paths (exact match, `middleware/auth_middleware.py:22-30`): `/health`, `/docs`,
+`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`, `/api/v1/auth/refresh`.
 Everything else requires the `access_token` cookie — including `/redoc` (served by FastAPI but never
-added to the set), `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete` and
-`/api/v1/auth/change-password`.
+added to the set), `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete`,
+`/api/v1/auth/change-password`, `/api/v1/auth/me` and `/api/v1/auth/2fa/{setup,enable,disable}`.
+The cookie's JWT must have `token_type == "access"` and a non-empty `user_id`: refresh and 2FA-challenge
+tokens are signed with the same key and are rejected with 401 (`auth/jwt_utils.py::extract_user_context`).
 
 ### Standardized Error Responses
 
@@ -539,7 +557,9 @@ Services use environment variables from `.env` files:
 - JWT Key Pair (RS256):
   - Auth Service: Private key at `srcs/auth-service/keys/jwt-private.pem` (signs tokens)
   - API Gateway: Public key mounted read-only from auth-service keys directory (verifies tokens)
-  - Generated once, never regenerate in production (invalidates all tokens)
+  - **Neither key is tracked by git.** `make keys` (run by `make up`, `make test` and the test scripts) creates the
+    pair when the private key is missing; when it exists it only rewrites a public key that does not match it.
+    `srcs/auth-service/keys/generate-keys.sh --force` rotates and invalidates every issued token — never in production
 - Service URLs use Docker Compose service names (e.g., `http://auth-service:3001`)
 - `.env.example` files exist for ai, api-gateway, auth-service, classification-service, db, nginx,
   recommendation-service and user-service. **`srcs/litellm/` and `srcs/ollama/` have none** — they
@@ -624,9 +644,9 @@ make test [init] [flags]                              # make shortcut (no -- pre
   (verify with `make -n test init`). Prefer `./scripts/init-and-test.sh --init` if you only want the
   script's build/start/migrate phase
 
-Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — gateway 28 (real 30,
-`:109`), ai 37 (real 104, `:121`), recommendation 42 (real 48, `:129`). They only feed a printed
-total; do not trust them.
+Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 104, `:121`),
+recommendation 42 (real 48, `:129`). (gateway 41 and auth 353 were refreshed with the 2FA work.) They only
+feed a printed total; do not trust them.
 
 **Jupyter Notebook Testing (E2E Integration):**
 - Location: `scripts/jupyter/test_ai_service.ipynb`
@@ -649,11 +669,19 @@ total; do not trust them.
 - **JWT Tokens**: RS256 asymmetric algorithm, stored in HTTP-only cookies
   - Auth Service: Signs tokens with RSA private key (jwt-private.pem, never shared)
   - API Gateway: Verifies tokens with RSA public key only (jwt-public.pem, read-only mount)
-  - Key generation: 4096-bit RSA (`srcs/auth-service/keys/generate-keys.sh:11`), stored in `srcs/auth-service/keys/`
+  - Key generation: 4096-bit RSA (`make keys` → `srcs/auth-service/keys/generate-keys.sh`), stored in `srcs/auth-service/keys/` and gitignored (`.dockerignore` keeps them out of image layers too)
   - Volume mount: `./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro`
 - **Network Isolation**: Backend services not exposed externally, only via API Gateway
 - **Rate Limiting**: Two layers (NGINX: 200/min, API Gateway: 60/min per user)
 - **Password Hashing**: argon2 in auth service
+- **Two-Factor Authentication**: TOTP (RFC 6238; SHA-1 / 6 digits / 30 s, the only profile all authenticator apps
+  honour), stdlib implementation pinned to the RFC test vectors. Secrets are Fernet-encrypted at rest
+  (`TWO_FACTOR_ENCRYPTION_KEY`, else derived from `SECRET_KEY` — changing either invalidates stored secrets);
+  recovery codes are SHA-256 hashed and consumed atomically; a used time step is never accepted twice; five
+  consecutive failures lock the account's second step for 15 minutes. Because the gateway's rate limits are per
+  user/IP, the lockout lives in the database on the account.
+- **Token types**: the auth service signs `access`, `refresh` and `mfa` JWTs with one key. Every verifier must check
+  `token_type`; the gateway enforces `access` (ROADMAP `GW-01`).
 - **HTTPS**: TLS 1.2+ via Nginx (self-signed cert in dev, replace in production)
 - **Token Blacklist**: **not implemented.** Logout clears the cookies and marks the `refresh_tokens`
   row revoked; a stolen access token remains valid until its 15-minute `exp`. (In a real browser the
@@ -663,8 +691,8 @@ total; do not trust them.
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 33 passing tests
-- Auth Service (Django) with authentication endpoints - 102 passing tests
+- API Gateway (FastAPI) with full middleware stack - 41 passing tests
+- Auth Service (Django) with authentication endpoints, profile update and TOTP 2FA - 353 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
 - AI Service (FastAPI) with multi-stage vision pipeline - 98 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
@@ -699,8 +727,8 @@ total; do not trust them.
 - Check networks: `docker network inspect ft_transcendence_backend-network`
 
 **JWT always rejected:**
-- Verify RSA key pair exists: `ls -la srcs/auth-service/keys/`
-- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem`
+- Verify RSA key pair exists and matches: `make keys` (creates it if absent; if the public key does not match the private one it is rewritten, tokens stay valid)
+- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem` (with the key missing, `docker compose up` fails with `bind source path does not exist` instead of starting the gateway — run `make keys`)
 - Check key permissions: Public key must be readable
 - Verify cookie is being set: `curl -v http://localhost:8001/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
 - Test token signature: Tokens signed with RS256 private key must be verifiable with RS256 public key

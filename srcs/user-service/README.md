@@ -39,8 +39,8 @@ no LLM and no classification dependency.
 
 | Caller | How | Notes |
 |---|---|---|
-| API Gateway (`ft_transcendence_api_gateway`) | `http://user-service:3002` for `/api/v1/users*` and `/api/v1/pets*` | `srcs/api-gateway/routes/proxy.py:42-43`. Gateway validates the `access_token` cookie, then sets `X-User-ID`, `X-User-Role`, `X-Request-ID`, `X-Correlation-ID` (`srcs/api-gateway/middleware/auth_middleware.py:57-62`). Cookies are stripped for non-`/api/v1/auth` paths. Proxy timeout is the default **30 s** (no override for user paths, `srcs/api-gateway/routes/proxy.py:16-18`). |
-| Auth Service | `DELETE http://user-service:3002/api/v1/users/delete`, direct service-to-service, **bypasses the gateway** | `srcs/auth-service/apps/authentication/utils.py:169-194`; `httpx.Client(timeout=10.0)`, headers `X-User-ID` / `X-User-Role` / `X-Request-ID`; any non-200 aborts the account deletion. |
+| API Gateway (`ft_transcendence_api_gateway`) | `http://user-service:3002` for `/api/v1/users*` and `/api/v1/pets*` | `srcs/api-gateway/routes/proxy.py:42-43`. Gateway validates the `access_token` cookie, then sets `X-User-ID`, `X-User-Role`, `X-Request-ID`, `X-Correlation-ID` (`srcs/api-gateway/middleware/auth_middleware.py:58-63`). Cookies are stripped for non-`/api/v1/auth` paths. Proxy timeout is the default **30 s** (no override for user paths, `srcs/api-gateway/routes/proxy.py:16-18`). |
+| Auth Service | `DELETE http://user-service:3002/api/v1/users/delete`, direct service-to-service, **bypasses the gateway** | `srcs/auth-service/apps/authentication/utils.py:243-268`; `httpx.Client(timeout=10.0)`, headers `X-User-ID` / `X-User-Role` / `X-Request-ID`; any non-200 aborts the account deletion. |
 | Recommendation Service | `GET http://user-service:3002/api/v1/pets/{pet_id}`, direct, **bypasses the gateway** | `srcs/recommendation-service/src/services/user_service_client.py:34-53`; sends only `X-User-ID`, `timeout=10.0`, swallows any non-200 / timeout into `None`. |
 
 ### Outbound dependencies
@@ -356,7 +356,7 @@ another service, so `docker compose run --rm` works everywhere.
 # Full suite (91 tests) — starts db via depends_on if needed
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# Via the platform orchestrator (prints "91" as a label; it is not asserted, scripts/run-unit-tests.sh:115-117)
+# Via the platform orchestrator (prints "91" as a label; it is not asserted, scripts/run-unit-tests.sh:119-121)
 ./scripts/run-unit-tests.sh --user
 make test user
 
@@ -402,7 +402,7 @@ deletion scenario). It writes to the production `smartbreeds` database.
 | 500 (or gateway-rewritten 404) for `/api/v1/pets/not-a-uuid` | `Pet.objects.get(pk=...)` raises Django's `ValidationError`, not `DoesNotExist`, and is not caught | Gateway converts HTML 500s containing `Not Found`/`DoesNotExist` to a JSON 404 (`srcs/api-gateway/routes/proxy.py:205-224`) |
 | Gateway returns 404 `Service not found` for `/api/v1/analyses` | The prefix is absent from `SERVICE_ROUTES` | Reach it from inside `backend-network`, or add the prefix in the gateway |
 | Gateway 503 (body reports `error.code: "HTTP_ERROR"`, with the intended `SERVICE_UNAVAILABLE` dict stringified into `error.message` by `srcs/api-gateway/main.py:20-30`) | No per-path timeout override for user paths → 30 s default; also raised when the container is down | `srcs/api-gateway/routes/proxy.py:13,113-116,145-157` |
-| Account deletion fails in auth-service | The `DELETE /api/v1/users/delete` call returned non-200 or timed out (10 s) | `srcs/auth-service/apps/authentication/utils.py:179-194`; check user-service logs first |
+| Account deletion fails in auth-service | The `DELETE /api/v1/users/delete` call returned non-200 or timed out (10 s) | `srcs/auth-service/apps/authentication/utils.py:253-268`; check user-service logs first |
 | `DisallowedHost` / 400 on every request | Host header not in `ALLOWED_HOSTS` | Keep `user-service` and `localhost` in the list (`config/settings.py:13`) |
 | Container stuck `unhealthy` | Healthcheck curls `http://localhost:3002/health`; fails if Django did not boot or `localhost` was removed from `ALLOWED_HOSTS` | `docker logs ft_transcendence_user_service` |
 | `relation "pets" does not exist` | Migrations not applied to `user_schema` | `make migration`, or `docker exec ft_transcendence_user_service python manage.py migrate` |

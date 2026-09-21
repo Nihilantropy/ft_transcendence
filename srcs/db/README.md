@@ -48,7 +48,7 @@ volume), caching / rate limiting (Redis), or session storage.
 
 `auth-service` and `user-service` declare `depends_on: db: condition: service_healthy`
 (`docker-compose.yml:198-200`, `222-224`). `recommendation-service` does **not** declare any
-dependency on `db` (`docker-compose.yml:328-329`).
+dependency on `db` (`docker-compose.yml:335-336`).
 
 ## Directory Contents
 

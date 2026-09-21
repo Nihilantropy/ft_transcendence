@@ -4,39 +4,10 @@ Tests for authentication views
 import json
 import pytest
 from datetime import timedelta
-from django.test import Client
 from django.conf import settings
 from django.utils import timezone
 from apps.authentication.models import User, RefreshToken
 from apps.authentication.jwt_utils import decode_token, hash_token, generate_refresh_token, generate_access_token
-
-
-@pytest.fixture
-def client():
-    """Django test client"""
-    return Client()
-
-
-@pytest.fixture
-def user_data():
-    """Standard test user data"""
-    return {
-        'email': 'test@example.com',
-        'password': 'testpass123',
-        'first_name': 'Test',
-        'last_name': 'User'
-    }
-
-
-@pytest.fixture
-def user(user_data):
-    """Create a test user"""
-    return User.objects.create_user(
-        email=user_data['email'],
-        password=user_data['password'],
-        first_name=user_data['first_name'],
-        last_name=user_data['last_name']
-    )
 
 
 @pytest.mark.django_db
@@ -1160,3 +1131,88 @@ class TestChangePasswordView:
         response_text = json.dumps(response.json())
         assert 'newSecure456' not in response_text
         assert user_data['password'] not in response_text
+
+    # --- hardening ------------------------------------------------------------------------
+
+    def put(self, client, **overrides):
+        body = {
+            'current_password': 'testpass123',
+            'new_password': 'newSecure456',
+            'new_password_confirm': 'newSecure456',
+            **overrides,
+        }
+        return client.put(self.ENDPOINT, data=body, content_type='application/json')
+
+    def test_change_password_to_the_same_password_returns_422(self, authenticated_client, user):
+        response = self.put(authenticated_client, new_password='testpass123', new_password_confirm='testpass123')
+
+        assert response.status_code == 422
+        assert 'new_password' in response.json()['error']['details']
+
+    def test_change_password_similar_to_the_email_returns_422(self, authenticated_client, user):
+        """user email is test@example.com; the similarity validator must actually see the user"""
+        response = self.put(authenticated_client, new_password='example99', new_password_confirm='example99')
+
+        assert response.status_code == 422
+        assert 'new_password' in response.json()['error']['details']
+        user.refresh_from_db()
+        assert user.check_password('testpass123')
+
+    def test_change_password_over_128_characters_returns_422(self, authenticated_client):
+        too_long = 'a1' * 64 + 'a'
+
+        response = self.put(authenticated_client, new_password=too_long, new_password_confirm=too_long)
+
+        assert response.status_code == 422
+        assert 'new_password' in response.json()['error']['details']
+
+    def test_change_password_without_two_factor_does_not_ask_for_a_code(self, authenticated_client):
+        assert self.put(authenticated_client).status_code == 200
+
+    def test_change_password_with_two_factor_requires_a_code(self, authenticated_client, user, enable_two_factor):
+        enable_two_factor(user)
+
+        response = self.put(authenticated_client)
+
+        assert response.status_code == 422
+        assert 'code' in response.json()['error']['details']
+        user.refresh_from_db()
+        assert user.check_password('testpass123')
+
+    def test_change_password_with_a_wrong_code_returns_422_and_changes_nothing(self, authenticated_client, user, enable_two_factor):
+        enable_two_factor(user)
+
+        response = self.put(authenticated_client, code='000000')
+
+        assert response.status_code == 422
+        assert response.json()['error']['code'] == 'INVALID_2FA_CODE'
+        user.refresh_from_db()
+        assert user.check_password('testpass123')
+
+    def test_change_password_with_a_valid_code_succeeds(self, authenticated_client, user, enable_two_factor, frozen_time):
+        from apps.authentication import two_factor
+        secret, _ = enable_two_factor(user)
+
+        response = self.put(authenticated_client, code=two_factor.totp(secret))
+
+        assert response.status_code == 200
+        user.refresh_from_db()
+        assert user.check_password('newSecure456')
+
+    def test_change_password_with_a_recovery_code_succeeds(self, authenticated_client, user, enable_two_factor):
+        _, codes = enable_two_factor(user)
+
+        assert self.put(authenticated_client, code=codes[0]).status_code == 200
+
+    def test_change_password_is_locked_after_repeated_wrong_codes(self, authenticated_client, user, enable_two_factor, settings, frozen_time):
+        from apps.authentication import two_factor
+        secret, _ = enable_two_factor(user)
+        for _ in range(settings.TWO_FACTOR_MAX_ATTEMPTS):
+            self.put(authenticated_client, code='000000')
+
+        response = self.put(authenticated_client, code=two_factor.totp(secret))
+
+        assert response.status_code == 429
+        assert response.json()['error']['code'] == 'RATE_LIMIT_EXCEEDED'
+        user.refresh_from_db()
+        assert user.check_password('testpass123')

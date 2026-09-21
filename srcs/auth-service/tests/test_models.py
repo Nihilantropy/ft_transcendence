@@ -1,6 +1,6 @@
 import pytest
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from datetime import timedelta
 from django.utils import timezone
 
@@ -153,3 +153,63 @@ class TestRefreshTokenModel:
 
         token.refresh_from_db()
         assert token.is_revoked is True
+
+
+@pytest.mark.django_db
+class TestTwoFactorModels:
+    def make_user(self, email='test@example.com'):
+        return User.objects.create_user(email=email, password='testpass123')
+
+    def make_two_factor(self, user, **fields):
+        from apps.authentication.models import TwoFactorAuth
+        return TwoFactorAuth.objects.create(user=user, secret_encrypted='ciphertext', **fields)
+
+    def test_two_factor_enabled_is_false_without_a_record(self):
+        assert self.make_user().two_factor_enabled is False
+
+    def test_two_factor_enabled_is_false_while_setup_is_pending(self):
+        user = self.make_user()
+        self.make_two_factor(user, is_enabled=False)
+
+        assert user.two_factor_enabled is False
+
+    def test_two_factor_enabled_is_true_once_confirmed(self):
+        user = self.make_user()
+        self.make_two_factor(user, is_enabled=True)
+
+        assert user.two_factor_enabled is True
+
+    def test_new_record_defaults(self):
+        record = self.make_two_factor(self.make_user())
+
+        assert record.is_enabled is False
+        assert record.last_used_step == 0
+        assert record.failed_attempts == 0
+        assert record.locked_until is None
+        assert record.enabled_at is None
+
+    def test_only_one_record_per_user(self):
+        user = self.make_user()
+        self.make_two_factor(user)
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            self.make_two_factor(user)
+
+    def test_recovery_code_hash_is_unique(self):
+        from apps.authentication.models import RecoveryCode
+        user = self.make_user()
+        RecoveryCode.objects.create(user=user, code_hash='a' * 64)
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            RecoveryCode.objects.create(user=user, code_hash='a' * 64)
+
+    def test_deleting_the_user_deletes_two_factor_data(self):
+        from apps.authentication.models import RecoveryCode, TwoFactorAuth
+        user = self.make_user()
+        self.make_two_factor(user, is_enabled=True)
+        RecoveryCode.objects.create(user=user, code_hash='b' * 64)
+
+        user.delete()
+
+        assert TwoFactorAuth.objects.count() == 0
+        assert RecoveryCode.objects.count() == 0
