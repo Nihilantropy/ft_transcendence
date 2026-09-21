@@ -356,7 +356,7 @@ another service, so `docker compose run --rm` works everywhere.
 # Full suite (91 tests) — starts db via depends_on if needed
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# Via the platform orchestrator (prints "91" as a label; it is not asserted, scripts/run-unit-tests.sh:115-117)
+# Via the platform orchestrator (prints "91" as a label; it is not asserted, scripts/run-unit-tests.sh:119-121)
 ./scripts/run-unit-tests.sh --user
 make test user
 

@@ -60,7 +60,7 @@ Gateway-level public paths are `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `
 
 The user-service call goes **direct** to `http://user-service:3002`, not through the API Gateway, carrying `X-User-ID`, `X-User-Role`, `X-Request-ID` headers (`utils.py:244-248`).
 
-**Key distribution.** `keys/jwt-private.pem` stays in this service. `keys/jwt-public.pem` is bind-mounted read-only into the API Gateway at `/app/keys/jwt-public.pem` (docker-compose.yml:303). `keys/generate-keys.sh` produces a **4096-bit** RSA pair (`generate-keys.sh:11`), chmod 600/644. The private key is gitignored (`.gitignore:20`).
+**Key distribution.** `keys/jwt-private.pem` stays in this service. `keys/jwt-public.pem` is bind-mounted read-only into the API Gateway at `/app/keys/jwt-public.pem` (docker-compose.yml:310). `keys/generate-keys.sh` produces a **4096-bit** RSA pair (`generate-keys.sh:40`), chmod 600/644. **Neither key is tracked by git** (`.gitignore:20-21`) and `.dockerignore` keeps them out of image layers; `make up` runs the script for you. It is idempotent: with no private key it creates the pair; with one it only rewrites a public key that does not match it (existing tokens stay valid); `--force` replaces both and invalidates every issued token. The gateway mount uses `create_host_path: false`, so starting it without the public key is an error rather than Docker silently creating a root-owned *directory* at that path.
 
 ---
 
@@ -505,13 +505,13 @@ make up COMPOSE_PROFILES=local   # auth-service is identical in the local profil
 
 docker compose up auth-service -d   # this service alone (compose starts `db` first)
 make logs-auth-service
-make exec-auth_service       # note the underscore: exec-% builds ft_transcendence_$* (Makefile:163)
+make exec-auth_service       # note the underscore: exec-% builds ft_transcendence_$* (Makefile:167)
 ```
 
 Prerequisites, in order:
 
 1. `srcs/auth-service/.env` exists — copy from `.env.example`. Compose fails outright without it.
-2. `keys/jwt-private.pem` and `keys/jwt-public.pem` exist — `./keys/generate-keys.sh` if not. The gateway also bind-mounts the public key, so it must exist before `api-gateway` starts.
+2. `keys/jwt-private.pem` and `keys/jwt-public.pem` exist — `make keys` creates them (`make up` does it automatically). The gateway bind-mounts the public key, and compose refuses to start it without the file.
 3. `db` is healthy (enforced by `depends_on`).
 4. Migrations applied — `make migration` (`scripts/run-migrations.sh:45-46` runs `makemigrations` then `migrate` for this service **first**). The ordering is enforced by that script only: user-service stores `user_id` as a plain `UUIDField` soft reference, not a database FK to `auth_schema.users` (`srcs/user-service/apps/profiles/models.py:9,14`).
 
@@ -562,13 +562,13 @@ docker exec ft_transcendence_auth_service python -m pytest tests/ --cov=apps --c
 
 Shared fixtures live in `tests/conftest.py`: `client`, `user_data`, `user`, `authenticated_client` (valid `access_token` cookie), `enable_two_factor` (factory returning `(secret, recovery_codes)`) and `frozen_time` (freezegun at the current instant; `tick()` to reach the next TOTP step or expire a lock). The per-class `user_with_refresh_token` fixtures stay in `tests/test_views.py`. `pytest.ini` sets `DJANGO_SETTINGS_MODULE=config.settings` and `addopts = --strict-markers --disable-warnings --reuse-db`; `--reuse-db` means pytest-django keeps the `test_smartbreeds` database between runs, so a schema change needs `--create-db`. Custom markers `slow` and `integration` are declared but unused.
 
-Tests sign real JWTs with the key pair from `keys/` (or the paths in `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH`) — the private and public key must be a **matching pair**, otherwise every test that verifies a token fails with `InvalidSignatureError` — and they need `db` reachable (which `docker compose run` starts through `depends_on`).
+Tests sign real JWTs with the key pair from `keys/` (or the paths in `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH`) — the private and public key must be a **matching pair** (`make keys` guarantees it; a mismatch makes every test that verifies a token fail with `InvalidSignatureError`) — and they need `db` reachable (which `docker compose run` starts through `depends_on`).
 
 ---
 
 ## Troubleshooting
 
-**Container starts, every token operation fails.** `keys/jwt-private.pem` or `keys/jwt-public.pem` is missing and `DEBUG=True`, so `settings.py:168-174` fell back to empty key strings after printing `Warning: JWT private key not found at …`. Run `./keys/generate-keys.sh`, then restart. With `DEBUG=False` the same condition kills the process at startup instead.
+**Container starts, every token operation fails.** `keys/jwt-private.pem` or `keys/jwt-public.pem` is missing and `DEBUG=True`, so `settings.py:168-174` fell back to empty key strings after printing `Warning: JWT private key not found at …`. Run `make keys`, then restart. With `DEBUG=False` the same condition kills the process at startup instead.
 
 **Gateway returns 401 on `/api/v1/auth/logout` or `/verify`.** Only `login`, `register` and `refresh` are gateway-public (`srcs/api-gateway/middleware/auth_middleware.py:22-30`). With an expired access token the gateway rejects the logout before this service sees it.
 
@@ -590,4 +590,6 @@ Tests sign real JWTs with the key pair from `keys/` (or the paths in `JWT_PRIVAT
 
 **500 on `login/2fa`, `2fa/disable` or any call that verifies a code.** `cryptography.fernet.InvalidToken`: the stored secret was encrypted under a different key than the one now in effect (`SECRET_KEY` or `TWO_FACTOR_ENCRYPTION_KEY` changed). Restore the old key, or reset 2FA for the affected users.
 
-**Regenerating the key pair logs everyone out.** All previously issued access and refresh tokens become unverifiable, and the API Gateway must be restarted to pick up the new public key (it is bind-mounted, but the gateway reads it into settings at startup).
+**`PermissionError` reading `/app/keys/jwt-private.pem`.** The container runs as uid 1000 and the private key is mode 600, so on a Linux host whose user is not uid 1000 the container cannot read it. For a dev machine, `chmod 644 srcs/auth-service/keys/jwt-private.pem` (the script re-applies 600 only when it generates a key).
+
+**Regenerating the key pair logs everyone out.** `make keys` never does it (it keeps an existing private key); only `generate-keys.sh --force` does. All previously issued access and refresh tokens become unverifiable, and the API Gateway must be restarted to pick up the new public key (it is bind-mounted, but the gateway reads it into settings at startup).

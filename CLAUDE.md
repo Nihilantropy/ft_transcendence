@@ -27,15 +27,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 make all           # build + up + show + logs (Makefile:25) — ends tailing logs in the foreground
 make build         # Build Docker images (bakes in requirements)
-make up            # Start services in detached mode
+make up            # Generate the JWT keys if missing (make keys), then start services in detached mode
+make keys          # Generate the JWT RS256 key pair if missing — idempotent, never rotates an existing key
 make down          # Stop and remove containers
 make downv         # Stop and remove containers + volumes
 make restart       # Restart all services
 make logs          # Follow all logs
 make logs-SERVICE  # View specific service logs (e.g., make logs-api-gateway)
-make purge         # `down -v` then remove containers/images/volumes/networks (Makefile:131)
-make re            # Soft rebuild — literally `down all` (Makefile:157)
-make ref           # Full rebuild — literally `purge all` (Makefile:160)
+make purge         # `down -v` then remove containers/images/volumes/networks (Makefile:135)
+make re            # Soft rebuild — literally `down all` (Makefile:161)
+make ref           # Full rebuild — literally `purge all` (Makefile:164)
 make show          # Show system status (containers, networks, volumes)
 make migration     # Run database migrations (scripts/run-migrations.sh)
 make seed          # Seed the product catalog (scripts/seed-db.sh)
@@ -111,7 +112,7 @@ docker exec -it CONTAINER sh    # Shell into container
 - Rebuild rules differ per service:
   - **classification-service**: no source bind mount — ANY `src/` or `tests/` edit needs
     `docker compose build classification-service`
-  - **api-gateway**: only `src/`, `routes/`, `tests/` are mounted (docker-compose.yml:298-301) —
+  - **api-gateway**: only `src/`, `routes/`, `tests/` are mounted (docker-compose.yml:305-308) —
     editing `main.py`, `config.py`, `middleware/`, `auth/`, `utils/` needs a rebuild; mounted
     changes still need a restart (uvicorn runs without `--reload`)
   - **auth-service, user-service, recommendation-service**: whole service dir is mounted rw —
@@ -123,7 +124,9 @@ docker exec -it CONTAINER sh    # Shell into container
     `docker compose restart SERVICE` to take effect. Only auth-service and user-service really
     hot-reload — they run `manage.py runserver`, which has Django's autoreloader. The
     "hot reload" comments on the compose volume blocks are aspirational
-- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls)
+- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls). auth-service tests sign real JWTs
+  and the api-gateway container bind-mounts the public key, so on a fresh clone run `make keys` once first
+  (`make test`, `make up` and the scripts do it for you)
 - Integration tests: MUST use `docker exec` on a running container — `run --rm` cannot
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
@@ -220,8 +223,8 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - **Proxy Network**: Nginx only (the `frontend` service is commented out in docker-compose.yml:156-176)
 - **Backend Network**: Nginx ↔ API Gateway ↔ Backend Services ↔ Databases
 - **Nginx** bridges both networks (docker-compose.yml:14-16). The API Gateway lives on
-  `backend-network` only (docker-compose.yml:304-305) and is additionally published on host
-  port 8001 for development (docker-compose.yml:294-295)
+  `backend-network` only (docker-compose.yml:311-312) and is additionally published on host
+  port 8001 for development (docker-compose.yml:301-302)
 
 **Authentication Flow:**
 1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:61)
@@ -554,7 +557,9 @@ Services use environment variables from `.env` files:
 - JWT Key Pair (RS256):
   - Auth Service: Private key at `srcs/auth-service/keys/jwt-private.pem` (signs tokens)
   - API Gateway: Public key mounted read-only from auth-service keys directory (verifies tokens)
-  - Generated once, never regenerate in production (invalidates all tokens)
+  - **Neither key is tracked by git.** `make keys` (run by `make up`, `make test` and the test scripts) creates the
+    pair when the private key is missing; when it exists it only rewrites a public key that does not match it.
+    `srcs/auth-service/keys/generate-keys.sh --force` rotates and invalidates every issued token — never in production
 - Service URLs use Docker Compose service names (e.g., `http://auth-service:3001`)
 - `.env.example` files exist for ai, api-gateway, auth-service, classification-service, db, nginx,
   recommendation-service and user-service. **`srcs/litellm/` and `srcs/ollama/` have none** — they
@@ -664,7 +669,7 @@ feed a printed total; do not trust them.
 - **JWT Tokens**: RS256 asymmetric algorithm, stored in HTTP-only cookies
   - Auth Service: Signs tokens with RSA private key (jwt-private.pem, never shared)
   - API Gateway: Verifies tokens with RSA public key only (jwt-public.pem, read-only mount)
-  - Key generation: 4096-bit RSA (`srcs/auth-service/keys/generate-keys.sh:11`), stored in `srcs/auth-service/keys/`
+  - Key generation: 4096-bit RSA (`make keys` → `srcs/auth-service/keys/generate-keys.sh`), stored in `srcs/auth-service/keys/` and gitignored (`.dockerignore` keeps them out of image layers too)
   - Volume mount: `./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro`
 - **Network Isolation**: Backend services not exposed externally, only via API Gateway
 - **Rate Limiting**: Two layers (NGINX: 200/min, API Gateway: 60/min per user)
@@ -722,8 +727,8 @@ feed a printed total; do not trust them.
 - Check networks: `docker network inspect ft_transcendence_backend-network`
 
 **JWT always rejected:**
-- Verify RSA key pair exists: `ls -la srcs/auth-service/keys/`
-- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem`
+- Verify RSA key pair exists and matches: `make keys` (creates it if absent; if the public key does not match the private one it is rewritten, tokens stay valid)
+- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem` (with the key missing, `docker compose up` fails with `bind source path does not exist` instead of starting the gateway — run `make keys`)
 - Check key permissions: Public key must be readable
 - Verify cookie is being set: `curl -v http://localhost:8001/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
 - Test token signature: Tokens signed with RS256 private key must be verifiable with RS256 public key

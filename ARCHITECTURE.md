@@ -220,7 +220,7 @@ All microservices communicate via **synchronous REST APIs** over HTTP. This prov
    - API Gateway → Redis (rate limiting); no other service uses Redis
    - AI Service and Classification Service are stateless — no PostgreSQL, no Redis
 
-**Key principle**: **NGINX** is the only service attached to both networks (`docker-compose.yml:14-16`); the API Gateway lives on `backend-network` only (`docker-compose.yml:304-305`) and is reached by NGINX across that network. Auth, User, AI, Classification, Recommendation, LiteLLM, PostgreSQL and Redis publish no host ports. Two exceptions exist for development convenience: the API Gateway publishes `8001:8001` (`docker-compose.yml:294-295`) and, in the `local` profile, Ollama publishes `11434:11434` (`docker-compose.yml:68-69`). NGINX itself is published on `8000:80` and `8443:443`, not 80/443.
+**Key principle**: **NGINX** is the only service attached to both networks (`docker-compose.yml:14-16`); the API Gateway lives on `backend-network` only (`docker-compose.yml:311-312`) and is reached by NGINX across that network. Auth, User, AI, Classification, Recommendation, LiteLLM, PostgreSQL and Redis publish no host ports. Two exceptions exist for development convenience: the API Gateway publishes `8001:8001` (`docker-compose.yml:301-302`) and, in the `local` profile, Ollama publishes `11434:11434` (`docker-compose.yml:68-69`). NGINX itself is published on `8000:80` and `8443:443`, not 80/443.
 
 ### Request Flow Example: Pet Image Analysis
 
@@ -555,7 +555,7 @@ DELETE /api/v1/auth/delete
 - Not implemented: signed/authenticated gateway headers, or mTLS between services
 
 **Key Storage:**
-- **RSA key pair, not a shared secret**: 4096-bit keys generated once by `srcs/auth-service/keys/generate-keys.sh`. `jwt-private.pem` (chmod 600, gitignored) never leaves auth-service; `jwt-public.pem` (chmod 644) is bind-mounted read-only into the API Gateway at `/app/keys/jwt-public.pem`
+- **RSA key pair, not a shared secret**: 4096-bit keys generated on demand by `make keys` (`srcs/auth-service/keys/generate-keys.sh`, idempotent; `make up` runs it). Neither file is tracked by git. `jwt-private.pem` (chmod 600) never leaves auth-service; `jwt-public.pem` (chmod 644) is bind-mounted read-only into the API Gateway at `/app/keys/jwt-public.pem`
 - Only the *paths* are environment-driven (`JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH`); both keys are loaded from disk once at startup by `load_jwt_keys()`
 - **Key Rotation**: not implemented. There is no dual-key grace period — regenerating the pair invalidates every outstanding token immediately
 - With `DEBUG=True`, a missing key file is swallowed: `JWT_KEYS` falls back to empty strings and the service boots and passes its healthcheck while every token operation fails (`config/settings.py:158-164`)
@@ -1226,7 +1226,7 @@ networks:
 - **Nginx bridges both networks** — it is the only service on `proxy`, and it proxies
   `/api` to `api-gateway:8001` (srcs/nginx/conf.d/default.conf.template:81)
 - The API Gateway sits on `backend-network` only; its `8001:8001` host publish exists
-  purely for local curl/Postman testing (docker-compose.yml:294-295)
+  purely for local curl/Postman testing (docker-compose.yml:301-302)
 - Neither network is declared `internal: true` — `backend-network` needs egress for the
   cloud profile (Mistral API) and for Ollama model pulls
 

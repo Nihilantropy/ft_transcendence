@@ -164,7 +164,7 @@ Two callers bypass the gateway entirely and set the headers themselves: auth-ser
 - **DB-touching tests need `@pytest.mark.django_db`** on the class (or the `db` fixture);
   `test_middleware.py`, `test_permissions.py` and `test_utils.py` deliberately run without it.
 - Counts by file: views 36, serializers 18, models 12, utils 11, middleware 9, permissions 5 = **91**.
-  `scripts/run-unit-tests.sh:115-117` hardcodes 91 as a display label only (`run_test_suite`
+  `scripts/run-unit-tests.sh:119-121` hardcodes 91 as a display label only (`run_test_suite`
   prints it and adds it to the total on exit 0, `:86-100`) — update it if you add tests.
 - `pytest.ini` sets `DJANGO_SETTINGS_MODULE=config.settings`, `--strict-markers`, and declares the
   `slow` / `integration` markers (both currently unused).

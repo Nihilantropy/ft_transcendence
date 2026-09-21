@@ -148,7 +148,7 @@ then `forward_headers.update(backend_headers)` as today. Keep the list next to `
 <!-- item id=INFRA-01 priority=P0 effort=S service=repo -->
 ### INFRA-01 - `make init` provisions an admin account whose password is published in the repo
 
-**Where:** `scripts/create-superuser.sh:1`, `Makefile:28`, `Makefile:182-184`
+**Where:** `scripts/create-superuser.sh:1`, `Makefile:28`, `Makefile:186-188`
 
 **Problem:** The script runs `createsuperuser --no-input` with `DJANGO_SUPERUSER_EMAIL=test_admin@example.com` and `DJANGO_SUPERUSER_PASSWORD=Password123!` hardcoded. `make init` (`build up migration seed superuser rag`) runs it unconditionally, so every environment provisioned this way ends up with a `role='admin'`, `is_superuser=True` account (`srcs/auth-service/apps/authentication/models.py:23-25`) whose credentials are in git. The role lands in the JWT (`jwt_utils.py:23`) and is forwarded downstream as `X-User-Role`.
 
@@ -242,7 +242,7 @@ _A feature that is documented or clearly intended does not work at all. Size of 
 
 **Verify:** `curl -s -c /tmp/j -X POST http://localhost:8001/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"E","password":"P"}' >/dev/null && cp /tmp/j /tmp/j2 && curl -s -b /tmp/j -X POST http://localhost:8001/api/v1/auth/logout >/dev/null && curl -s -b /tmp/j2 -X POST http://localhost:8001/api/v1/auth/refresh` — must return 401 `TOKEN_REVOKED`; today it returns 200 with fresh tokens.
 
-**Effort:** M - **Risk:** logout must keep returning 200 for missing/expired/garbage tokens — `srcs/auth-service/tests/test_views.py:778-840` (`TestLogoutView`) covers that surface. Adding tests means bumping the hardcoded expected count at `scripts/run-unit-tests.sh:113`, which INFRA-09 deletes outright. Separately, `/api/v1/auth/logout` is not in the gateway's public set (`srcs/api-gateway/middleware/auth_middleware.py:22-29`), so a user whose access token already expired is 401'd before reaching this code — that is GW-15, and the two are only jointly sufficient: this item without GW-15 fixes logout for unexpired sessions only, GW-15 without this item makes logout reachable but still non-revoking. No `Depends on` in either direction, since each is independently shippable and a mutual one would be a cycle; schedule them together.
+**Effort:** M - **Risk:** logout must keep returning 200 for missing/expired/garbage tokens — `srcs/auth-service/tests/test_views.py:778-840` (`TestLogoutView`) covers that surface. Adding tests means bumping the hardcoded expected count at `scripts/run-unit-tests.sh:117`, which INFRA-09 deletes outright. Separately, `/api/v1/auth/logout` is not in the gateway's public set (`srcs/api-gateway/middleware/auth_middleware.py:22-29`), so a user whose access token already expired is 401'd before reaching this code — that is GW-15, and the two are only jointly sufficient: this item without GW-15 fixes logout for unexpired sessions only, GW-15 without this item makes logout reachable but still non-revoking. No `Depends on` in either direction, since each is independently shippable and a mutual one would be a cycle; schedule them together.
 
 <!-- item id=CLS-01 priority=P1 effort=S service=classification-service -->
 ### CLS-01 - NSFW safety verdict ignores its configured threshold
@@ -914,7 +914,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 
 **Verify:** from the repo root on the host, `python -m pytest srcs/api-gateway/tests -q` aborts during collection today and collects after the fix. In-container: `docker exec ft_transcendence_api_gateway sh -c 'cd /tmp && env -u RECOMMENDATION_SERVICE_URL python -m pytest /app/tests -q'` (the `cd` is what defeats the baked `/app/.env`).
 
-**Effort:** S - **Risk:** none. `tests/` is bind-mounted (`docker-compose.yml:301`) so no rebuild is needed.
+**Effort:** S - **Risk:** none. `tests/` is bind-mounted (`docker-compose.yml:308`) so no rebuild is needed.
 
 <!-- item id=GW-11 priority=P3 effort=S service=api-gateway -->
 ### GW-11 - No .dockerignore, so the local .env and caches are baked into the image
@@ -1088,7 +1088,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 <!-- item id=INFRA-05 priority=P3 effort=S service=repo -->
 ### INFRA-05 - `make exec-<service>` builds a container name that never exists
 
-**Where:** `Makefile:163-164`, `docker-compose.yml:47,83,105,179,203,287,324`
+**Where:** `Makefile:167-168`, `docker-compose.yml:47,83,105,179,203,287,324`
 
 **Problem:** `exec-%` expands to `docker exec -it ft_transcendence_$*`, splicing the compose service name in verbatim. The containers are named with underscores (`ft_transcendence_api_gateway`, `ft_transcendence_ai_service`, `ft_transcendence_classification_service`, `ft_transcendence_auth_service`, `ft_transcendence_user_service`, `ft_transcendence_recommendation_service`), so every hyphenated service fails with "No such container". `make exec-ollama` fails for a different reason: that container is named plain `ollama`, breaking the `ft_transcendence_*` convention every other service follows. Only `nginx`, `litellm`, `redis` and `db` work.
 
@@ -1101,7 +1101,7 @@ _Compose wiring, healthchecks, startup ordering, logging, ports, build hygiene._
 <!-- item id=INFRA-06 priority=P3 effort=S service=repo -->
 ### INFRA-06 - The cleanup targets either do not exist or remove nothing
 
-**Where:** `Makefile:22`, `Makefile:13-17`, `Makefile:130-154`, `Makefile:160`
+**Where:** `Makefile:22`, `Makefile:13-17`, `Makefile:134-158`, `Makefile:164`
 
 **Problem:** `.PHONY` declares `clean`, `fclean`, `setup` and `test-coverage`, none of which has a recipe — `make clean` and `make fclean` die with "No rule to make target". The target that does exist, `purge` (and `ref: purge all`), is close to a no-op: `TRANSCENDENCE_SERVICES` lists a `backend` service that is not in this compose file and omits every application service (api-gateway, auth-service, user-service, ai-service, classification-service, litellm), `TRANSCENDENCE_NETWORKS` names `ft_transcendence_transcendence_network` while the real networks are `ft_transcendence_proxy` and `ft_transcendence_backend-network`, and the image removal uses untagged names (`ft_transcendence_nginx`) while the images are built as `ft_transcendence_nginx:local`. Every command is `|| true`, so `make ref` prints a full success banner while leaving all images and networks in place.
 
@@ -1496,7 +1496,7 @@ _Dead code, unused dependencies, deprecated APIs, naming drift. Safe to batch._
 <!-- item id=INFRA-09 priority=P4 effort=S service=repo -->
 ### INFRA-09 - The unit-test runner prints invented test counts
 
-**Where:** `scripts/run-unit-tests.sh:86-100,107-129`
+**Where:** `scripts/run-unit-tests.sh:90-104,107-129`
 
 **Problem:** `run_test_suite` takes an `expected_tests` literal (`:107-129`) and prints `✓ <service> tests passed (<n> tests)` plus a grand total built from those literals — the numbers are never read from pytest, so the summary is fiction the moment a test is added or removed. Three of the six have already drifted: api-gateway 28 (30 collected), ai-service 37 (104), recommendation-service 42 (48 in `tests/unit/`, which is all the runner invokes). The other three happen to still be right — auth-service, user-service 91, classification-service 28 — which is what makes the literals look trustworthy. (The api-gateway literal was refreshed to 41 and auth-service to 353 with the 2FA work; the mechanism is unchanged, so they drift again on the next test.) Anyone using `make test` output as a regression signal is reading a constant.
 
@@ -1640,7 +1640,7 @@ _The right fix depends on a product call. Each item states the options and the t
 
 **Verify:** With the stack up, `curl -s -o /dev/null -w '%{http_code}' -b cookies.txt http://localhost:8001/api/v1/analyses` returns 200 (option a) or the route is gone from `docker exec ft_transcendence_user_service python manage.py show_urls` / `grep -rn analyses srcs/user-service/apps` (option b).
 
-**Effort:** S - **Risk:** option (a) adds an unauthenticated-by-ownership write path until USER-01 lands; option (b) deletes tests in `tests/test_views.py` and `tests/test_serializers.py` — the hardcoded suite count in `scripts/run-unit-tests.sh:115-117` is a display label only and is deleted by INFRA-09.
+**Effort:** S - **Risk:** option (a) adds an unauthenticated-by-ownership write path until USER-01 lands; option (b) deletes tests in `tests/test_views.py` and `tests/test_serializers.py` — the hardcoded suite count in `scripts/run-unit-tests.sh:119-121` is a display label only and is deleted by INFRA-09.
 
 **Depends on:** USER-01
 

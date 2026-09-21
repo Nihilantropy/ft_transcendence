@@ -3,11 +3,11 @@
 ## Overview
 
 FastAPI reverse proxy, container `ft_transcendence_api_gateway`, `backend-network` only, host port `8001`
-(`docker-compose.yml:294`). No compose profile is declared, so it behaves identically under `local` and
+(`docker-compose.yml:301`). No compose profile is declared, so it behaves identically under `local` and
 `cloud`. Stateless: the only external state is a Redis counter for rate limiting. Live entry point is the
 flat layout at the service root (`main.py`, `config.py`, `routes/`, `middleware/`, `auth/`, `utils/`) —
 `Dockerfile:21` runs `uvicorn main:app`. The `src/` directory is **empty** and exists only because
-`docker-compose.yml:298` bind-mounts it; nothing imports it, git does not track it, do not put code there.
+`docker-compose.yml:305` bind-mounts it; nothing imports it, git does not track it, do not put code there.
 
 Read `README.md` first for routes, config table and error codes. This file is only what will trip you up.
 
@@ -32,7 +32,7 @@ docker compose restart api-gateway             # enough after editing routes/ on
 docker compose logs -f api-gateway             # make logs-api-gateway also works
 docker exec -it ft_transcendence_api_gateway /bin/sh
 # NOTE: `make exec-api-gateway` is broken — it expands to ft_transcendence_api-gateway,
-# but the container is ft_transcendence_api_gateway (Makefile:163-164 vs docker-compose.yml:287)
+# but the container is ft_transcendence_api_gateway (Makefile:167-168 vs docker-compose.yml:271)
 
 curl http://localhost:8001/health
 ```
@@ -165,7 +165,7 @@ step 1 via `call_next`, so `request.state` stays empty: the outbound request car
 - **`PORT`, `HOST`, `DEBUG`, `LOG_LEVEL` are declared in `config.py:8-11` and read by nothing.** The port
   comes from `Dockerfile:21`, the log level from `logging.basicConfig(level=logging.INFO)`
   (`logging_middleware.py:10`).
-- **Only `routes/` and `tests/` are bind-mounted** (`docker-compose.yml:299,301`). Editing `main.py`,
+- **Only `routes/` and `tests/` are bind-mounted** (`docker-compose.yml:306,301`). Editing `main.py`,
   `config.py`, `middleware/`, `auth/` or `utils/` requires `docker compose build api-gateway`. uvicorn runs
   without `--reload`, so even mounted `routes/` changes need a container restart.
 - **There is no `.dockerignore`**, so `Dockerfile:13` (`COPY . .`) bakes the local `.env` into the image.

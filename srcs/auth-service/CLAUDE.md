@@ -23,9 +23,10 @@ docker exec ft_transcendence_auth_service python manage.py makemigrations
 docker exec ft_transcendence_auth_service python manage.py migrate
 
 # Shell / logs / keys
-make exec-auth_service                      # underscore: exec-% expands to ft_transcendence_$* (Makefile:163)
+make exec-auth_service                      # underscore: exec-% expands to ft_transcendence_$* (Makefile:167)
 make logs-auth-service                      # hyphen: logs-% takes the compose service name
-./keys/generate-keys.sh                     # 4096-bit RSA pair, chmod 600/644
+make keys                                   # create the 4096-bit RSA pair if missing (make up does this); idempotent
+./keys/generate-keys.sh --force             # ROTATE: new pair, invalidates every issued token
 make superuser                              # scripts/create-superuser.sh
 
 # Only requirements changes need this — source is bind-mounted
@@ -50,7 +51,7 @@ docker compose build auth-service
 | `apps/authentication/middleware.py` | `Custom404Middleware` — HTML 404 → JSON `NOT_FOUND` |
 | `apps/authentication/migrations/` | `0001_initial` (User), `0002_refreshtoken`, `0003_two_factor` |
 | `tests/` | pytest-django. `conftest.py` holds the shared fixtures (`client`, `user_data`, `user`, `authenticated_client`, `enable_two_factor`, `frozen_time`); 9 test modules, 353 tests |
-| `keys/` | `jwt-private.pem` (gitignored), `jwt-public.pem` (bind-mounted read-only into api-gateway), `generate-keys.sh` |
+| `keys/` | `generate-keys.sh` (tracked, idempotent) and the two generated, gitignored keys: `jwt-private.pem` and `jwt-public.pem` (bind-mounted read-only into api-gateway) |
 
 There is no `admin.py`, no `apps/authentication/tests.py`, no management commands, no `permissions.py`, no service layer.
 
@@ -120,7 +121,7 @@ Inbound is always the API Gateway, which strips `Cookie` for every prefix **exce
 - **`User.two_factor_enabled` is a database query**, and `UserSerializer` includes it, so every serialised user costs one extra `EXISTS`. A pending setup (`is_enabled=False`) does not count.
 - **Changing `SECRET_KEY` (or `TWO_FACTOR_ENCRYPTION_KEY`) makes every stored TOTP secret undecryptable.** With the key derived from `SECRET_KEY` (the default) that is one env var away from locking all 2FA users out with 500s. There is no rotation support.
 - **`2fa/enable` accepts only a TOTP code**, not a recovery code (there is none yet at that point), and the code that confirms setup is marked spent, so the very next login needs the *next* 30 s step. Tests that do enable → login in one go must `frozen_time.tick()` between them.
-- **The repo's `keys/jwt-public.pem` is tracked but `jwt-private.pem` is gitignored**, so a machine that generated its own private key ends up with a mismatched pair: the service signs tokens that nothing can verify, and ~25 tests fail with `InvalidSignatureError`. Run `./keys/generate-keys.sh` locally (and do not commit the new public key), or point `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` at a matching pair.
+- **The JWT key pair is generated per machine and tracked nowhere.** `make up`, `make test`, `scripts/init-and-test.sh --init` and `scripts/run-unit-tests.sh` run `keys/generate-keys.sh`: no private key → create the pair; private key present → only rewrite a public key that does not match it. (The old failure mode, a committed public key next to a locally generated private key, made every token unverifiable and ~25 tests fail with `InvalidSignatureError`.) Only `--force` rotates, and it invalidates every issued token. The gateway mounts the public key as a *file*, so `docker-compose.yml` sets `create_host_path: false`: with the key missing compose errors out instead of letting Docker create a root-owned directory at that path (the script detects such a directory and tells you to `sudo rm -rf` it). `srcs/auth-service/.dockerignore` (`keys/*.pem`) stops `COPY . .` baking the private key into an image layer; the bind mount supplies it at run time. The private key is mode 600 and the container runs as uid 1000, so a Linux host user with another uid needs `chmod 644` on it.
 - **`PORT` in `.env.example` is read by nothing.** The listen port is hardcoded in `Dockerfile:39` (`runserver 0.0.0.0:3001`).
 - **`gunicorn` is pinned in `requirements.txt` but unused** — the container runs Django's dev server.
 - **Auth migrations run before user-service migrations** (`scripts/run-migrations.sh:43-46`). That ordering is a script convention, not a database constraint: `user_schema` holds `user_id` as a plain `UUIDField` soft reference, with no FK to `auth_schema.users` (`srcs/user-service/apps/profiles/models.py:9,14`).
@@ -133,7 +134,7 @@ Inbound is always the API Gateway, which strips `Cookie` for every prefix **exce
 - **Shared fixtures live in `tests/conftest.py`**: `client` (Django `Client`), `user_data` (dict), `user` (via `User.objects.create_user`, password `testpass123`), `authenticated_client` (`access_token` cookie set), `enable_two_factor` (factory: `enable_two_factor(user) → (secret, recovery_codes)`) and `frozen_time` (freezegun pinned to the current instant; `.tick(timedelta(...))` moves the clock). `TestRefreshView` and `TestLogoutView` still define a local `user_with_refresh_token` fixture returning `(user, raw_token, record)`. Build a valid TOTP with `two_factor.totp(secret)`.
 - **Anything that mints a TOTP or checks a lock needs `frozen_time`** (or `freeze_time`), otherwise a step boundary makes the test flaky; freeze at *now*, not at a fixed past date, when tokens are involved, because PyJWT rejects an `iat` in the future.
 - **Every DB-touching class needs `@pytest.mark.django_db`** on the class (that is the existing style — not per-function).
-- **Tests sign real JWTs with the key pair from `keys/`** (or `JWT_*_KEY_PATH`); there is no key mocking, and the pair must match (see the key-mismatch gotcha above). `freezegun` is used for TOTP steps, lock timers and expired tokens (`with freeze_time('2026-01-01'): token = generate_access_token(user)`); older tests still build expired tokens by hand with `jwt.encode` and a past `exp`.
+- **Tests sign real JWTs with the key pair from `keys/`** (or `JWT_*_KEY_PATH`); there is no key mocking, and the pair must match (`make keys` guarantees it, see the key-pair gotcha above). `freezegun` is used for TOTP steps, lock timers and expired tokens (`with freeze_time('2026-01-01'): token = generate_access_token(user)`); older tests still build expired tokens by hand with `jwt.encode` and a past `exp`.
 - **Almost nothing is mocked** — no httpx stubs, which is why `delete_user_cascade` (the only outbound HTTP call) has no tests. The single `unittest.mock.patch.object(User, 'save', side_effect=IntegrityError)` in `test_views_me.py` simulates losing a race on the unique email.
 - `pytest.ini` sets `--reuse-db`: after changing a model or migration, add `--create-db` or the run fails against a stale `test_smartbreeds`.
 - Markers `slow` and `integration` are declared in `pytest.ini` with `--strict-markers`; any other marker name errors out.
