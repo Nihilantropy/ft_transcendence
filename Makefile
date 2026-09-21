@@ -35,7 +35,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage gate elk elk-creds $(TEST_FLAGS)
+.PHONY: all setup build up keys show stop start down restart re clean fclean help test test-coverage gate elk elk-creds $(TEST_FLAGS)
 
 # Default target
 all: build up elk show logs
@@ -63,8 +63,12 @@ build-%:
 build-zero-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache $*
 
-## up: Start all services
-up:
+## keys: Generate the JWT key pair if it is missing (idempotent; `make up` runs it for you)
+keys:
+	@srcs/auth-service/keys/generate-keys.sh
+
+## up: Generate the JWT keys if missing, then start all services
+up: keys
 	@echo "Starting ft_transcendence..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
 	@echo ""
@@ -77,7 +81,7 @@ up:
 # Declared explicitly so it wins over the `up-%` pattern rule below, which would
 # otherwise read it as "start a service called dev". The plaintext port is for the
 # Jupyter notebooks and curl debugging; the application itself only uses nginx.
-up-dev:
+up-dev: keys
 	@echo "Starting ft_transcendence (dev: gateway also on http://127.0.0.1:8001)..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) -f docker-compose.dev.yml up -d
 	@echo ""
@@ -86,8 +90,8 @@ up-dev:
 	@echo "🔧 Dev-only plaintext gateway: http://127.0.0.1:8001 (never used by the app)"
 	@echo ""
 
-## up-%: Start specific service
-up-%:
+## up-%: Start specific service (generates the JWT keys first if missing)
+up-%: keys
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up $* -d
 
 ## show: Show system status

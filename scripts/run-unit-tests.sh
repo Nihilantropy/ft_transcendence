@@ -72,6 +72,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# The auth tests sign real JWTs with keys/, and the gateway container bind-mounts the public key.
+# Both are generated per machine and not tracked by git; this is a no-op when they already exist.
+"$(dirname "$0")/../srcs/auth-service/keys/generate-keys.sh"
+
 # Default to all if no specific suite requested
 if [ "$SPECIFIC_SUITE" = false ]; then
   RUN_GATEWAY=true
@@ -106,11 +110,11 @@ echo ""
 
 [ "$RUN_GATEWAY" = true ] && run_test_suite "API Gateway" \
   "docker compose run --rm api-gateway python -m pytest tests/ -v" \
-  28
+  41
 
 [ "$RUN_AUTH" = true ] && run_test_suite "Auth Service" \
   "docker compose run --rm auth-service python -m pytest tests/ -v" \
-  102
+  353
 
 [ "$RUN_USER" = true ] && run_test_suite "User Service" \
   "docker compose run --rm user-service python -m pytest tests/ -v" \

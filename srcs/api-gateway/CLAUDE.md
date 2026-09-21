@@ -43,7 +43,7 @@ curl http://localhost:8001/health
 |---|---|
 | `main.py` | App construction, four exception handlers, hardcoded CORS origins, middleware registration, `GET /health` |
 | `config.py` | `Settings(BaseSettings)`; module-level `settings` and `JWT_PUBLIC_KEY` (public key read from disk at import, `:46`) |
-| `auth/jwt_utils.py` | `decode_jwt()`, `extract_user_context()`, `JWTValidationError`. Pure functions, no I/O |
+| `auth/jwt_utils.py` | `decode_jwt()`, `extract_user_context()`; `decode_jwt()` also enforces `token_type == "access"` and a non-empty `user_id`, `JWTValidationError`. Pure functions, no I/O |
 | `middleware/auth_middleware.py` | `JWTAuthMiddleware` — cookie → payload → `request.state` → `backend_headers`; hardcoded public-endpoint set |
 | `middleware/rate_limit.py` | `RateLimitMiddleware` + module-level **synchronous** `redis_client` (`:10`) |
 | `middleware/logging_middleware.py` | `LoggingMiddleware` — one INFO line per request, sets `X-Request-ID` on the response |
@@ -68,9 +68,10 @@ Authenticated proxy call:
 
 ```
 GET /api/v1/users/me  (Cookie: access_token=…)
- 1 JWTAuth      path not in public_endpoints (auth_middleware.py:33)
+ 1 JWTAuth      path not in public_endpoints (auth_middleware.py:37)
                 decode_jwt(cookie, JWT_PUBLIC_KEY, "RS256")      → JWTValidationError ⇒ 401 UNAUTHORIZED
-                request.state.{user_id,user_role,user_email,request_id,backend_headers}   (:48-62)
+                decode_jwt also requires token_type == "access" and a non-empty user_id ⇒ else 401
+                request.state.{user_id,user_role,user_email,request_id,backend_headers}   (:48-66)
  2 RateLimit    key = rate_limit:user:{user_id}  (state.user_id is already set)
                 GET → None ⇒ SETEX key 60 1 | count ≥ limit ⇒ 429 | else INCR          (rate_limit.py:41-54)
  3 Logging      start timer
@@ -86,7 +87,7 @@ GET /api/v1/users/me  (Cookie: access_token=…)
  ← Logging adds X-Request-ID, RateLimit adds X-RateLimit-Limit/Remaining
 ```
 
-Public paths (`/health`, `/docs`, `/openapi.json`, `/api/v1/auth/{login,register,refresh}`) short-circuit
+Public paths (`/health`, `/docs`, `/openapi.json`, `/api/v1/auth/{login,login/2fa,register,refresh}`) short-circuit
 step 1 via `call_next`, so `request.state` stays empty: the outbound request carries **no** `X-User-ID` /
 `X-Request-ID`, rate limiting falls back to `rate_limit:ip:{client_ip}` (`client_ip` = `X-Real-IP`,
 nginx's real-client header, or `request.client.host` if absent — see Gotchas), and the log line reads
@@ -100,9 +101,16 @@ nginx's real-client header, or `request.client.host` if absent — see Gotchas),
 - **Prefix matching is plain `startswith` over dict insertion order** (`proxy.py:63-64`). If a new prefix
   is a prefix of, or prefixed by, an existing one, the more specific string must be inserted **first**.
 - **Making a path public** means adding the exact full path to the `self.public_endpoints` set in
-  `middleware/auth_middleware.py:22-29`. It is a set-membership test on `request.url.path`, not a prefix
+  `middleware/auth_middleware.py:22-33`. It is a set-membership test on `request.url.path`, not a prefix
   test — `/api/v1/auth/verify` is protected precisely because it is not listed. `/api/v1/auth/logout`
   is listed on purpose: an idle user with an expired access token must still be able to log out.
+  `/api/v1/auth/login/2fa` is public because it is the second login step: the caller holds only the
+  challenge token, in the JSON body.
+- **Only `token_type == "access"` authenticates** (`auth/jwt_utils.py::decode_jwt`). The auth-service signs
+  refresh tokens and the 2FA challenge token (`"mfa"`) with the same key, so the signature proves nothing
+  about purpose: without the check a refresh token in the `access_token` cookie was a 7-day session, and the
+  challenge token — issued after the password alone — would bypass the second factor. Any test that mints
+  a token for the gateway must include `"token_type": "access"`.
 - **Slow endpoints get an entry in `SERVICE_TIMEOUTS`** (`proxy.py:16-18`), never a bump of the 30 s
   default on `httpx_client` (`proxy.py:13`).
 - **Gateway-generated error bodies always use the envelope**
@@ -225,7 +233,7 @@ Values that are deliberately hardcoded, and where to change them:
 | Value | Location |
 |---|---|
 | CORS origins / exposed headers | `main.py:71-79` |
-| Public (unauthenticated) endpoints | `middleware/auth_middleware.py:22-29` |
+| Public (unauthenticated) endpoints | `middleware/auth_middleware.py:22-30` |
 | Rate-limit window (60 s) | `middleware/rate_limit.py:25` |
 | Default backend timeout (30 s) | `routes/proxy.py:13` and the fallback in `:113-116` |
 | Per-prefix timeout overrides | `routes/proxy.py:16-18` |
