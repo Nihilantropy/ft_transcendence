@@ -11,13 +11,17 @@ class Settings(BaseSettings):
     # LLM inference (via LiteLLM proxy — OpenAI-compatible endpoint)
     LLM_BASE_URL: str = "http://litellm:4000/v1"
     LLM_API_KEY: str = "sk-smartbreeds-local"  # must match LiteLLM LITELLM_MASTER_KEY
-    LLM_VISION_MODEL: str = "vision-model"     # or vision-model-cloud (Mistral/Pixtral)
-    LLM_TEXT_MODEL: str = "text-model"         # or text-model-cloud
+    # Defaults follow the default deployment, which is the cloud profile (hosted
+    # Mistral, no GPU). A GPU machine running Ollama sets vision-model / text-model.
+    LLM_VISION_MODEL: str = "vision-model-cloud"
+    LLM_TEXT_MODEL: str = "text-model-cloud"
     LLM_TIMEOUT: int = 300  # Ollama crossbreed detection can take 120-180s; cloud is faster
     LLM_TEMPERATURE: float = 0.1
 
-    # Classification Service (HF models, GPU). Disable in cloud/no-GPU profile:
-    # the vision LLM then handles species/breed detection (NSFW filter is NOT applied).
+    # Classification Service (HuggingFace models). Runs in every stack, on CPU
+    # unless docker-compose.gpu.yml is layered on, so this stays True in both
+    # profiles. False switches to the VLM-only pipeline, where the LLM guesses
+    # species/breed and the NSFW filter is NOT applied — debugging only.
     CLASSIFICATION_ENABLED: bool = True
     CLASSIFICATION_SERVICE_URL: str = "http://classification-service:3004"
     CLASSIFICATION_TIMEOUT: int = 30

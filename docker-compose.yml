@@ -103,18 +103,19 @@ services:
       context: ./srcs/classification-service
       dockerfile: Dockerfile
     container_name: ft_transcendence_classification_service
-    profiles: ["local"]  # heavy HF models + GPU; disabled in cloud profile (VLM-only pipeline)
+    # No profile and no GPU requirement: this service now runs in every stack,
+    # on CPU. It used to be `profiles: ["local"]` with `runtime: nvidia` and a
+    # device reservation, so on any machine without a GPU — the evaluation
+    # machine included — it simply did not start, and the AI service fell back
+    # to a VLM-only path with no NSFW filter and no HuggingFace breed model.
+    # That silently removed two claimable modules (image recognition, content
+    # moderation) from the evaluated stack. The code never needed the GPU:
+    # DEVICE=auto resolves to "cpu" when CUDA is absent (src/main.py).
+    #
+    # GPU acceleration is opt-in for developer machines:
+    #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml ...
     env_file:
       - ./srcs/classification-service/.env
-    # GPU enabled - RTX 5060 Ti (Blackwell) support via PyTorch 2.11 nightly + CUDA 12.8
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     environment:
       # DEVICE controlled via .env file (auto/cuda/cpu)
       - TRANSFORMERS_CACHE=/app/.cache/huggingface
@@ -123,12 +124,19 @@ services:
       - huggingface-cache:/app/.cache/huggingface
     networks:
       - backend-network
+    # It had no restart policy, so a failed model load in the lifespan left the
+    # container stopped for good. Now that it is part of the default stack, it
+    # must come back on its own.
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      # Four models load before /health answers. On a GPU that took 60-90 s;
+      # on CPU, and on a first boot that must also download ~1.3 GB of weights
+      # into the empty huggingface-cache volume, it takes considerably longer.
+      start_period: 300s
   # open-webui:
   #   container_name: open-webui
   #   image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
@@ -275,8 +283,12 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./srcs/api-gateway/.env
-    ports:
-      - "8001:8001"  # Expose for development testing (curl/Postman)
+    # No host port. The subject requires every connection to the backend —
+    # "from a browser, from a script, from an external API" — to use HTTPS, and
+    # this port was plaintext HTTP on 0.0.0.0. All traffic goes through nginx at
+    # https://localhost:8443/api. For the Jupyter notebooks and curl-based dev
+    # testing, `make up-dev` layers docker-compose.dev.yml on top, which
+    # republishes this port bound to 127.0.0.1 only.
     volumes:
       # Mount source code for development hot reload
       - ./srcs/api-gateway/src:/app/src:rw

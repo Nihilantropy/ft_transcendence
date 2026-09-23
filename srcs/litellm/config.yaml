@@ -1,6 +1,6 @@
 # LiteLLM proxy — single OpenAI-compatible entry point for all LLM inference.
 # ai-service talks only to this proxy; the proxy routes to a local model (Ollama)
-# or a hosted provider (Mistral, ...) with no code change — just switch the model
+# or a hosted provider (Mistral) with no code change — just switch the model
 # alias in srcs/ai/.env (LLM_VISION_MODEL / LLM_TEXT_MODEL).
 
 model_list:
@@ -14,17 +14,68 @@ model_list:
       model: ollama_chat/qwen3-vl:8b
       api_base: os.environ/OLLAMA_BASE_URL
 
-  # --- Cloud (API key, no GPU). Requires MISTRAL_API_KEY. Vision needs a multimodal
-  #     model: mistral-large is text-only, so the vision stage uses mistral-medium
-  #     (vision-capable); text generation uses mistral-large. ---
+  # --- Cloud (Mistral API key, no GPU) ---
+  #
+  # Model choice is dictated by the free tier, measured against the live API
+  # rather than taken from the model list. `GET /v1/models` lists
+  # mistral-medium/-small and magistral-*, but on the free tier every one of
+  # them answers 429 immediately with `x-ratelimit-limit-req-minute: 0` — a
+  # limit of zero, not an exhausted quota, so no amount of retrying recovers.
+  # (The previous config pointed text at mistral-large-latest, which this tier
+  # does not expose at all; since RAG answers go through the text model, that
+  # silently broke the RAG module too.)
+  #
+  # What does complete an image call, returning valid JSON in ~1-3 s:
+  #   ministral-14b-latest    30 req/min   — primary: best of the usable models
+  #   ministral-8b-latest    188 req/min   — fallback: much higher ceiling
+  #
+  # A small model is enough here. In the cloud profile the HuggingFace
+  # classifier still identifies species and breed; the LLM only writes the
+  # contextual description around a breed it is told, not one it must find.
   - model_name: vision-model-cloud
     litellm_params:
-      model: mistral/mistral-medium-latest
+      model: mistral/ministral-14b-latest
+      api_key: os.environ/MISTRAL_API_KEY
+  - model_name: vision-model-cloud-fallback
+    litellm_params:
+      model: mistral/ministral-8b-latest
       api_key: os.environ/MISTRAL_API_KEY
   - model_name: text-model-cloud
     litellm_params:
-      model: mistral/mistral-large-latest
+      model: mistral/ministral-14b-latest
+      api_key: os.environ/MISTRAL_API_KEY
+  - model_name: text-model-cloud-fallback
+    litellm_params:
+      model: mistral/ministral-8b-latest
       api_key: os.environ/MISTRAL_API_KEY
 
 litellm_settings:
   drop_params: true  # silently drop params a given provider doesn't support
+  # Per-attempt ceiling. Calls measure at 1-3 s, so 60 s only ever trips on a
+  # genuinely stuck request. It has to stay well under the ai-service's
+  # LLM_TIMEOUT (300 s): retries and fallback all happen inside that window,
+  # and if they outlast it the client gives up while the proxy is still trying.
+  request_timeout: 60
+
+router_settings:
+  # Mistral's free-tier limits are PER MODEL — each model reports its own
+  # x-ratelimit-limit-req-minute — so falling back to a different model is a
+  # real escape from a 429, not just a delayed retry against the same wall.
+  fallbacks:
+    - vision-model-cloud: ["vision-model-cloud-fallback"]
+    - text-model-cloud: ["text-model-cloud-fallback"]
+
+  # Retry what is transient, fail fast on what is not. LiteLLM applies
+  # exponential backoff to RateLimitError on its own. Retrying a bad key or a
+  # malformed request just burns the caller's timeout for the same answer.
+  retry_policy:
+    RateLimitErrorRetries: 2
+    TimeoutErrorRetries: 2
+    InternalServerErrorRetries: 2
+    AuthenticationErrorRetries: 0
+    BadRequestErrorRetries: 0
+
+  # Cooldowns are for pools of interchangeable deployments. Each alias here has
+  # exactly one, so cooling it down after a few 429s would turn a transient
+  # rate limit into a guaranteed failure for the whole cooldown window.
+  disable_cooldowns: true

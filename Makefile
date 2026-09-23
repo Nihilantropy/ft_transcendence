@@ -68,8 +68,21 @@ up:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
 	@echo ""
 	@echo "✅ ft_transcendence is running!"
-	@echo "🌐 Access the application at: https://localhost"
+	@echo "🌐 Access the application at: https://localhost:8443"
 	@echo "📊 View logs with: make logs"
+	@echo ""
+
+## up-dev: Like `up`, plus the API gateway on http://127.0.0.1:8001 (dev/test only)
+# Declared explicitly so it wins over the `up-%` pattern rule below, which would
+# otherwise read it as "start a service called dev". The plaintext port is for the
+# Jupyter notebooks and curl debugging; the application itself only uses nginx.
+up-dev:
+	@echo "Starting ft_transcendence (dev: gateway also on http://127.0.0.1:8001)..."
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) -f docker-compose.dev.yml up -d
+	@echo ""
+	@echo "✅ ft_transcendence is running!"
+	@echo "🌐 Application: https://localhost:8443"
+	@echo "🔧 Dev-only plaintext gateway: http://127.0.0.1:8001 (never used by the app)"
 	@echo ""
 
 ## up-%: Start specific service
@@ -193,6 +206,12 @@ seed:
 rag:
 	@echo "Starting RAG setup..."
 	@scripts/init-rag-kb.sh
+
+## e2e: Real vision analysis on the bundled test images, through nginx over verified HTTPS
+# Needs the stack up (incl. classification-service) and MISTRAL_API_KEY in the root .env.
+# Registers and then deletes a throwaway user. Stdlib-only Python: no venv required.
+e2e:
+	@python3 scripts/e2e-vision.py
 
 ## superuser: Create superuser
 superuser:

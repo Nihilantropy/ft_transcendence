@@ -99,8 +99,11 @@ tolerate it being `None` before startup.
 - **Logging is `logging.getLogger(__name__)`** with the JSON formatter installed globally; log the
   decision at each pipeline gate, as the existing stages do.
 - **Prompts live in `_build_*_prompt` methods** on `OllamaVisionClient` and always demand
-  "Return ONLY valid JSON" with an explicit schema, because `_parse_response` only accepts raw JSON
-  or a ```` ```json ```` fence.
+  "Return ONLY valid JSON" with an explicit schema. `_parse_response` is lenient on purpose — whole
+  text, then a ```json / ``` fence, then the outermost `{...}`, all with `strict=False` (small
+  hosted models emit literal newlines inside strings) — and raises `RuntimeError` on failure, never
+  a `ValueError`, which the route would turn into a 422. Keep demanding JSON in the prompt anyway:
+  the leniency recovers from sloppy formatting, not from a model that answers in prose.
 
 ## Gotchas
 
@@ -200,7 +203,9 @@ Values that violate the convention and should be migrated to `config.py` if you 
 (`top_n_breeds=2`), `rag_service.py:261`/`:310` (`n_results` 5 / 3), `rag_service.py:285-287` and
 `:332-334` (500/300/300-character context truncation).
 
-Profile-dependent settings: `CLASSIFICATION_ENABLED` must be `false` in the `cloud` profile (the
-classification-service container is `profiles: ["local"]`), and `LLM_VISION_MODEL` /
-`LLM_TEXT_MODEL` must switch to the `*-cloud` aliases defined in `srcs/litellm/config.yaml`.
-`LLM_API_KEY` must equal the root `LITELLM_MASTER_KEY`.
+Profile-dependent settings: keep `CLASSIFICATION_ENABLED=true` in **both** profiles —
+classification-service runs in every stack, on CPU by default. `LLM_VISION_MODEL` /
+`LLM_TEXT_MODEL` default to the `*-cloud` aliases (the default deployment); a GPU machine on the
+`local` profile sets `vision-model` / `text-model`. `LLM_API_KEY` must equal the root
+`LITELLM_MASTER_KEY`. On the Mistral free tier the cloud aliases resolve to `ministral-*` models
+— see `srcs/litellm/config.yaml` for why the larger ones are unusable there.

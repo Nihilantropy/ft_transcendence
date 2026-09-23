@@ -15,7 +15,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - FastAPI vision orchestrator talking to an LLM via the **LiteLLM proxy**
     (OpenAI-compatible) — routes to local Ollama (qwen3-vl:8b) or hosted Mistral
   - RAG (ChromaDB + sentence-transformers) for breed knowledge enrichment
-  - HuggingFace Transformers for classification (species, breed, NSFW) — GPU, `local` profile only
+  - HuggingFace Transformers for classification (species, breed, NSFW) — CPU by default in every
+    stack; GPU opt-in via `docker-compose.gpu.yml`
 - Inference gateway: LiteLLM (single OpenAI-compatible endpoint for all LLM calls)
 - Database: PostgreSQL 15+
 - Cache: Redis 8 (`redis:8.4.0-alpine3.22`, docker-compose.yml:228)
@@ -27,7 +28,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 make all           # build + up + show + logs (Makefile:25) — ends tailing logs in the foreground
 make build         # Build Docker images (bakes in requirements)
-make up            # Start services in detached mode
+make up            # Start services in detached mode — HTTPS only, via nginx on 8443
+make up-dev        # Same, plus the gateway on http://127.0.0.1:8001 (notebooks / curl debugging)
 make down          # Stop and remove containers
 make downv         # Stop and remove containers + volumes
 make restart       # Restart all services
@@ -54,25 +56,43 @@ no rule defines them, so make just prints `Nothing to be done for 'clean'` and d
 
 ### Compose Profiles (local vs cloud)
 
-Two inference backends, selected via `COMPOSE_PROFILES`. **`Makefile:9` currently sets
+Two LLM backends, selected via `COMPOSE_PROFILES`. **`Makefile:9` sets
 `COMPOSE_PROFILES ?= cloud` and `export`s it, which overrides the root `.env`**
-(`.env.example:7` ships `local`). Always pass the profile explicitly rather than relying
+(`.env.example` ships `cloud` too). Always pass the profile explicitly rather than relying
 on the default:
 
-| Profile | LLM backend | GPU services | AI pipeline |
-|---------|-------------|--------------|-------------|
-| `local` | Ollama `qwen3-vl:8b` via LiteLLM | `ollama` + `classification-service` run | full (NSFW + HF species/breed + RAG + LLM) |
-| `cloud` (current Makefile default) | Mistral via LiteLLM (needs `MISTRAL_API_KEY`) | none | VLM-only (LLM does species/breed; **no NSFW filter**) |
+| Profile | LLM backend | classification-service | AI pipeline |
+|---------|-------------|------------------------|-------------|
+| `cloud` (default) | Mistral via LiteLLM (needs `MISTRAL_API_KEY`) | runs, on **CPU** | full (NSFW + HF species/breed + RAG + LLM) |
+| `local` | Ollama `qwen3-vl:8b` via LiteLLM (needs a GPU) | runs; CPU unless the GPU override is layered on | full |
+
+classification-service belongs to **no** profile — it runs in every stack. It used to be
+`local`-only with `runtime: nvidia`, so on any machine without a GPU (the evaluation machine
+included) it never started, and the pipeline silently fell back to VLM-only with **no NSFW
+filter** — losing the image-recognition and content-moderation modules. The code never needed
+the GPU: `DEVICE=auto` resolves to `cpu` when CUDA is absent.
 
 ```bash
-make up COMPOSE_PROFILES=local         # local profile (GPU: ollama + classification-service)
-make up COMPOSE_PROFILES=cloud         # cloud profile (Mistral, no GPU) — current Makefile default
+make up COMPOSE_PROFILES=cloud         # default: hosted LLM, classifiers on CPU, no GPU needed
+make up COMPOSE_PROFILES=local         # adds Ollama as the LLM backend; needs a GPU
+# GPU acceleration for classification-service (needs the NVIDIA Container Toolkit):
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml build classification-service
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
-The `litellm` proxy runs in BOTH profiles. Switching backends is config-only: set the
-model alias in `srcs/ai/.env` (`LLM_VISION_MODEL`/`LLM_TEXT_MODEL` → `*-cloud` for Mistral)
-and, for cloud, set `CLASSIFICATION_ENABLED=false` (the classification-service is off in
-`cloud`, so leaving it `true` yields 503s). Root config lives in `.env` (see `.env.example`).
+The `litellm` proxy runs in BOTH profiles. Switching LLM backends is config-only: set the
+model alias in `srcs/ai/.env` (`LLM_VISION_MODEL`/`LLM_TEXT_MODEL` → `*-cloud` for Mistral,
+which is now the default). Keep `CLASSIFICATION_ENABLED=true` in both profiles. Root config
+lives in `.env` (see `.env.example`).
+
+**Mistral free tier — the model choice is dictated by it, and was measured against the live
+API.** Several models listed by `GET /v1/models` (`mistral-medium`, `mistral-small`,
+`magistral-*`) answer 429 immediately with `x-ratelimit-limit-req-minute: 0` — a limit of
+**zero**, not an exhausted quota, so no retry can outlast it. `srcs/litellm/config.yaml`
+therefore uses `ministral-14b-latest` (30 req/min) as primary and `ministral-8b-latest`
+(188 req/min) as fallback, both vision-capable, ~1-3 s per call. Limits are per model, so the
+fallback is a genuine escape from a 429. **Before switching to another model, check its
+`x-ratelimit-limit-req-minute` header** — appearing in the model list proves nothing.
 
 ### Log Management (ELK)
 
@@ -210,7 +230,7 @@ jupyter notebook scripts/jupyter/test_ai_service.ipynb
 ```
 
 **⚠️ Backend Services (DO NOT ACCESS DIRECTLY):**
-Backend services (auth-service:3001, user-service:3002, ai-service:3003, classification-service:3004, recommendation-service:3005) are **NOT exposed to localhost**. All requests must go through API Gateway (8001) or Nginx (`https://localhost:8443`, self-signed → `curl -k`) to ensure authentication, rate limiting, and security boundaries are enforced. **`http://localhost:8000` cannot serve API traffic**: the port-80 server block only does `return 301 https://$host$request_uri` (`srcs/nginx/conf.d/default.conf.template:154-163`) and `$host` drops the port, so it redirects to `https://localhost/` — port 443, which is not published.
+Backend services (auth-service:3001, user-service:3002, ai-service:3003, classification-service:3004, recommendation-service:3005) are **NOT exposed to localhost**. All requests go through Nginx (`https://localhost:8443`, self-signed → `curl -k`) to ensure authentication, rate limiting, and security boundaries are enforced. **The gateway's port 8001 is not published by default**: the subject requires HTTPS for every connection to the backend. `make up-dev` republishes it on `127.0.0.1:8001` for the Jupyter notebooks and curl debugging. **`http://localhost:8000` cannot serve API traffic**: the port-80 server block only does `return 301 https://$host$request_uri` (`srcs/nginx/conf.d/default.conf.template:154-163`) and `$host` drops the port, so it redirects to `https://localhost/` — port 443, which is not published.
 
 ## Architecture Key Concepts
 
@@ -220,8 +240,9 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - **Proxy Network**: Nginx only (the `frontend` service is commented out in docker-compose.yml:156-176)
 - **Backend Network**: Nginx ↔ API Gateway ↔ Backend Services ↔ Databases
 - **Nginx** bridges both networks (docker-compose.yml:14-16). The API Gateway lives on
-  `backend-network` only (docker-compose.yml:304-305) and is additionally published on host
-  port 8001 for development (docker-compose.yml:294-295)
+  `backend-network` only and is **not** published on the host by default. `make up-dev` layers
+  `docker-compose.dev.yml`, which republishes it on `127.0.0.1:8001` — dev/test tooling only,
+  never used by the application
 
 **Authentication Flow:**
 1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:59)
@@ -238,8 +259,9 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - ⚠️ **Backend services are NOT exposed to localhost** (no direct port access)
 - Auth Service (3001), User Service (3002), AI Service (3003), Classification Service (3004)
   and Recommendation Service (3005) are **internal only**
-- All requests MUST go through API Gateway (8001) or Nginx (`https://localhost:8443`; `http://localhost:8000`
-  only 301-redirects to the unpublished `https://localhost/`)
+- All requests MUST go through Nginx (`https://localhost:8443`; `http://localhost:8000`
+  only 301-redirects to the unpublished `https://localhost/`). The gateway on `127.0.0.1:8001`
+  exists only under `make up-dev`
 - This enforces security boundaries and ensures authentication/rate limiting are applied
 - Exception: `ollama` publishes its unauthenticated API on host port 11434 (docker-compose.yml:68-69)
 
@@ -279,7 +301,8 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
 - Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info)
 - Coordinates between Classification Service (HF models, optional) and the LLM
-- `CLASSIFICATION_ENABLED=false` → VLM-only pipeline (LLM does species/breed, no NSFW filter)
+- `CLASSIFICATION_ENABLED=false` → VLM-only pipeline (LLM does species/breed, no NSFW filter) —
+  debugging only; keep it `true`, since classification-service runs in every stack
 - Location: `srcs/ai/`
 
 **Classification Service (FastAPI - internal port 3004):** [Complete - 28 passing tests]
@@ -288,8 +311,11 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - Species classification (dog/cat/other)
 - Breed classification (120 dog breeds, 70 cat breeds)
 - Crossbreed detection with intelligent thresholding
-- **GPU Support:** RTX 5060 Ti (Blackwell) via stable PyTorch 2.11.0 + CUDA 12.8 (`cu128`)
-- **Compose profile:** `local` only (disabled in `cloud`)
+- **Runs on CPU by default, in every stack** (no compose profile). ~74 s to load the four models
+  with a warm `huggingface-cache`; a first boot also downloads ~1.3 GB of weights, hence the
+  300 s healthcheck `start_period`. Image is ~2.2 GB on CPU against ~14 GB with the CUDA wheels
+- **GPU optional:** `docker-compose.gpu.yml` builds against CUDA 12.8 (`cu128`) and requests the
+  NVIDIA runtime — RTX 5060 Ti (Blackwell) and Ada supported
 - Location: `srcs/classification-service/`
 
 **Recommendation Service (FastAPI - internal port 3005):** [Complete - 70 passing tests (47 unit + 23 integration)]
@@ -317,7 +343,10 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - **No static application files are served.** The `frontend` proxy block is commented out
   (`:112-129`), `location /` just returns a hardcoded JSON blob (`:132-136`); the only files read
   from disk are the internal `/50x.html` and `/429.html` error pages (`:54-63`)
-- Reverse proxy of `/api` → `api-gateway:8001` (`:73-108`)
+- Reverse proxy of `/api` → `api-gateway:8001`, with a nested `location /api/v1/vision` that raises
+  the body limit to 8 MB and the read timeout to 300 s (everything else keeps 1 MB / 30 s)
+- Self-signed certificate is generated at container start with a SAN covering `HOST_DOMAIN`,
+  `localhost` and `127.0.0.1` — without it Chrome reports `NET::ERR_CERT_COMMON_NAME_INVALID`
 - Rate limiting: `general_limit` = 200 r/m per client IP, `burst=20 nodelay` (`:18,77`). The
   `api_limit` (100 r/m) and `auth_limit` (5 r/m) zones are declared at `:16-17` but never applied
 - Location: `srcs/nginx/`
@@ -359,7 +388,7 @@ Treat these as known exceptions, not as the pattern to copy.
 3. The vision LLM (via the LiteLLM proxy → Ollama locally, or Mistral in `cloud`) generates contextual analysis
 4. Returns enriched breed information with health insights and recommendations
 
-**VLM-only path (`CLASSIFICATION_ENABLED=false`, the `cloud` profile):** `vision_orchestrator.py:57`
+**VLM-only path (`CLASSIFICATION_ENABLED=false` — debugging only):** `vision_orchestrator.py:57`
 branches to `_analyze_vlm_only` (`:134`), which calls `analyze_breed(detect_crossbreed=True,
 top_n_breeds=2)` and then the same RAG + `analyze_with_context` steps. **There is no NSFW filter and
 no species allow-list on this path.**
@@ -394,8 +423,15 @@ no species allow-list on this path.**
   `{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,…"}}` (`ollama_client.py:37-44`) —
   always relabelled `image/jpeg` regardless of the real format
 - Model aliases resolve in `srcs/litellm/config.yaml`: `vision-model`/`text-model` →
-  `ollama_chat/qwen3-vl:8b` (local profile), `vision-model-cloud` → `mistral/mistral-medium-latest`,
-  `text-model-cloud` → `mistral/mistral-large-latest`
+  `ollama_chat/qwen3-vl:8b` (local profile), `vision-model-cloud` / `text-model-cloud` →
+  `mistral/ministral-14b-latest`, each backed by a `*-fallback` alias on `mistral/ministral-8b-latest`
+  (see the free-tier note under Compose Profiles). `text-model-cloud` feeds the RAG answers, so a
+  dead text model breaks the RAG module too
+- **The response parser is deliberately lenient** (`_parse_response`): it tries the whole text, a
+  ```json or plain ``` fence, then the outermost `{...}`, all with `json.loads(strict=False)`.
+  Small hosted models put literal newlines inside JSON strings; strict parsing turned every vision
+  call into a 422. Every failure raises `RuntimeError` (-> 500), never a `ValueError` — the route
+  maps `ValueError` to 422, which would blame the user's image for the model's output
 - Uses RAG-retrieved context for factually grounded responses
 - **Naming drift:** the file, class and tests are still `ollama_client.py` / `OllamaVisionClient` /
   `test_ollama_*.py`, and error strings still say "Ollama" (`ollama_client.py:115,372,406,409`).
@@ -441,10 +477,11 @@ All services use **custom Dockerfiles that bake in requirements** during build:
 
 **Django Version:** Django 6.x requires Python >=3.12. Use Django 5.1.x for Python 3.11 compatibility.
 
-**Classification Service PyTorch:** Stable pinned wheels for RTX 5060 Ti Blackwell support:
-- PyTorch: 2.11.0+cu128
-- Torchvision: 0.26.0+cu128
-- Installed in the Dockerfile (NOT requirements.txt): `pip3 install torch==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128`
+**Classification Service PyTorch:** pinned pair, index chosen at build time:
+- torch 2.11.0 / torchvision 0.26.0, installed in the Dockerfile (NOT requirements.txt) from
+  `https://download.pytorch.org/whl/${TORCH_INDEX}`
+- `ARG TORCH_INDEX=cpu` by default. `docker-compose.gpu.yml` sets it to `cu128` (CUDA 12.8,
+  RTX 5060 Ti Blackwell + Ada). The same pinned pair exists on both indexes — only the index changes
 - Keep the pair version-matched (torch 2.11 ↔ torchvision 0.26). This replaced the earlier
   unpinned nightly, which broke when the nightlies drifted out of sync on the ephemeral index.
 
@@ -580,13 +617,14 @@ only the exact literals are listed.
 ### Testing Strategy
 
 1. **Unit tests**: Test components in isolation with mocked dependencies
-2. **Integration tests**: Use API Gateway (localhost:8001) - backend services are NOT directly accessible
+2. **Integration tests**: Use the API Gateway — `http://api-gateway:8001` from inside the network, or
+   `127.0.0.1:8001` from the host under `make up-dev` — backend services are NOT directly accessible
 3. **E2E tests**: Use the NGINX proxy at `https://localhost:8443/api` (self-signed cert — pass `curl -k`) for the full production-like stack
 4. **Load tests**: Test through NGINX to validate both rate limiting layers
 5. **Dependency override pattern**: Use `app.dependency_overrides[dep] = fixture` for mocking route dependencies
 6. **HTTPException detail format**: Error responses wrapped in `detail` field - test with `response.json()["detail"]`
 
-**⚠️ Important:** Backend services (auth:3001, user:3002, ai:3003, classification:3004, recommendation:3005) have NO external port exposure. All API requests must go through API Gateway (8001) or Nginx (`https://localhost:8443`; `http://localhost:8000` only 301-redirects to the unpublished `https://localhost/`). Note: `ollama` is an exception — docker-compose.yml:68-69 publishes its unauthenticated API on host port 11434.
+**⚠️ Important:** Backend services (auth:3001, user:3002, ai:3003, classification:3004, recommendation:3005) have NO external port exposure. All API requests must go through Nginx (`https://localhost:8443`; `http://localhost:8000` only 301-redirects to the unpublished `https://localhost/`). The gateway on `127.0.0.1:8001` exists only under `make up-dev`. Note: `ollama` is an exception — docker-compose.yml:68-69 publishes its unauthenticated API on host port 11434.
 
 **Test Script Organization:**
 ```bash
@@ -633,8 +671,9 @@ total; do not trust them.
 - Purpose: Test full vision pipeline with real images through API Gateway
 - Setup: Notebook handles JWT authentication automatically
 - Images: Place test images in `scripts/jupyter/test_data/images/` directory
-- Run: `jupyter notebook scripts/jupyter/test_ai_service.ipynb` (requires `make up` first)
-- Note: All requests route through API Gateway (localhost:8001) with proper JWT tokens
+- Run: `jupyter notebook scripts/jupyter/test_ai_service.ipynb` (requires **`make up-dev`** first —
+  the notebooks call `http://localhost:8001`, which plain `make up` no longer publishes)
+- Note: All requests route through the API Gateway (127.0.0.1:8001) with proper JWT tokens
 - Note: notebooks uses real database transactions on `smartbreeds` database (production-like). Make sure to clean up test data as needed. Every run must use unique user accounts to avoid conflicts and leave a clean state.
 - **Headless execution:** `jupyter-nbconvert --to notebook --execute --allow-errors --ExecutePreprocessor.timeout=600 notebook.ipynb --output out.ipynb` — use `--allow-errors` to capture all cell outputs even when cells fail; set timeout ≥600 for AI notebooks
 
@@ -684,25 +723,29 @@ total; do not trust them.
 **Recently Completed:**
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
   talks OpenAI chat-completions to the proxy; VLM-only pipeline when classification is disabled
-- Classification Service torch pin moved from unpinned nightly → stable 2.11.0+cu128 (Blackwell)
+- The whole AI stack runs without a GPU: LLM on hosted Mistral (free-tier-safe models, retries +
+  fallback), classification-service on CPU in every stack; GPU opt-in via `docker-compose.gpu.yml`
+- Frontend unblocked at the edge: nginx accepts vision uploads up to 8 MB and waits 300 s on
+  `/api/v1/vision`; the plaintext gateway port is gone; the TLS cert carries a SAN
 - Recommendation Service — content-based filtering with 70 passing tests (47 unit + 23 integration)
 
 ## Common Troubleshooting
 
 **"Connection refused" on localhost:8001:**
-- Check: `docker compose ps api-gateway`
-- Fix: `docker compose up api-gateway -d`
+- **Expected under plain `make up`** — the gateway port is no longer published. Use
+  `https://localhost:8443/api/...`, or start with `make up-dev` to get `127.0.0.1:8001`
+- Otherwise check: `docker compose ps api-gateway`; fix: `docker compose up api-gateway -d`
 
 **"502 Bad Gateway" from NGINX:**
 - API Gateway down or unreachable
-- Check: `curl http://localhost:8001/health`
+- Check: `docker exec ft_transcendence_api_gateway curl -s http://localhost:8001/health`
 - Check networks: `docker network inspect ft_transcendence_backend-network`
 
 **JWT always rejected:**
 - Verify RSA key pair exists: `ls -la srcs/auth-service/keys/`
 - Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem`
 - Check key permissions: Public key must be readable
-- Verify cookie is being set: `curl -v http://localhost:8001/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
+- Verify cookie is being set: `curl -kv https://localhost:8443/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
 - Test token signature: Tokens signed with RS256 private key must be verifiable with RS256 public key
 
 **Rate limiting not working:**
@@ -724,12 +767,12 @@ total; do not trust them.
 - Fix: `return success_response(data)` NOT `return Response(success_response(data))`
 
 **Classification Service GPU troubleshooting:**
-- Using stable PyTorch 2.11.0+cu128 (torchvision 0.26.0+cu128) for RTX 5060 Ti Blackwell support
-- CUDA 12.8 runtime required
-- Only runs in the `local` compose profile (absent in `cloud`)
+- The default build is **CPU** (`torch 2.11.0+cpu`); a GPU is only used when the image was built
+  and started with `docker-compose.gpu.yml` layered on (`cu128`, CUDA 12.8)
+- Which torch is in the image: `docker run --rm --entrypoint python ft_transcendence-classification-service -c "import torch; print(torch.__version__, torch.version.cuda)"` — `+cpu` / `None` means the CPU build
 - Environment variable `DEVICE=auto` detects GPU automatically (falls back to CPU if unavailable)
 - Verify GPU: `docker exec ft_transcendence_classification_service python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"`
-- Check docker-compose.yml: `runtime: nvidia` and `deploy.resources.reservations.devices` configured
+- `runtime: nvidia` and the device reservation live in `docker-compose.gpu.yml`, not the base file
 - **Note:** torch/torchvision are pinned in the Dockerfile (not requirements.txt); keep the pair version-matched
 
 **Crossbreed detection returning false positives:**
@@ -763,10 +806,10 @@ total; do not trust them.
 - Root cause: API Gateway has a 30s global proxy timeout; LLM inference takes 20–120s
 - Fix is in place: `SERVICE_TIMEOUTS` in `srcs/api-gateway/routes/proxy.py:16-18` overrides to 300s
   for `/api/v1/vision` (and `LLM_TIMEOUT` in `srcs/ai/src/config.py:17` is also 300)
-- **But this only works on the direct gateway port 8001.** nginx caps `location /api` at
-  `proxy_read_timeout 30s` (`srcs/nginx/conf.d/default.conf.template:89`), so a long vision call
-  through `https://localhost:8443` still fails at the edge. Raise the nginx timeout too if
-  you need vision through nginx
+- nginx has a matching nested `location /api/v1/vision` with `proxy_read_timeout 300s` and
+  `client_max_body_size 8m`. Both were needed: the `/api` defaults (30 s, and nginx's implicit 1 MB
+  body limit) cut vision short and rejected any image above ~750 KB with a 413 — i.e. nearly
+  every phone photo, since base64 in JSON inflates a 5 MB image to ~6.7 MB
 - If adding a new slow endpoint, add its prefix to `SERVICE_TIMEOUTS`
 
 **Django `.delete()` count returns wrong number:**

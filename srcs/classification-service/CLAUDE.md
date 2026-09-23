@@ -5,17 +5,19 @@
 FastAPI service wrapping four HuggingFace image classifiers (NSFW, species, dog breed, cat breed)
 plus a crossbreed heuristic. Stateless, no auth, no DB, internal port 3004, no host port, container
 `ft_transcendence_classification_service`. Its only client is the AI Service (`ClassificationClient`);
-the API Gateway has no route to it. Compose profile **`local` only** — it does not exist in `cloud`,
-where the AI Service runs a VLM-only pipeline instead.
+the API Gateway has no route to it. **No compose profile: it runs in every stack, on CPU by
+default.** GPU acceleration is opt-in through `docker-compose.gpu.yml`. (It used to be `local`-only
+with `runtime: nvidia`, so on a GPU-less machine it never started and the AI Service silently fell
+back to a VLM-only pipeline with no NSFW filter.)
 
 ## Essential Commands
 
 ```bash
-# Tests (28). No cross-service calls → `run --rm` is fine. Explicit profile avoids surprises.
-COMPOSE_PROFILES=local docker compose run --rm classification-service python -m pytest tests/ -v
-COMPOSE_PROFILES=local docker compose run --rm classification-service \
+# Tests (28). No cross-service calls → `run --rm` is fine. Any profile works now.
+docker compose run --rm classification-service python -m pytest tests/ -v
+docker compose run --rm classification-service \
   python -m pytest tests/test_crossbreed_detector.py -v
-COMPOSE_PROFILES=local docker compose run --rm classification-service \
+docker compose run --rm classification-service \
   python -m pytest tests/ --cov=src --cov-report=term-missing   # pytest-cov is in requirements.txt
 
 # Repo orchestrators (bare `docker compose run --rm` form)
@@ -25,16 +27,22 @@ make test classification
 # Rebuild — MANDATORY after any src/ or tests/ edit (no bind mount for this service)
 docker compose build classification-service
 
-# Run / inspect (Makefile defaults COMPOSE_PROFILES=cloud at Makefile:9 → be explicit)
-make up COMPOSE_PROFILES=local
-COMPOSE_PROFILES=local docker compose up -d classification-service
-COMPOSE_PROFILES=local docker compose logs -f classification-service
+# Run / inspect — starts with plain `make up`, in either profile
+make up
+docker compose up -d classification-service
+docker compose logs -f classification-service
 docker exec -it ft_transcendence_classification_service /bin/sh
 
-# GPU / device check
+# Which torch build is in the image (CPU is the default: "2.11.0+cpu None")
+docker run --rm --entrypoint python ft_transcendence-classification-service \
+  -c "import torch; print(torch.__version__, torch.version.cuda)"
+docker compose logs classification-service | grep -E "Using device|CrossbreedDetector initialized"
+
+# GPU build + run (developer machines with an NVIDIA card and the Container Toolkit)
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml build classification-service
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d classification-service
 docker exec ft_transcendence_classification_service \
   python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
-COMPOSE_PROFILES=local docker compose logs classification-service | grep -E "Using device|CrossbreedDetector initialized"
 ```
 
 ## Code Map
@@ -51,7 +59,7 @@ COMPOSE_PROFILES=local docker compose logs classification-service | grep -E "Usi
 | `src/services/image_utils.py` | `ImageUtils.decode_base64` (raises `ValueError`), `preprocess_for_model` (used only by tests, but its `torchvision` import is a hard runtime dependency) |
 | `tests/conftest.py` | Lifespan-free app factory + `Mock`s for all five injected components |
 | `tests/test_*.py` | See README table; 13 of 28 tests instantiate real HF models on CPU |
-| `Dockerfile` | python:3.12.10-slim, requirements, **separately pinned** torch/torchvision cu128, non-root `classifier`, `uvicorn src.main:app --port 3004` |
+| `Dockerfile` | python:3.12.10-slim, requirements, **separately pinned** torch 2.11.0 / torchvision 0.26.0 from `whl/${TORCH_INDEX}` (`cpu` by default, `cu128` via `docker-compose.gpu.yml`), non-root `classifier`, `uvicorn src.main:app --port 3004` |
 | `.env.example` | Template for the gitignored `.env` injected via compose `env_file` |
 
 ## Request / Data Flow
@@ -111,8 +119,10 @@ response validation, not just a log line.
   `tests/` are baked in at `Dockerfile:23-24`. Every edit — including new test files — needs
   `docker compose build classification-service`. This differs from ai-service/api-gateway, which do
   hot-mount their code.
-- **`make up` alone does not start this service.** `Makefile:9` sets `COMPOSE_PROFILES ?= cloud` and
-  exports it, which overrides the root `.env`. Use `COMPOSE_PROFILES=local`.
+- **On CPU, not GPU, unless you layer `docker-compose.gpu.yml` on.** The base file carries no
+  `runtime: nvidia` and no device reservation any more, and the image is built from the CPU torch
+  index. Rebuilding with the override is required to get CUDA — setting `DEVICE=cuda` alone on a
+  CPU image just fails.
 - **`NSFW_REJECTION_THRESHOLD` is decorative.** `is_safe` is decided by a literal `0.5`
   (`nsfw_detector.py:61`); the route merely appends the configured threshold to the payload
   (`classify.py:56`), and the orchestrator ignores that field. Changing the env var changes nothing
@@ -142,9 +152,11 @@ response validation, not just a log line.
   model label.
 - **`decode_base64` splits on the first comma** (`image_utils.py:30-31`) whenever one is present,
   not only for `data:` URIs.
-- **Startup is the slow path.** Four models load in the lifespan (60–90s per `main.py:35`, plus
-  download on a cold `huggingface-cache`). `/health` does not answer before that, and the service has
-  no `restart:` policy, so a lifespan exception leaves the container stopped.
+- **Startup is the slow path.** Four models load in the lifespan — measured at ~74 s on CPU with a
+  warm `huggingface-cache`, plus the ~1.3 GB download on a cold one. `/health` does not answer
+  before that, hence the 300 s healthcheck `start_period`. The service now has
+  `restart: unless-stopped`; it used to have no restart policy, so a lifespan exception left the
+  container stopped for good.
 - **`torchvision` is required at runtime** purely because `image_utils.py:5` imports it at module
   scope for `preprocess_for_model`, which only tests call. Removing the import would drop a
   multi-GB dependency; removing the *function* alone would not.
