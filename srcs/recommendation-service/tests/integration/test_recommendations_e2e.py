@@ -40,15 +40,25 @@ async def test_user_auth():
             json={
                 "email": TEST_USER_EMAIL,
                 "password": TEST_USER_PASSWORD,
+                # Required by RegisterSerializer (srcs/auth-service/apps/
+                # authentication/serializers.py:22,42). Omitting it made every
+                # test using this fixture error out with a 422 at setup.
+                "password_confirm": TEST_USER_PASSWORD,
                 "first_name": "Recommendation",
                 "last_name": "Tester"
             }
         )
 
-        if register_response.status_code == 409:
-            # User already exists, just login
+        if register_response.status_code == 201:
             pass
-        elif register_response.status_code != 201:
+        elif "already exists" in register_response.text:
+            # Expected on a re-run: the teardown below deliberately keeps the
+            # auth record, so registering again legitimately fails and the
+            # login that follows still succeeds. The previous check looked for
+            # 409, which this API never returns — RegisterSerializer.
+            # validate_email raises a DRF ValidationError, surfaced as 422.
+            pass
+        else:
             raise Exception(f"Registration failed: {register_response.status_code} - {register_response.text}")
 
         # Login to get tokens

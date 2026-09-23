@@ -2,14 +2,38 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 import time
+import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
-# Configure structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}'
-)
+class JsonFormatter(logging.Formatter):
+    """Emit one flat, valid JSON object per line.
+
+    The previous format string interpolated %(message)s unquoted, so a
+    json.dumps() payload was nested under a "message" key. Logstash's json
+    filter lifts that object to the event root, where Elasticsearch's index
+    template maps `message` as `text` — the mapping conflict made it reject
+    every request log, and Logstash dropped it. Flattening the payload keeps
+    `message` a string (only for plain records) and the request fields at the
+    top level, which is what the template already expects.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        if isinstance(record.msg, dict):
+            payload = dict(record.msg)
+        else:
+            payload = {"message": record.getMessage()}
+        payload.setdefault("level", record.levelname)
+        payload.setdefault("logger", record.name)
+        payload.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+        if record.exc_info:
+            payload["error"] = self.formatException(record.exc_info)
+        return json.dumps(payload, default=str)
+
+
+_handler = logging.StreamHandler()
+_handler.setFormatter(JsonFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[_handler], force=True)
 logger = logging.getLogger("api-gateway")
 
 class LoggingMiddleware(BaseHTTPMiddleware):
@@ -49,10 +73,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "duration_ms": round(duration_ms, 2),
             "client_ip": client_ip,
             "user_id": user_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
-        logger.info(str(log_data))
+        # Passed as a dict, not a pre-serialised string: JsonFormatter merges it
+        # into the top level of the emitted object.
+        logger.info(log_data)
 
         # Add request ID to response headers
         response.headers["X-Request-ID"] = request_id

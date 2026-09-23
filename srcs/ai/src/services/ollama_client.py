@@ -1,6 +1,7 @@
 import httpx
 import json
 import logging
+import re
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,6 @@ class OllamaVisionClient:
         self.text_model = config.LLM_TEXT_MODEL
         self.timeout = config.LLM_TIMEOUT
         self.temperature = config.LLM_TEMPERATURE
-        self.low_confidence_threshold = config.LOW_CONFIDENCE_THRESHOLD
 
         # Crossbreed detection thresholds
         self.crossbreed_probability_threshold = 0.35
@@ -64,49 +64,32 @@ class OllamaVisionClient:
     async def analyze_breed(
         self,
         image_base64: str,
-        detect_crossbreed: bool = True,
         top_n_breeds: int = 2
     ) -> Dict[str, Any]:
-        """Analyze pet breed from base64 image.
+        """Analyze pet breed from base64 image, with crossbreed detection.
 
         Args:
             image_base64: Base64-encoded image data URI
-            detect_crossbreed: If True, return multi-breed probabilities and crossbreed detection
-            top_n_breeds: Number of breed probabilities to return (only if detect_crossbreed=True)
+            top_n_breeds: Number of breed probabilities to return
 
         Returns:
-            Dict with breed, confidence, traits, health_considerations
-            If detect_crossbreed=True, includes breed_analysis with probabilities
+            Dict with breed_analysis (primary_breed, confidence, is_likely_crossbreed, ...)
 
         Raises:
             ValueError: If response cannot be parsed
             ConnectionError: If Ollama is unreachable
         """
         try:
-            # Build structured prompt
-            if detect_crossbreed:
-                prompt = self._build_crossbreed_prompt(top_n_breeds)
-            else:
-                prompt = self._build_analysis_prompt()
+            prompt = self._build_crossbreed_prompt(top_n_breeds)
 
-            logger.info(f"Sending image to LLM for {'crossbreed' if detect_crossbreed else 'standard'} analysis")
+            logger.info("Sending image to LLM for crossbreed analysis")
 
             messages = [{"role": "user", "content": self._image_content(prompt, image_base64)}]
             content = await self._chat(messages, self.vision_model)
 
             # Parse JSON response
             result = self._parse_response(content)
-
-            # Process crossbreed detection if requested
-            if detect_crossbreed:
-                result = self._process_crossbreed_result(result)
-            else:
-                # Add note if low confidence
-                if result["confidence"] < self.low_confidence_threshold:
-                    result["note"] = "Low confidence - manual verification recommended"
-                    logger.warning(f"Low confidence result: {result['confidence']}")
-                else:
-                    logger.info(f"Breed identified: {result['breed']} (confidence: {result['confidence']})")
+            result = self._process_crossbreed_result(result)
 
             return result
 
@@ -116,25 +99,6 @@ class OllamaVisionClient:
         except Exception as e:
             logger.error(f"Ollama analysis failed: {str(e)}")
             raise
-
-    def _build_analysis_prompt(self) -> str:
-        """Build structured prompt for breed analysis.
-
-        Returns:
-            Prompt string for Ollama
-        """
-        return """Analyze this pet image and identify the breed.
-Return ONLY valid JSON in this exact format:
-{
-  "breed": "breed name or Unknown",
-  "confidence": 0.0-1.0,
-  "traits": {
-    "size": "small/medium/large",
-    "energy_level": "low/medium/high",
-    "temperament": "brief description"
-  },
-  "health_considerations": ["condition1", "condition2"]
-}"""
 
     def _build_crossbreed_prompt(self, top_n: int = 3) -> str:
         """Build enhanced prompt for crossbreed detection.
@@ -172,31 +136,48 @@ Return ONLY valid JSON with the TOP {top_n} most likely breeds:
 Probabilities should sum to approximately 1.0."""
 
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse JSON from model response.
+        """Parse the JSON object out of a model response.
+
+        Candidates are tried in order: the whole text, then a fenced
+        ```json / ``` block, then the outermost {...} span — covering the
+        three shapes models actually return (bare, fenced, wrapped in prose).
+
+        Parsed with strict=False. Models, and the small hosted ones in
+        particular, routinely put literal newlines or tabs inside JSON string
+        values. The default strict parser rejects those ("Invalid control
+        character"), even though the intent is unambiguous; that exact error
+        took down every vision request once the cloud models were switched to
+        ministral.
 
         Args:
-            response_text: Raw response text from Ollama
+            response_text: Raw response text from the model
 
         Returns:
             Parsed JSON dict
 
         Raises:
-            RuntimeError: If JSON cannot be parsed (service error, not user input error)
+            RuntimeError: If no candidate parses. Every failure path raises this
+                and never json.JSONDecodeError: that is a ValueError, and
+                routes/vision.py maps ValueError to 422 — which would blame the
+                user's image for a malformed model response. This is a service
+                fault, and must surface as one.
         """
-        try:
-            # Try direct JSON parse
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            # Extract JSON from markdown code blocks if present
-            if "```json" in response_text:
-                start = response_text.find("```json") + 7
-                end = response_text.find("```", start)
-                if end > start:
-                    json_str = response_text[start:end].strip()
-                    return json.loads(json_str)
+        candidates = [response_text]
+        fence = re.search(r"```(?:json)?\s*(.*?)```", response_text, re.DOTALL)
+        if fence:
+            candidates.append(fence.group(1))
+        start, end = response_text.find("{"), response_text.rfind("}")
+        if 0 <= start < end:
+            candidates.append(response_text[start:end + 1])
 
-            logger.error(f"Failed to parse response: {response_text[:200]}")
-            raise RuntimeError("Failed to parse JSON from response")
+        for candidate in candidates:
+            try:
+                return json.loads(candidate.strip(), strict=False)
+            except json.JSONDecodeError:
+                continue
+
+        logger.error(f"Failed to parse response: {response_text[:200]}")
+        raise RuntimeError("Failed to parse JSON from response")
 
     def _process_crossbreed_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """Process crossbreed detection result and add breed_analysis.

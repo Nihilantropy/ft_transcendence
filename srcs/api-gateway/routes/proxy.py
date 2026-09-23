@@ -4,8 +4,8 @@ from starlette.datastructures import MutableHeaders
 import httpx
 import json
 from config import settings
-from datetime import datetime
-from typing import Dict, Any, List, Tuple
+from utils.responses import error_response
+from typing import Dict, List, Tuple
 
 router = APIRouter()
 
@@ -74,7 +74,7 @@ async def forward_request(
     backend_url: str,
     path: str,
     method: str
-) -> Dict[str, Any]:
+) -> httpx.Response:
     """
     Forward request to backend service with user context headers.
 
@@ -85,7 +85,7 @@ async def forward_request(
         method: HTTP method
 
     Returns:
-        Backend service response as dict
+        Raw backend service response
     """
     # Get user context headers from middleware
     backend_headers = getattr(request.state, "backend_headers", {})
@@ -117,7 +117,7 @@ async def forward_request(
 
     try:
         # Forward request to backend
-        response = await httpx_client.request(
+        return await httpx_client.request(
             method=method,
             url=full_url,
             headers=forward_headers,
@@ -126,34 +126,13 @@ async def forward_request(
             timeout=timeout
         )
 
-        # Try to parse JSON, fallback to raw content
-        content = None
-        if response.content:
-            try:
-                content = response.json()
-            except Exception:
-                # Non-JSON response (e.g., HTML error pages)
-                content = None
-
-        return {
-            "status_code": response.status_code,
-            "content": content,
-            "headers": dict(response.headers),
-            "raw_response": response  # Keep raw response for Set-Cookie handling
-        }
-
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=503,
-            detail={
-                "success": False,
-                "error": {
-                    "code": "SERVICE_UNAVAILABLE",
-                    "message": f"Backend service unavailable: {str(e)}",
-                    "details": {}
-                },
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            detail=error_response(
+                "SERVICE_UNAVAILABLE",
+                f"Backend service unavailable: {str(e)}"
+            )
         )
 
 @router.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
@@ -168,87 +147,53 @@ async def proxy_handler(request: Request, path: str):
     backend_url = get_backend_service_url(full_path)
 
     # Forward request
-    backend_response = await forward_request(
+    raw_response = await forward_request(
         request=request,
         backend_url=backend_url,
         path=full_path,
         method=request.method
     )
 
-    # Build response from backend, preserving all headers including multiple Set-Cookie
-    raw_response = backend_response.get("raw_response")
+    # Centralized error response normalization
+    # Convert HTML error pages (404, 500, etc.) to standardized JSON format
+    content_type = raw_response.headers.get('content-type', '')
+    status_code = raw_response.status_code
 
-    if raw_response:
-        # Centralized error response normalization
-        # Convert HTML error pages (404, 500, etc.) to standardized JSON format
-        content_type = raw_response.headers.get('content-type', '')
-        status_code = raw_response.status_code
-        
-        # Handle 404 Not Found errors
-        if status_code == 404 and 'text/html' in content_type:
-            error_response = {
-                "success": False,
-                "data": None,
-                "error": {
-                    "code": "NOT_FOUND",
-                    "message": "The requested resource was not found",
-                    "details": {}
-                },
-                "timestamp": datetime.utcnow().isoformat()
-            }
+    # Handle 404 Not Found errors
+    if status_code == 404 and 'text/html' in content_type:
+        return Response(
+            content=json.dumps(error_response(
+                "NOT_FOUND", "The requested resource was not found"
+            )),
+            status_code=404,
+            media_type="application/json"
+        )
+
+    # Handle 500 Internal Server Error (often caused by invalid route params)
+    if status_code == 500 and 'text/html' in content_type:
+        # Check if it's a Django "Not Found" error disguised as 500
+        # (happens when URL patterns don't match - e.g., invalid UUID)
+        if b'Not Found' in raw_response.content or b'DoesNotExist' in raw_response.content:
             return Response(
-                content=json.dumps(error_response),
+                content=json.dumps(error_response(
+                    "NOT_FOUND", "The requested resource was not found"
+                )),
                 status_code=404,
                 media_type="application/json"
             )
-        
-        # Handle 500 Internal Server Error (often caused by invalid route params)
-        if status_code == 500 and 'text/html' in content_type:
-            # Check if it's a Django "Not Found" error disguised as 500
-            # (happens when URL patterns don't match - e.g., invalid UUID)
-            if b'Not Found' in raw_response.content or b'DoesNotExist' in raw_response.content:
-                error_response = {
-                    "success": False,
-                    "data": None,
-                    "error": {
-                        "code": "NOT_FOUND",
-                        "message": "The requested resource was not found",
-                        "details": {}
-                    },
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                return Response(
-                    content=json.dumps(error_response),
-                    status_code=404,
-                    media_type="application/json"
-                )
-            else:
-                # Generic 500 error
-                error_response = {
-                    "success": False,
-                    "data": None,
-                    "error": {
-                        "code": "INTERNAL_ERROR",
-                        "message": "An internal server error occurred",
-                        "details": {}
-                    },
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                return Response(
-                    content=json.dumps(error_response),
-                    status_code=500,
-                    media_type="application/json"
-                )
-        
-        # Use ProxyResponse with raw_headers to preserve all headers including duplicates
-        return ProxyResponse(
-            content=raw_response.content,
-            status_code=raw_response.status_code,
-            raw_headers=list(raw_response.headers.raw)  # Preserve all headers as-is
-        )
-    else:
-        # Fallback if no raw response
-        return Response(
-            content=backend_response["content"],
-            status_code=backend_response["status_code"]
-        )
+        else:
+            # Generic 500 error
+            return Response(
+                content=json.dumps(error_response(
+                    "INTERNAL_ERROR", "An internal server error occurred"
+                )),
+                status_code=500,
+                media_type="application/json"
+            )
+
+    # Use ProxyResponse with raw_headers to preserve all headers including duplicates
+    return ProxyResponse(
+        content=raw_response.content,
+        status_code=raw_response.status_code,
+        raw_headers=list(raw_response.headers.raw)  # Preserve all headers as-is
+    )

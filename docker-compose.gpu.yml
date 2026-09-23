@@ -1,0 +1,33 @@
+# GPU acceleration for developer machines with an NVIDIA card.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml build classification-service
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# NEVER part of the default stack. The base file runs classification-service on
+# CPU so the application works on any machine, including the evaluation one; this
+# file only speeds it up where a GPU exists. It changes two things:
+#
+#   - builds against the CUDA 12.8 torch wheels instead of the CPU ones
+#     (same pinned torch 2.11.0 / torchvision 0.26.0 pair, different index)
+#   - requests the NVIDIA runtime and one GPU for the container
+#
+# Nothing in the application changes: DEVICE=auto picks "cuda" when it sees one.
+# Requires the NVIDIA Container Toolkit on the host; without it the container
+# fails to start, which is exactly why this is no longer in the base file.
+#
+# The Ollama service is unaffected — it is `local`-profile only and already
+# declares its own GPU runtime in the base file.
+
+services:
+  classification-service:
+    build:
+      args:
+        TORCH_INDEX: cu128
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

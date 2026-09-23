@@ -6,19 +6,22 @@ class Settings(BaseSettings):
 
     # Service
     SERVICE_NAME: str = "ai-service"
-    DEBUG: bool = False
     LOG_LEVEL: str = "info"
 
     # LLM inference (via LiteLLM proxy — OpenAI-compatible endpoint)
     LLM_BASE_URL: str = "http://litellm:4000/v1"
     LLM_API_KEY: str = "sk-smartbreeds-local"  # must match LiteLLM LITELLM_MASTER_KEY
-    LLM_VISION_MODEL: str = "vision-model"     # or vision-model-cloud (Mistral/Pixtral)
-    LLM_TEXT_MODEL: str = "text-model"         # or text-model-cloud
+    # Defaults follow the default deployment, which is the cloud profile (hosted
+    # Mistral, no GPU). A GPU machine running Ollama sets vision-model / text-model.
+    LLM_VISION_MODEL: str = "vision-model-cloud"
+    LLM_TEXT_MODEL: str = "text-model-cloud"
     LLM_TIMEOUT: int = 300  # Ollama crossbreed detection can take 120-180s; cloud is faster
     LLM_TEMPERATURE: float = 0.1
 
-    # Classification Service (HF models, GPU). Disable in cloud/no-GPU profile:
-    # the vision LLM then handles species/breed detection (NSFW filter is NOT applied).
+    # Classification Service (HuggingFace models). Runs in every stack, on CPU
+    # unless docker-compose.gpu.yml is layered on, so this stays True in both
+    # profiles. False switches to the VLM-only pipeline, where the LLM guesses
+    # species/breed and the NSFW filter is NOT applied — debugging only.
     CLASSIFICATION_ENABLED: bool = True
     CLASSIFICATION_SERVICE_URL: str = "http://classification-service:3004"
     CLASSIFICATION_TIMEOUT: int = 30
@@ -48,7 +51,6 @@ class Settings(BaseSettings):
 
     # RAG - Query
     RAG_TOP_K: int = 5
-    RAG_MIN_RELEVANCE: float = 0.3
 
     # RAG - Knowledge Base
     KNOWLEDGE_BASE_DIR: str = "./data/knowledge_base"
@@ -56,5 +58,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
-
-settings = Settings()
+        # pydantic-settings defaults to extra="forbid", and a dotenv FILE is read
+        # key by key (unlike the process environment, whose unknown names are
+        # ignored), so one stale line in .env aborts startup. Inside Docker this
+        # stays hidden — the image carries no .env and compose injects config as
+        # environment variables — but it bites the moment pytest is run from this
+        # directory on the host. .env is gitignored, so removing a setting here
+        # must not break a checkout that still lists it.
+        extra = "ignore"

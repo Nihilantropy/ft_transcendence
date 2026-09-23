@@ -4,7 +4,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 import redis
 from config import settings
-from datetime import datetime
+from utils.responses import error_response
 
 # Redis client for rate limiting
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -80,19 +80,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         return JSONResponse(
             status_code=429,
-            content={
-                "success": False,
-                "data": None,
-                "error": {
-                    "code": "RATE_LIMIT_EXCEEDED",
-                    "message": f"Rate limit exceeded. Try again in {ttl} seconds.",
-                    "details": {
-                        "retry_after": ttl,
-                        "limit": self.rate_limit_per_minute
-                    }
-                },
-                "timestamp": datetime.utcnow().isoformat()
-            },
+            content=error_response(
+                "RATE_LIMIT_EXCEEDED",
+                f"Rate limit exceeded. Try again in {ttl} seconds.",
+                {"retry_after": ttl, "limit": self.rate_limit_per_minute}
+            ),
             headers={
                 "Retry-After": str(ttl),
                 "X-RateLimit-Limit": str(self.rate_limit_per_minute),

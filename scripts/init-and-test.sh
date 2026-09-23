@@ -34,8 +34,6 @@ echo -e "${BLUE}║   SmartBreeds Init & Test Workflow        ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
-OVERALL_STATUS=0
-
 # Initialization phase
 if [ "$SKIP_INIT" = false ]; then
   # Step 1: Build images
@@ -62,37 +60,8 @@ else
   echo ""
 fi
 
-# Run unit tests, forwarding all collected args
+# Run unit tests, forwarding all collected args; let its exit code propagate
 echo -e "${BLUE}═══ Running Unit Tests ═══${NC}"
 echo ""
-if bash "$SCRIPT_DIR/run-unit-tests.sh" "${TEST_ARGS[@]}"; then
-  echo -e "${GREEN}✓ Unit tests passed${NC}"
-  echo ""
-else
-  echo -e "${RED}✗ Unit tests failed${NC}"
-  echo ""
-  OVERALL_STATUS=1
-fi
-
-# Final summary
-echo ""
-echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║           Final Summary                    ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
-echo ""
-
-echo -e "Unit Tests: $([ $OVERALL_STATUS -eq 0 ] && echo "${GREEN}✓ Passed${NC}" || echo "${RED}✗ Failed${NC}")"
-
-echo ""
-
-if [ $OVERALL_STATUS -eq 0 ]; then
-  echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
-  echo -e "${GREEN}║   All initialization and tests complete!   ║${NC}"
-  echo -e "${GREEN}╚════════════════════════════════════════════╝${NC}"
-  exit 0
-else
-  echo -e "${RED}╔════════════════════════════════════════════╗${NC}"
-  echo -e "${RED}║       ❌ Some Tests Failed ❌             ║${NC}"
-  echo -e "${RED}╚════════════════════════════════════════════╝${NC}"
-  exit 1
-fi
+bash "$SCRIPT_DIR/run-unit-tests.sh" "${TEST_ARGS[@]}"
+exit $?
