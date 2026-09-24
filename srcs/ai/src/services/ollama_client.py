@@ -6,6 +6,26 @@ from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Report languages the contextual prompt can target (keys match the API's `language` field)
+LANGUAGE_NAMES = {"en": "English", "it": "Italian"}
+
+# Allowed trait values, in the order a hedged answer ("small/medium") is resolved
+TRAIT_VALUES = {"size": ("small", "medium", "large"), "energy_level": ("low", "medium", "high")}
+
+
+def _normalize_traits(traits: Any) -> Dict[str, Any]:
+    """Coerce LLM trait values onto TRAIT_VALUES: first allowed word wins, none → None.
+
+    Models answer "small/medium" or "Medium-High" despite the prompt; the API
+    contract is a closed enum, so the frontend never sees free text here.
+    """
+    traits = traits if isinstance(traits, dict) else {}
+    normalized = {"temperament": str(traits.get("temperament") or "")}
+    for key, allowed in TRAIT_VALUES.items():
+        match = re.search(rf"\b({'|'.join(allowed)})\b", str(traits.get(key) or "").lower())
+        normalized[key] = match.group(1) if match else None
+    return normalized
+
 class OllamaVisionClient:
     """Vision/text LLM client speaking the OpenAI chat-completions format.
 
@@ -357,7 +377,8 @@ Probabilities should sum to approximately 1.0."""
         image_base64: str,
         species: str,
         breed_analysis: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]]
+        rag_context: Optional[Dict[str, Any]],
+        language: str = "en"
     ) -> Dict[str, Any]:
         """Analyze pet image with pre-classified context.
 
@@ -366,6 +387,7 @@ Probabilities should sum to approximately 1.0."""
             species: Pre-classified species (dog/cat)
             breed_analysis: Complete breed classification result
             rag_context: RAG-enriched breed knowledge (can be None)
+            language: Report language code ("en" or "it")
 
         Returns:
             Dict with visual description, traits, health observations
@@ -375,7 +397,7 @@ Probabilities should sum to approximately 1.0."""
             RuntimeError: If response parsing fails
         """
         # Build contextual prompt
-        prompt = self._build_contextual_prompt(species, breed_analysis, rag_context)
+        prompt = self._build_contextual_prompt(species, breed_analysis, rag_context, language)
 
         # Call LLM via proxy (OpenAI format)
         try:
@@ -391,6 +413,7 @@ Probabilities should sum to approximately 1.0."""
 
         # Parse JSON response
         result = self._parse_response(content)
+        result["traits"] = _normalize_traits(result.get("traits"))
 
         logger.info(f"Visual analysis complete for {breed_analysis['primary_breed']}")
         return result
@@ -399,7 +422,8 @@ Probabilities should sum to approximately 1.0."""
         self,
         species: str,
         breed_analysis: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]]
+        rag_context: Optional[Dict[str, Any]],
+        language: str = "en"
     ) -> str:
         """Build focused prompt with classification context."""
 
@@ -449,4 +473,6 @@ Return ONLY valid JSON:
   "health_observations": ["visible observation 1", "visible observation 2"]
 }}
 
-Focus on describing what you SEE, not general breed knowledge."""
+Focus on describing what you SEE, not general breed knowledge.
+
+LANGUAGE: Write "description", "temperament" and every "health_observations" entry in {LANGUAGE_NAMES[language]}. Keep the JSON keys, the "size" and "energy_level" values, and breed names exactly as specified above, in English."""
