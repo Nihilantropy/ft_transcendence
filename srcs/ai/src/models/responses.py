@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
 
@@ -28,9 +28,9 @@ class BreedAnalysis(BaseModel):
 # Vision Analysis Models
 class BreedTraits(BaseModel):
     """Visual trait observations."""
-    size: str = Field(..., description="small/medium/large")
-    energy_level: str = Field(..., description="low/medium/high")
-    temperament: str = Field(..., description="Brief temperament description")
+    size: Optional[Literal["small", "medium", "large"]] = None
+    energy_level: Optional[Literal["low", "medium", "high"]] = None
+    temperament: str = Field("", description="Brief temperament description")
 
 
 class EnrichedInfo(BaseModel):
@@ -45,10 +45,10 @@ class EnrichedInfo(BaseModel):
 
 class VisionAnalysisData(BaseModel):
     """Vision analysis result data with multi-stage classification."""
-    species: str = Field(..., description="Detected species (dog/cat)")
+    species: Literal["dog", "cat"]
     breed_analysis: BreedAnalysis
     description: str = Field(..., description="Visual description of this specific animal")
-    traits: Dict[str, Any] = Field(..., description="Observed traits from image")
+    traits: BreedTraits
     health_observations: List[str] = Field(..., description="Visible health indicators")
     enriched_info: Optional[EnrichedInfo] = None
 

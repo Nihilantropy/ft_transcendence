@@ -285,6 +285,7 @@ async def test_rag_failure_graceful_degradation(mock_classification, mock_ollama
     # Verify Ollama called with rag_context=None
     call_args = mock_ollama.analyze_with_context.call_args
     assert call_args[1]["rag_context"] is None
+    assert call_args[1]["language"] == "en"  # default when caller omits it
 
 
 @pytest.mark.asyncio
@@ -320,10 +321,11 @@ async def test_cat_species_pipeline(mock_classification, mock_ollama, mock_rag, 
     orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
 
     # Act
-    result = await orchestrator.analyze_image("data:image/jpeg;base64,test123")
+    result = await orchestrator.analyze_image("data:image/jpeg;base64,test123", "it")
 
     # Assert
     assert result["species"] == "cat"
+    assert mock_ollama.analyze_with_context.call_args[1]["language"] == "it"
     assert result["breed_analysis"]["primary_breed"] == "persian"
 
     # Verify breed detection called with species="cat"

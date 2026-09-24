@@ -10,6 +10,7 @@ These tests require:
 Run separately: docker compose run --rm recommendation-service pytest tests/integration/ -v
 DO NOT run with unit tests (marked with @pytest.mark.integration)
 """
+import uuid
 import pytest
 import pytest_asyncio
 import httpx
@@ -361,10 +362,9 @@ async def test_recommendations_respects_species(test_user_auth: Dict[str, Any], 
 async def test_recommendations_unauthorized_pet_access(test_user_auth: Dict[str, Any]):
     """Test that users cannot request recommendations for pets they don't own."""
     async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
-        # Try to access a pet ID that doesn't belong to this user
-        # Use a high ID that's unlikely to exist or belong to test user
+        # A well-formed UUID that belongs to no pet of this user
         response = await client.get(
-            "/api/v1/recommendations/food?pet_id=99999",
+            f"/api/v1/recommendations/food?pet_id={uuid.uuid4()}",
         )
 
         # Should return 404 (pet not found) or 403 (not owner)
