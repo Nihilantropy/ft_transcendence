@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
+from typing import Literal
 import logging
 from datetime import datetime
 
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/api/v1/vision", tags=["vision"])
 class VisionAnalysisRequest(BaseModel):
     """Request for vision analysis."""
     image: str = Field(..., description="Base64-encoded image (with or without data URI prefix)")
+    language: Literal["en", "it"] = Field("en", description="Language of the free-text report fields")
 
 
 # Service instances (injected at startup)
@@ -42,7 +44,7 @@ async def analyze_image(request: VisionAnalysisRequest):
         processed_image = image_processor.process_image(request.image)
 
         # Run orchestrated pipeline
-        result = await vision_orchestrator.analyze_image(processed_image)
+        result = await vision_orchestrator.analyze_image(processed_image, request.language)
 
         # Build response
         data = VisionAnalysisData(**result)

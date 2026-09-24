@@ -35,11 +35,12 @@ class VisionOrchestrator:
             f"breed_threshold={config.BREED_MIN_CONFIDENCE}"
         )
 
-    async def analyze_image(self, image: str) -> Dict[str, Any]:
+    async def analyze_image(self, image: str, language: str = "en") -> Dict[str, Any]:
         """Execute full vision analysis pipeline with early rejection.
 
         Args:
             image: Base64-encoded image (with or without data URI prefix)
+            language: Language of the free-text report fields ("en" or "it")
 
         Returns:
             Dict with species, breed_analysis, description, traits,
@@ -55,7 +56,7 @@ class VisionOrchestrator:
 
         # Cloud/no-GPU mode: no classification service → the vision LLM does everything.
         if not self.config.CLASSIFICATION_ENABLED:
-            return await self._analyze_vlm_only(image)
+            return await self._analyze_vlm_only(image, language)
 
         # Stage 1: Content safety (strict)
         safety = await self.classification.check_content(image)
@@ -115,7 +116,8 @@ class VisionOrchestrator:
             image_base64=image,
             species=species_result["species"],
             breed_analysis=breed_result["breed_analysis"],
-            rag_context=rag_context
+            rag_context=rag_context,
+            language=language
         )
 
         # Assemble final response
@@ -131,7 +133,7 @@ class VisionOrchestrator:
         logger.info("Vision analysis pipeline completed successfully")
         return result
 
-    async def _analyze_vlm_only(self, image: str) -> Dict[str, Any]:
+    async def _analyze_vlm_only(self, image: str, language: str = "en") -> Dict[str, Any]:
         """VLM-only pipeline used when the classification service is disabled.
 
         The vision LLM performs species + breed (and crossbreed) detection directly.
@@ -149,7 +151,11 @@ class VisionOrchestrator:
 
         vlm = await self.ollama.analyze_breed(image, top_n_breeds=2)
         breed_analysis = vlm["breed_analysis"]
-        species = vlm.get("species", "dog")
+        species = str(vlm.get("species", "dog")).strip().lower()
+        # Same allow-list as the classifier path: the response model only admits dog/cat
+        if species not in ("dog", "cat"):
+            logger.warning(f"Unsupported species from VLM: {species}")
+            raise ValueError("UNSUPPORTED_SPECIES")
 
         if breed_analysis["confidence"] < self.config.BREED_MIN_CONFIDENCE:
             logger.warning(f"Low breed confidence: {breed_analysis['confidence']}")
@@ -172,6 +178,7 @@ class VisionOrchestrator:
             species=species,
             breed_analysis=breed_analysis,
             rag_context=rag_context,
+            language=language,
         )
 
         return {
