@@ -132,6 +132,14 @@ class TestPetSerializer:
         assert not serializer.is_valid()
         assert 'weight' in serializer.errors
 
+    def test_pet_create_accepts_image_url(self):
+        """Test PetCreateSerializer accepts and keeps image_url"""
+        serializer = PetCreateSerializer(data={
+            'name': 'Buddy', 'species': 'dog', 'image_url': 'file:///tmp/buddy.jpg'
+        })
+        assert serializer.is_valid(), serializer.errors
+        assert serializer.validated_data['image_url'] == 'file:///tmp/buddy.jpg'
+
 
 @pytest.mark.django_db
 class TestPetAnalysisSerializer:
