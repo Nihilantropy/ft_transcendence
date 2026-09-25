@@ -183,10 +183,11 @@ Returns a JSON array in `data`. Queryset is `Pet.objects.filter(user_id=...)`, o
 | `age` | no | integer ≥ 0 |
 | `weight` | no | float > 0 |
 | `health_conditions` | no | any JSON value; model default `[]`, no list-type enforcement |
+| `image_url` | no | free-form string, ≤ 500 chars; never fetched/validated as a real URL |
 
 `user_id` is injected server-side from the header (`serializer.save(user_id=request.user_id)`,
-`apps/profiles/views.py:116`). `breed_confidence` and `image_url` cannot be set at creation time —
-only through PUT/PATCH. Returns 201 with the full `PetSerializer` payload, or 422.
+`apps/profiles/views.py:116`). `breed_confidence` cannot be set at creation time — only through
+PUT/PATCH. Returns 201 with the full `PetSerializer` payload, or 422.
 
 ### PUT / PATCH /api/v1/pets/{id}
 

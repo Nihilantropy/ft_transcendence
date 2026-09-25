@@ -11,7 +11,7 @@ injects. Only dependency is PostgreSQL. See `README.md` for the full route/field
 ## Essential Commands
 
 ```bash
-# Tests (89) — run --rm is fine everywhere; no test calls another service
+# Tests (92) — run --rm is fine everywhere; no test calls another service
 docker compose run --rm user-service python -m pytest tests/ -v
 docker compose run --rm user-service python -m pytest tests/test_views.py -v
 docker compose run --rm user-service python -m pytest tests/test_views.py::TestPetViewSet::test_create_pet_sets_user_id_from_header -v
@@ -132,9 +132,9 @@ Two callers bypass the gateway entirely and set the headers themselves: auth-ser
 9. **`.delete()[0]` is used for the deletion counts** (`apps/profiles/views.py:67-73`). It is
    correct only because these models have no related objects — adding a related model with CASCADE
    would inflate the numbers auth-service reports.
-10. **`PetCreateSerializer` silently ignores `breed_confidence` and `image_url`** — they are not in
-    its `fields` list, so a POST that sets them succeeds while dropping them. They are writable via
-    PUT/PATCH (`PetSerializer`).
+10. **`PetCreateSerializer` silently ignores `breed_confidence`** — it is not in its `fields` list,
+    so a POST that sets it succeeds while dropping it (stays AI-only). `image_url` **is** accepted on
+    create, and both remain writable via PUT/PATCH (`PetSerializer`).
 11. **Two `health` routes exist**: `/health` (root, used by the compose healthcheck) and
     `/api/v1/health` (`apps/profiles/urls.py:12`). Neither is proxied by the gateway.
 12. **`age` and `weight` have no unit in this model.** recommendation-service reinterprets them as
@@ -163,8 +163,8 @@ Two callers bypass the gateway entirely and set the headers themselves: auth-ser
   inline.
 - **DB-touching tests need `@pytest.mark.django_db`** on the class (or the `db` fixture);
   `test_middleware.py`, `test_permissions.py` and `test_utils.py` deliberately run without it.
-- Counts by file: views 36, serializers 18, models 12, utils 11, middleware 9, permissions 5 = **91**.
-  `scripts/run-unit-tests.sh:115-117` hardcodes 91 as a display label only (`run_test_suite`
+- Counts by file: views 38, serializers 19, models 12, utils 11, middleware 9, permissions 3 = **92**.
+  `scripts/run-unit-tests.sh:115-117` hardcodes a display label only (`run_test_suite`
   prints it and adds it to the total on exit 0, `:86-100`) — update it if you add tests.
 - `pytest.ini` sets `DJANGO_SETTINGS_MODULE=config.settings`, `--strict-markers`, and declares the
   `slow` / `integration` markers (both currently unused).
