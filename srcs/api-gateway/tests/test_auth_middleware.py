@@ -28,6 +28,7 @@ def create_test_token(user_id: str, role: str = "user", exp_minutes: int = 30):
     """Helper to create test JWT tokens signed with RS256"""
     payload = {
         "user_id": user_id,
+        "token_type": "access",
         "email": "test@example.com",
         "role": role,
         "iat": datetime.utcnow(),

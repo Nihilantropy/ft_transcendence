@@ -77,7 +77,7 @@ GET /api/v1/users/me  (Cookie: access_token=…)
  4 CORS         adds Access-Control-* on the way out (only for responses that reach here)
  5 proxy_handler   full_path = "/api/" + path
                 get_backend_service_url → first SERVICE_ROUTES prefix that `startswith`  (proxy.py:63-70)
-                forward_request: headers minus host, cookie stripped (non-/api/v1/auth),
+                forward_request: headers minus host and client-sent x-user-*/x-request-id, cookie stripped (non-/api/v1/auth),
                                  + backend_headers, body only for POST/PUT/PATCH,
                                  timeout 300s under /api/v1/vision else 30s             (proxy.py:94-127)
                 httpx.RequestError ⇒ HTTPException(503, dict detail)
@@ -141,6 +141,10 @@ step 1 via `call_next`, so `request.state` stays empty: the outbound request car
   A caller can burst `2 × limit` across a window boundary.
 - **Redis failure fails open**: `except redis.RedisError` merely prints (`rate_limit.py:56-58`); requests
   proceed unlimited.
+- **Identity headers are gateway-owned.** `forward_request` drops every client-sent `x-user-*` and
+  `x-request-id` before merging the authenticated ones — backends trust them blindly (GW-16).
+  `decode_jwt` accepts only `token_type == "access"` with a non-empty `user_id`: the 7-day refresh
+  token is signed with the same key (GW-01). Test token helpers must include `"token_type": "access"`.
 - **Cookies are stripped for every prefix except `/api/v1/auth`** (`proxy.py:98-99`). Any new endpoint
   that needs to read a cookie downstream must live under that prefix, or the stripping rule must change.
 - **Query parameters are flattened**: `params=dict(request.query_params)` (`proxy.py:125`) keeps only the
