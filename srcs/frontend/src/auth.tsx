@@ -52,6 +52,8 @@ export function RequireAuth() {
 
 export function PublicOnly() {
   const { user } = useAuth()
-  if (user === undefined) return null
+  // Paint public content immediately rather than blocking on the /auth/verify round trip
+  // (undefined is falsy, same branch as a confirmed logged-out user): an already-authenticated
+  // visitor gets redirected to /analyze a beat later instead of staring at a blank page meanwhile.
   return user ? <Navigate to="/analyze" replace /> : <Outlet />
 }

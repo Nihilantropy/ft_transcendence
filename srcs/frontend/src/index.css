@@ -84,3 +84,27 @@ body {
 .ill-wing-r { transform-origin: 0 80%; animation: ill-wing-r .5s ease-in-out infinite alternate; }
 @keyframes ill-wing-l { to { transform: rotate(-22deg) scaleY(.8); } }
 @keyframes ill-wing-r { to { transform: rotate(22deg) scaleY(.8); } }
+
+/* ── Flying-cats sky ───────────────────────────────────────────────────────────────── */
+.sky { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; color: var(--accent); opacity: .18; }
+@media (prefers-color-scheme: dark) { .sky { opacity: .24; } }
+.sky-cat { position: absolute; left: 0; animation: sky-cross linear infinite; }
+@keyframes sky-cross { from { transform: translateX(-120px); } to { transform: translateX(calc(100vw + 20px)); } }
+.sky-bob { animation: sky-bob 3s ease-in-out infinite; }
+@keyframes sky-bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-12px) rotate(4deg); } }
+
+/* ── Motion control (WCAG 2.2.2) ─────────────────────────────────────────────────────
+   Paused: drawings rest in their finished state, the sky freezes where it is. The media query
+   covers the first paint under reduced motion, before React sets data-motion; an explicit
+   "running" choice overrides it.
+   The `* ` variants matter: `.ill-hello path` animates bare <path> children that carry no
+   ill- class of their own, only their ill-hello ancestor does — a plain `[class^="ill-"]`
+   selector never reaches them. */
+[data-motion="paused"] [class^="ill-"], [data-motion="paused"] [class*=" ill-"],
+[data-motion="paused"] [class^="ill-"] *, [data-motion="paused"] [class*=" ill-"] * { animation: none !important; }
+[data-motion="paused"] .sky-cat, [data-motion="paused"] .sky-bob { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="running"]) [class^="ill-"], :root:not([data-motion="running"]) [class*=" ill-"],
+  :root:not([data-motion="running"]) [class^="ill-"] *, :root:not([data-motion="running"]) [class*=" ill-"] * { animation: none !important; }
+  :root:not([data-motion="running"]) .sky-cat, :root:not([data-motion="running"]) .sky-bob { animation-play-state: paused !important; }
+}
