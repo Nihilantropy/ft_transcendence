@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { ApiError, api, fieldError, setLogoutHandler } from './api'
 
-type Reply = { status: number; body?: unknown; html?: string }
+type Reply = { status: number; body?: unknown; html?: string; headers?: Record<string, string> }
 const json = (r: Reply) =>
   new Response(r.html ?? (r.body === undefined ? '' : JSON.stringify(r.body)), {
     status: r.status,
-    headers: { 'Content-Type': r.html ? 'text/html' : 'application/json' },
+    headers: { 'Content-Type': r.html ? 'text/html' : 'application/json', ...r.headers },
   })
 
 // Replies are consumed in order per URL path; records every call.
@@ -100,6 +100,76 @@ describe('api', () => {
     const calls = mockFetch({ '/api/v1/auth/login': [fail(401, 'INVALID_CREDENTIALS')] })
     await expect(api('/auth/login', { method: 'POST', body: {} })).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
     expect(calls).toEqual(['/api/v1/auth/login'])
+  })
+
+  test('429 then 200 retries and resolves', async () => {
+    vi.useFakeTimers()
+    try {
+      const calls = mockFetch({ '/api/v1/pets': [fail(429, 'RATE_LIMIT_EXCEEDED'), ok([])] })
+      const p = api('/pets')
+      await vi.advanceTimersByTimeAsync(2000) // no Retry-After header -> 2s default
+      await expect(p).resolves.toEqual([])
+      expect(calls).toEqual(['/api/v1/pets', '/api/v1/pets'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('three 429s reject with RATE_LIMIT_EXCEEDED (nginx HTML body)', async () => {
+    vi.useFakeTimers()
+    try {
+      const calls = mockFetch({ '/api/v1/pets': [
+        { status: 429, html: '<html>429</html>' },
+        { status: 429, html: '<html>429</html>' },
+        { status: 429, html: '<html>429</html>' },
+      ] })
+      const p = api('/pets').catch((e) => e)
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(p).resolves.toMatchObject({ code: 'RATE_LIMIT_EXCEEDED', status: 429 })
+      expect(calls).toEqual(['/api/v1/pets', '/api/v1/pets', '/api/v1/pets'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('honours a positive-integer Retry-After', async () => {
+    vi.useFakeTimers()
+    try {
+      mockFetch({ '/api/v1/pets': [
+        { status: 429, body: fail(429, 'RATE_LIMIT_EXCEEDED').body, headers: { 'Retry-After': '3' } },
+        ok([]),
+      ] })
+      const p = api('/pets')
+      let resolved = false
+      p.then(() => { resolved = true })
+      await vi.advanceTimersByTimeAsync(2900)
+      expect(resolved).toBe(false) // not yet at 3s
+      await vi.advanceTimersByTimeAsync(200)
+      await expect(p).resolves.toEqual([])
+      expect(resolved).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('caps Retry-After at 5s even when the header asks for longer', async () => {
+    vi.useFakeTimers()
+    try {
+      mockFetch({ '/api/v1/pets': [
+        { status: 429, body: fail(429, 'RATE_LIMIT_EXCEEDED').body, headers: { 'Retry-After': '60' } },
+        ok([]),
+      ] })
+      const p = api('/pets')
+      let resolved = false
+      p.then(() => { resolved = true })
+      await vi.advanceTimersByTimeAsync(4900)
+      expect(resolved).toBe(false) // capped at 5s, not yet there
+      await vi.advanceTimersByTimeAsync(200)
+      await expect(p).resolves.toEqual([])
+      expect(resolved).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test('sends JSON with same-origin credentials', async () => {

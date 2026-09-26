@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Navigate, Outlet } from 'react-router'
-import { api, ApiError, setLogoutHandler } from './api'
+import { api, setLogoutHandler } from './api'
 
 export type User = { id: string; email: string; role: string }
 
@@ -19,14 +19,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setLogoutHandler(() => setUser(null))
-    // A 401 here goes through api.ts's refresh (which calls the logout handler above on
-    // genuine failure), so an expired access token is renewed silently. A non-auth error
-    // (429 rate limit, network blip, 5xx) must not be read as "logged out" — only a real
-    // UNAUTHORIZED means that.
-    api<{ user: User }>('/auth/verify').then(
-      (d) => setUser(d.user),
-      (e) => { if (e instanceof ApiError && e.code !== 'UNAUTHORIZED') return; setUser(null) },
-    )
+    // A 401 here goes through api.ts's refresh, so an expired access token is renewed silently.
+    api<{ user: User }>('/auth/verify').then((d) => setUser(d.user), () => setUser(null))
   }, [])
 
   const value: Auth = {
