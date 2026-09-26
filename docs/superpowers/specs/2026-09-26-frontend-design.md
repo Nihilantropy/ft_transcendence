@@ -53,7 +53,9 @@ HTTPS through nginx.
   Register / Log in, footer with Privacy · Terms · IT/EN/ES.
 - **Log in / Register**: one column, field-level errors.
 - **Analyze** (home):
-  - big dashed drop zone "Drag or take a photo" (`capture` on mobile)
+  - big dashed drop zone "Drag or take a photo", `accept="image/*"` and **no** `capture`
+    attribute: `capture` makes mobile browsers open the camera only, hiding the gallery, while
+    without it the picker already offers both
   - preview → waiting state with the sniffing animal and rotating lines ("Looking at the ears…"),
     5–60 s
   - result card: breed + confidence bar, "likely crossbreed" badge, description, traits as chips,
@@ -62,8 +64,11 @@ HTTPS through nginx.
   - API errors become friendly copy, e.g. `UNSUPPORTED_SPECIES` → "For now I only recognise dogs
     and cats 🐾"
 - **My pets**: grid of cards (species illustration, name, breed); empty state invites the first
-  analysis. **Pet detail**: editable age / weight / health conditions + "Recommended food".
-- **Profile**: language, change password, delete account (double confirmation), log out.
+  analysis. **Pet detail**: editable age (months) / weight (kg) / health conditions + "Recommended food".
+  Health conditions are six checkboxes — the exact vocabulary the recommender scores
+  (`HEALTH_CONDITIONS` in `srcs/recommendation-service/src/services/feature_engineering.py`); free
+  text would never match.
+- **Profile**: change password (the language switch lives in the footer, on every page), delete account (double confirmation), log out.
 - **Privacy / Terms**: static SPA routes, reachable logged out.
 
 ## Code structure (`srcs/frontend/`)
@@ -98,8 +103,11 @@ Dependencies: `react`, `react-router`, `tailwindcss`, `@fontsource/nunito`. No c
 - **Profile**: `PUT /auth/change-password`, `DELETE /auth/delete`, `POST /auth/logout` (public at
   the gateway since #27, works with an expired access token).
 - Cookies are HttpOnly, SameSite=Strict, same origin: no CORS, no token handling in JS.
-- Set `COOKIE_SECURE=True` in `srcs/auth-service/.env` and `.env.example` (today `False`). The Vite
-  dev loop on `http://localhost` still works: Chrome treats localhost as a secure context.
+- `COOKIE_SECURE` stays `False` (reviewed and rejected): the gate's `tests/integration/`, the
+  recommendation-service integration tests and the Jupyter notebooks all talk plain HTTP to
+  `api-gateway:8001`, and httpx/requests never send a `Secure` cookie over http, so flipping it
+  breaks them. Browsers only reach the app over HTTPS through nginx. Revisit together with those
+  clients.
 
 ## Errors
 
