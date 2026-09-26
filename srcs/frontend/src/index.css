@@ -42,13 +42,17 @@ body {
 /* ── Line-art animations ─────────────────────────────────────────────────────────────
    Only transform / opacity / stroke-dashoffset. "Once" animations use `backwards` so their resting
    state (after the run, or with animation: none) is the finished drawing. */
-[class*="ill-"] { transform-box: fill-box; }
+[class^="ill-"], [class*=" ill-"] { transform-box: fill-box; }
 
 .ill-hello path { animation: ill-draw 1.2s ease-out backwards; }
 @keyframes ill-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
-.ill-hello .ill-ear-l, .pet-card:hover .ill-ear-l, .pet-card:focus-visible .ill-ear-l { transform-origin: 90% 10%; animation: ill-flap-l .9s ease-in-out 1.3s 2 backwards; }
-.ill-hello .ill-ear-r, .pet-card:hover .ill-ear-r, .pet-card:focus-visible .ill-ear-r { transform-origin: 10% 10%; animation: ill-flap-r .9s ease-in-out 1.3s 2 backwards; }
-.pet-card:hover .ill-ear-l, .pet-card:focus-visible .ill-ear-l, .pet-card:hover .ill-ear-r, .pet-card:focus-visible .ill-ear-r { animation-delay: 0s; animation-iteration-count: 1; }
+/* Hello state: draw-in plus the flap, both on the ear itself (the flap's full shorthand would
+   otherwise win on specificity over the plain `.ill-hello path` rule above and drop the draw). */
+.ill-hello .ill-ear-l { transform-origin: 90% 10%; animation: ill-draw 1.2s ease-out backwards, ill-flap-l .9s ease-in-out 1.3s 2 backwards; }
+.ill-hello .ill-ear-r { transform-origin: 10% 10%; animation: ill-draw 1.2s ease-out backwards, ill-flap-r .9s ease-in-out 1.3s 2 backwards; }
+/* Hover/focus on a pet card: flap only, once, no draw-in (the icon is already fully drawn). */
+.pet-card:hover .ill-ear-l, .pet-card:focus-visible .ill-ear-l { transform-origin: 90% 10%; animation: ill-flap-l .9s ease-in-out; }
+.pet-card:hover .ill-ear-r, .pet-card:focus-visible .ill-ear-r { transform-origin: 10% 10%; animation: ill-flap-r .9s ease-in-out; }
 @keyframes ill-flap-l { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-16deg); } 60% { transform: rotate(5deg); } }
 @keyframes ill-flap-r { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(16deg); } 60% { transform: rotate(-5deg); } }
 .ill-hello .ill-eyes { transform-origin: 50% 50%; animation: ill-blink .3s ease-in-out 2.6s 1; }
