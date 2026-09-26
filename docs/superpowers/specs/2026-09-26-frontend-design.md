@@ -1,8 +1,7 @@
 # Frontend design — SmartBreeds web app
 
 Date: 2026-09-26
-Status: **spec reviewed 2026-09-26** (findings folded in below). Next: `superpowers:writing-plans`,
-then implement. No frontend code exists yet.
+Status: **implemented** on `feat/frontend` (plan: docs/superpowers/plans/2026-09-26-frontend.md).
 
 ## Handoff — start here
 

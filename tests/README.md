@@ -5,6 +5,9 @@ Integration and e2e tests against the real running stack. Run everything with `m
 
 - `integration/` — one service through the gateway (`http://api-gateway:8001`).
 - `e2e/` — a user flow through nginx over verified HTTPS (`https://nginx`).
+- `e2e/ui/` — the same flows in Chromium (Playwright), against the built SPA. Fixtures in
+  `e2e/ui/conftest.py`: `ui_user` / `registered` (throwaway account) and `fake_vision` (canned
+  analysis, no LLM call). Selectors use the English UI.
 
 ## Add a test
 1. Create `tests/integration/test_x.py` or `tests/e2e/test_x.py`.
