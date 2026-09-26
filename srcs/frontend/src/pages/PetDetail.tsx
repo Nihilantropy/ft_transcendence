@@ -7,6 +7,7 @@ import ErrorNote from '../components/ErrorNote'
 import Field from '../components/Field'
 import Illustration from '../components/Illustration'
 import { breedLabel, useI18n } from '../i18n'
+import { usePageTitle } from '../usePageTitle'
 
 // Exactly the conditions the recommender scores (recommendation-service feature_engineering.py).
 const HEALTH = ['sensitive_stomach', 'weight_management', 'joint_health', 'skin_allergies', 'dental_health', 'kidney_health']
@@ -18,6 +19,7 @@ export default function PetDetail() {
   const pid = encodeURIComponent(id ?? '')
   const { t } = useI18n()
   const [pet, setPet] = useState<Pet>()
+  usePageTitle(pet?.name ?? t('pets.title'))
   const [error, setError] = useState<unknown>()
   const [recs, setRecs] = useState<Rec[]>()
   const [recError, setRecError] = useState<unknown>()

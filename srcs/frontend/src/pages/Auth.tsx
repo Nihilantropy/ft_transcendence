@@ -7,9 +7,11 @@ import Card from '../components/Card'
 import ErrorNote from '../components/ErrorNote'
 import Field from '../components/Field'
 import { useI18n } from '../i18n'
+import { usePageTitle } from '../usePageTitle'
 
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { t } = useI18n()
+  usePageTitle(t(mode === 'login' ? 'page.login' : 'page.register'))
   const { login, register } = useAuth()
   const [error, setError] = useState<unknown>()
   const [busy, setBusy] = useState(false)

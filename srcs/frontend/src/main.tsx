@@ -33,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
               </Route>
               <Route path="privacy" element={<Legal doc="privacy" />} />
               <Route path="terms" element={<Legal doc="terms" />} />
+              <Route path="accessibility" element={<Legal doc="accessibility" />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

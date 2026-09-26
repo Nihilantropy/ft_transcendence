@@ -9,6 +9,7 @@ import Field from '../components/Field'
 import Illustration from '../components/Illustration'
 import { breedLabel, useI18n } from '../i18n'
 import { toJpegDataUrl } from '../image'
+import { usePageTitle } from '../usePageTitle'
 
 export type Analysis = {
   species: 'dog' | 'cat'
@@ -20,6 +21,7 @@ export type Analysis = {
 
 export default function Analyze() {
   const { t, lang } = useI18n()
+  usePageTitle(t('analyze.title'))
   const [preview, setPreview] = useState<string>()
   const [result, setResult] = useState<Analysis>()
   const [error, setError] = useState<unknown>()

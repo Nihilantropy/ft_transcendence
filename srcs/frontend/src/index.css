@@ -38,6 +38,7 @@
 body {
   @apply bg-bg text-fg font-sans;
 }
+main h1:focus { outline: none; }
 
 /* ── Line-art animations ─────────────────────────────────────────────────────────────
    Only transform / opacity / stroke-dashoffset. "Once" animations use `backwards` so their resting

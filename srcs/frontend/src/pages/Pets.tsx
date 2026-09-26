@@ -5,9 +5,11 @@ import { buttonClass } from '../components/Button'
 import ErrorNote from '../components/ErrorNote'
 import Illustration from '../components/Illustration'
 import { breedLabel, useI18n } from '../i18n'
+import { usePageTitle } from '../usePageTitle'
 
 export default function Pets() {
   const { t } = useI18n()
+  usePageTitle(t('pets.title'))
   const [pets, setPets] = useState<Pet[]>()
   const [error, setError] = useState<unknown>()
   useEffect(() => {

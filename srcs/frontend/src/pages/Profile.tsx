@@ -7,9 +7,11 @@ import Card from '../components/Card'
 import ErrorNote from '../components/ErrorNote'
 import Field from '../components/Field'
 import { useI18n } from '../i18n'
+import { usePageTitle } from '../usePageTitle'
 
 export default function Profile() {
   const { t } = useI18n()
+  usePageTitle(t('profile.title'))
   const { user, logout, clear } = useAuth()
   const navigate = useNavigate()
   const [pwError, setPwError] = useState<unknown>()
