@@ -80,10 +80,14 @@ def decode_token(token):
         jwt.ExpiredSignatureError: If token is expired
         jwt.InvalidTokenError: If token is invalid
     """
+    # leeway: PyJWT rejects a token whose iat is ahead of "now". A wall clock that steps
+    # back (WSL2 time sync was measured stepping back up to 2.35 s) then rejects a token
+    # issued a moment earlier. 5 s absorbs that; it also extends exp by 5 s, which is harmless.
     payload = jwt.decode(
         token,
         settings.JWT_KEYS['public'],
-        algorithms=[settings.JWT_ALGORITHM]
+        algorithms=[settings.JWT_ALGORITHM],
+        leeway=5
     )
 
     return payload
