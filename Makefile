@@ -15,8 +15,9 @@ STACK_VERSION ?= 8.17.0
 export STACK_VERSION
 
 # Profiles torn down by down/downv/purge, regardless of which profile is
-# currently active — otherwise ELK/local-profile containers survive teardown.
-DOWN_PROFILES = local,cloud,elk
+# currently active — otherwise ELK/local-profile/tester containers survive teardown
+# (an interrupted `run --rm tester` would also keep the networks in use).
+DOWN_PROFILES = local,cloud,elk,test
 
 # Actual container_name values from docker-compose.yml — NOT the compose service
 # names. The two differ (service `api-gateway` runs as container

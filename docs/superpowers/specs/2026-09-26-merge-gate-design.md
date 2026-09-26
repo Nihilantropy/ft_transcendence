@@ -70,7 +70,7 @@ The e2e tests verify nginx's certificate instead of disabling verification. Two 
 - Both retry HTTP 429 honouring `Retry-After`. The nginx limit (200 r/m per IP, burst 20) is not
   relaxed for tests; the gate tests the real configuration. Marked with a `ponytail:` comment:
   retrying keeps a growing suite green at the cost of wall-clock time.
-- `user(client)`: registers `gate-<uuid4>@example.com` with a fixed password, logs in, yields
+- `gw_user` / `edge_user` (same helper on the `gw` / `edge` client): registers `gate-<uuid4>@example.com` with a fixed password, logs in, yields
   `{"client", "email", "password"}` with cookies set. Teardown calls
   `DELETE /api/v1/auth/delete`, which cascades to tokens, profile, pets and analyses
   (`srcs/auth-service/apps/authentication/views.py:348`). If that returns 401 (the test logged
@@ -109,7 +109,7 @@ description section.
 ## Adding a test
 
 1. Create a file in `tests/integration/` (gateway) or `tests/e2e/` (nginx, user flow).
-2. Use the `user` fixture: no fixed accounts, no manual cleanup.
+2. Use the `gw_user` / `edge_user` fixture: no fixed accounts, no manual cleanup.
 3. Run `make gate`, or one file with
    `docker compose --profile test run --rm tester pytest tests/e2e/test_x.py`.
 
