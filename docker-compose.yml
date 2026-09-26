@@ -34,6 +34,7 @@ services:
     build:
       context: ./tests
     profiles: ["test"]
+    shm_size: "1gb"
     volumes:
       - ./tests:/tests:ro
       - ./scripts/jupyter/test_data:/test_data:ro
