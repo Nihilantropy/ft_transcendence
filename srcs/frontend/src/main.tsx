@@ -9,6 +9,8 @@ import Analyze from './pages/Analyze'
 import AuthPage from './pages/Auth'
 import Landing from './pages/Landing'
 import Legal from './pages/Legal'
+import Pets from './pages/Pets'
+import PetDetail from './pages/PetDetail'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -24,6 +26,8 @@ createRoot(document.getElementById('root')!).render(
               </Route>
               <Route element={<RequireAuth />}>
                 <Route path="analyze" element={<Analyze />} />
+                <Route path="pets" element={<Pets />} />
+                <Route path="pets/:id" element={<PetDetail />} />
               </Route>
               <Route path="privacy" element={<Legal doc="privacy" />} />
               <Route path="terms" element={<Legal doc="terms" />} />
