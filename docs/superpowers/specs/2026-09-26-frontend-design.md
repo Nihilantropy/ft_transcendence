@@ -1,8 +1,8 @@
 # Frontend design — SmartBreeds web app
 
 Date: 2026-09-26
-Status: **design agreed in brainstorming, spec not yet reviewed.** Next session: review this spec,
-then `superpowers:writing-plans`, then implement. No frontend code exists yet.
+Status: **spec reviewed 2026-09-26** (findings folded in below). Next: `superpowers:writing-plans`,
+then implement. No frontend code exists yet.
 
 ## Handoff — start here
 
@@ -32,7 +32,7 @@ HTTPS through nginx.
 | Visual character | Warm and friendly: minimal structure, affectionate details |
 | Information architecture | Photo-first. Landing (logged out); logged in: **Analyze** (home) / **My pets** / **Profile** |
 | Pet photos | Not stored in the MVP. Pet cards show a species line illustration. Upload = separate later PR |
-| Languages | IT + EN from day one, strings in JSON dictionaries, IT default; the chosen language is passed to the vision API. A third language later = one file (possible "multiple languages" buffer module — verify the subject's wording first) |
+| Languages | IT + EN + ES from day one (three languages, for the subject's "multiple languages" module — verify its wording), strings in JSON dictionaries, IT default, language in `localStorage` only; the chosen language is always passed to the vision API. Backend: add `"es": "Spanish"` to `LANGUAGE_NAMES` (`srcs/ai/src/services/ollama_client.py:10`) and `"es"` to the `language` `Literal` (`srcs/ai/src/routes/vision.py:18`), plus one test |
 | Stack | React + Vite + TypeScript + Tailwind, static SPA served by nginx, same origin as the API |
 | E2E | Playwright in the gate |
 
@@ -40,7 +40,8 @@ HTTPS through nginx.
 
 - Palette: cream `#FBF6EF` background, terracotta `#C8664A` accent (primary buttons, links), sage
   `#7A9E7E` success / health notes, dark brown `#3B2F2A` text. Dark theme: deep brown + muted cream.
-- Type: one soft, legible sans (Nunito, or Inter), two sizes only (title / body).
+- Type: Nunito, **self-hosted** (`@fontsource/nunito`, no Google Fonts request: strict CSP, simpler
+  Privacy Policy), two sizes only (title / body).
 - Shapes: 16–24 px radii, faint shadows, generous whitespace.
 - Illustrations: six thin-line inline SVGs — dog, cat, waiting (sniffing), empty (kennel), error
   (puzzled), success (wagging tail).
@@ -49,7 +50,7 @@ HTTPS through nginx.
 ## Screens
 
 - **Landing** (logged out): one headline ("Discover your pet's breed from a photo"), illustration,
-  Register / Log in, footer with Privacy · Terms · IT/EN.
+  Register / Log in, footer with Privacy · Terms · IT/EN/ES.
 - **Log in / Register**: one column, field-level errors.
 - **Analyze** (home):
   - big dashed drop zone "Drag or take a photo" (`capture` on mobile)
@@ -72,57 +73,76 @@ src/
   api.ts          # fetch wrapper: same-origin, credentials; unwraps {success,data,error};
                   # throws ApiError(code, message, details)
   auth.tsx        # AuthContext: verify on start; login / register / logout
-  i18n.ts         # t() hook + it.json / en.json; language in localStorage
+  i18n.ts         # t() hook + it.json / en.json / es.json; language in localStorage
   pages/          # Landing, Login, Register, Analyze, Pets, PetDetail, Profile, Privacy, Terms
   components/     # Button, Card, Field, Dropzone, Illustration, NavBar
-Dockerfile        # node:22 build → dist/
 ```
 
-Dependencies: `react`, `react-router`, `tailwindcss`. No component library, no global store.
+No `Dockerfile` in `srcs/frontend/`: nginx builds it (see Serving). Delete the 0-byte placeholders.
+
+Dependencies: `react`, `react-router`, `tailwindcss`, `@fontsource/nunito`. No component library, no global store.
 
 ## Data flow (all paths are same-origin `/api/v1/...`)
 
 - **Session**: on start `GET /auth/verify`. On 401 → one `POST /auth/refresh` → retry once; if
-  refresh fails the user is logged out. Any 401 mid-session takes the same path.
+  refresh fails the user is logged out. Any 401 mid-session takes the same path. `api.ts` keeps a
+  **single in-flight refresh promise** (parallel 401s, e.g. pet detail + recommendations, share it);
+  a 401 from `/auth/refresh` itself logs out, never retries.
 - **Analyze**: resize in the browser (long side 1600 px, JPEG 0.85) to stay under nginx's 8 MB
   body limit (base64 inflates ~1.33×) → `POST /vision/analyze {image: dataURL, language}`,
   client timeout 300 s (nginx and gateway allow 300 s).
-- **Save as my pet**: `POST /pets {name, species, breed}` then `PATCH /pets/{id} {breed_confidence}`
+- **Save as my pet**: `POST /pets {name, species, breed: breed_analysis.primary_breed}` (`breed` is
+  `max_length=100`, so never a composed crossbreed string) then `PATCH /pets/{id} {breed_confidence}`
   (`breed_confidence` is ignored on create by design).
 - **Pet detail**: `GET /pets/{id}` + `GET /recommendations/food?pet_id=…&limit=6`.
 - **Profile**: `PUT /auth/change-password`, `DELETE /auth/delete`, `POST /auth/logout` (public at
   the gateway since #27, works with an expired access token).
 - Cookies are HttpOnly, SameSite=Strict, same origin: no CORS, no token handling in JS.
+- Set `COOKIE_SECURE=True` in `srcs/auth-service/.env` and `.env.example` (today `False`). The Vite
+  dev loop on `http://localhost` still works: Chrome treats localhost as a secure context.
 
 ## Errors
 
 - One `code → message` table per language in `it.json` / `en.json`: `UNSUPPORTED_SPECIES`,
   `CONTENT_POLICY_VIOLATION`, `SPECIES_DETECTION_FAILED`, `BREED_DETECTION_FAILED`,
   `INVALID_IMAGE_FORMAT`, `IMAGE_TOO_LARGE`, `IMAGE_TOO_SMALL`, `INVALID_CREDENTIALS`,
-  `EMAIL_ALREADY_EXISTS`, `RATE_LIMIT_EXCEEDED`, `VALIDATION_ERROR`, …
+  `EMAIL_ALREADY_EXISTS`, `RATE_LIMIT_EXCEEDED`, `VALIDATION_ERROR`, `VISION_SERVICE_UNAVAILABLE`,
+  `INTERNAL_ERROR`, …
 - Unknown code → "Something went wrong, try again" + the error illustration.
 - Network failure → non-blocking banner.
 - `VALIDATION_ERROR.details` → messages under the matching form fields.
 - The vision route wraps errors as `{"detail": {"success": false, "error": {...}}}` (FastAPI
   HTTPException); `api.ts` must unwrap both shapes (see `error_of` in `scripts/e2e-vision.py`).
+- **Non-JSON bodies**: nginx answers 413 (body > 8 MB), 502/504 and its `50x.html` page as HTML.
+  `api.ts` must not assume JSON: map by status (413 → `IMAGE_TOO_LARGE`, else generic).
 
 ## Serving
 
-- nginx Dockerfile becomes multi-stage: build the frontend, copy `dist/` to `/usr/share/nginx/html`.
+- nginx Dockerfile becomes multi-stage: `FROM node:22 AS web` builds the frontend, the runner copies
+  `dist/` to `/usr/share/nginx/html`. nginx's build context is `./srcs/nginx`, so compose adds
+  `additional_contexts: {frontend: ./srcs/frontend}` and the stage uses `COPY --from=frontend`.
 - `location /` → `try_files $uri /index.html` (replaces today's hardcoded JSON blob);
   `/api` unchanged.
+- Enable the commented-out CSP (`default.conf.template:154`), tightened for a built SPA:
+  `script-src 'self'` (no `unsafe-eval`), `font-src 'self'`, `img-src 'self' data: blob:`,
+  `connect-src 'self'`. Beware nginx `add_header` inheritance: a location that declares its own
+  `add_header` drops every server-level one, so the security headers must be repeated there (or
+  moved into an include).
 - Remove the commented-out `frontend` service in `docker-compose.yml`.
 - Dev loop: `npm run dev` with a Vite proxy `/api` → `https://localhost:8443` (`secure: false`),
   so the browser still sees one origin.
 
 ## Tests (gate)
 
-- `tests/e2e/ui/` with Playwright (`mcr.microsoft.com/playwright/python` image), profile `test`,
-  against `https://nginx` with the certificate from the `nginx-ssl` volume.
+- `tests/e2e/ui/` with Playwright. **One tester, not a new service**: `tests/Dockerfile` switches its
+  base to `mcr.microsoft.com/playwright/python` (keep the non-root uid 1000 user), so `make gate`
+  is unchanged. Against `https://nginx` with `ignore_https_errors=True` — Chromium does not take a
+  CA file the way httpx does; TLS verification stays covered by the API e2e suite.
 - Flows: register → lands on Analyze; analyze `golden_retriever_1.jpg` → breed visible; save as my
   pet → pet in the list → recommended products visible; log out → `/pets` redirects to landing.
 - Privacy and Terms reachable logged out.
 - Throwaway users as in the API suite (`gate-…@example.com`), deleted in teardown.
+- Language: switch to ES → UI strings change and the analysis is requested with `language: "es"`.
 
 ## Known backend limits (accepted for the MVP)
 
