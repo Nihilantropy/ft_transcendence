@@ -71,6 +71,24 @@ class TestJWTUtilities:
         assert payload['token_id'] == token_id
         assert payload['token_type'] == 'refresh'
 
+    def _token_issued_in(self, seconds):
+        import jwt
+        from django.conf import settings
+        now = int(timezone.now().timestamp())
+        return jwt.encode(
+            {'user_id': 'u', 'token_type': 'access', 'iat': now + seconds, 'exp': now + 900},
+            settings.JWT_KEYS['private'], algorithm=settings.JWT_ALGORITHM)
+
+    def test_decode_tolerates_small_clock_step_back(self):
+        """A wall clock stepping back ~2 s (WSL2 time sync) must not reject a fresh token"""
+        assert decode_token(self._token_issued_in(2))['user_id'] == 'u'
+
+    def test_decode_rejects_token_issued_well_in_the_future(self):
+        """The leeway is small: an iat far in the future is still rejected"""
+        import jwt
+        with pytest.raises(jwt.ImmatureSignatureError):
+            decode_token(self._token_issued_in(60))
+
     def test_decode_invalid_token_fails(self):
         """Test decoding invalid token raises exception"""
         with pytest.raises(Exception):
