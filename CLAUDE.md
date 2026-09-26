@@ -45,6 +45,7 @@ make superuser     # Create test_admin@example.com / Password123! (scripts/creat
 make init          # build + up + migration + seed + superuser + rag (Makefile:28)
 make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
 make test-integration  # recommendation-service tests/integration via docker exec
+make gate          # Merge gate: unit + integration + e2e on the live stack — required before merging
 make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
 make elk           # Start the ELK log management stack (generates credentials on first run)
 make elk-creds     # Reprint the ELK stack credentials without redeploying
@@ -126,6 +127,13 @@ docker exec -it CONTAINER sh    # Shell into container
 ```
 
 ### Testing
+
+**Merge gate — no merge without a green `make gate`.** Unit tests and notebooks alone do not
+count. `make gate` starts the stack (`up --wait`), migrates/seeds/creates the superuser, runs the
+unit suites, recommendation-service's integration tests, then the root `tests/` suite
+(`tests/integration/` via the gateway, `tests/e2e/` via nginx over verified HTTPS) in the
+`tester` service (profile `test`, networks `backend-network` + `proxy`, reads nginx's cert from
+the `nginx-ssl` volume). Paste its last lines into the PR. How to add a test: `tests/README.md`.
 
 **Critical Docker Workflow:**
 - Rebuild rules differ per service:

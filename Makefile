@@ -34,7 +34,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage elk elk-creds $(TEST_FLAGS)
+.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage gate elk elk-creds $(TEST_FLAGS)
 
 # Default target
 all: build up elk show logs
@@ -235,6 +235,20 @@ elk-creds:
 test-integration:
 	@echo "Running integration tests..."
 	@scripts/run-integration-tests.sh
+
+## gate: Merge gate — unit + integration + e2e on the running stack. Must be green before any merge;
+##       paste the last lines into the PR.
+gate:
+	@echo "Starting the stack and waiting for healthchecks (classification can take ~5 min cold)..."
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --wait --wait-timeout 600
+	@scripts/run-migrations.sh
+	@scripts/seed-db.sh
+	@scripts/create-superuser.sh
+	@scripts/run-unit-tests.sh
+	@scripts/run-integration-tests.sh
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --profile test run --rm --build tester
+	@echo ""
+	@echo "✅ GATE PASSED — $$(git rev-parse --abbrev-ref HEAD) @ $$(git rev-parse --short HEAD)$$(git diff --quiet HEAD || echo ' (uncommitted changes)')"
 
 $(TEST_FLAGS):
 	@:

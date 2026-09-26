@@ -1,5 +1,7 @@
 # ft_transcendence Integration Testing with Jupyter
 
+> Not part of the merge gate — see `tests/README.md` and `make gate`.
+
 This directory contains Jupyter notebooks for interactive integration testing of the ft_transcendence microservices.
 
 ## Overview
