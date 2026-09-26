@@ -255,7 +255,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 **Authentication Flow:**
 1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:59)
 2. Browser automatically sends cookies with each request
-3. API Gateway validates JWT using RS256 public key, extracts user context (user_id, role)
+3. API Gateway validates JWT using RS256 public key, requires `token_type == "access"`, extracts user context (user_id, role); client-sent `X-User-*` headers are dropped
 4. Gateway forwards to backend services with headers: `X-User-ID`, `X-User-Role`, `X-Request-ID`
 5. Backend services trust API Gateway validation (network isolation ensures security)
 

@@ -40,6 +40,7 @@ def test_logging_includes_user_context(caplog):
     # Create test JWT token using RS256
     payload = {
         "user_id": "user123",
+        "token_type": "access",
         "email": "test@example.com",
         "role": "user",
         "iat": datetime.utcnow(),
