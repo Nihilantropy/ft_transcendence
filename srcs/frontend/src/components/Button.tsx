@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from 'react'
 type Variant = 'primary' | 'ghost' | 'danger'
 const STYLES: Record<Variant, string> = {
   primary: 'bg-accent text-card hover:brightness-110',
-  ghost: 'border border-line hover:bg-card',
+  ghost: 'border border-field hover:bg-card',
   danger: 'bg-danger text-card hover:brightness-110',
 }
 

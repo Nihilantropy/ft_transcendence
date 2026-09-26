@@ -8,7 +8,8 @@
   --card: #FFFFFF;
   --accent: #B4553A; /* terracotta #C8664A darkened: white-on-accent passes 4.5:1 */
   --ok: #7A9E7E;
-  --line: #E8DDD0;
+  --line: #E8DDD0; /* decorative dividers only — too faint for controls */
+  --field: #8C7A6B; /* form-control borders: ≥ 3:1 on card and bg (WCAG 1.4.11) */
   --danger: #A23B2A;
 }
 @media (prefers-color-scheme: dark) {
@@ -19,6 +20,7 @@
     --accent: #D9805F;
     --ok: #93B596;
     --line: #4A3C35;
+    --field: #9A897C;
     --danger: #F0A493;
   }
 }
@@ -29,6 +31,7 @@
   --color-accent: var(--accent);
   --color-ok: var(--ok);
   --color-line: var(--line);
+  --color-field: var(--field);
   --color-danger: var(--danger);
   --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
 }
