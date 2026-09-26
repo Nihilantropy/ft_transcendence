@@ -51,6 +51,12 @@ def test_non_image_file_is_friendly(page, registered, fake_vision):
     assert fake_vision == []  # nothing was sent
 
 
+def test_too_small_photo_is_rejected_by_the_real_backend(page, registered):
+    # No fake_vision: hits the real ai-service, which rejects before any classification/LLM call.
+    page.set_input_files(FILE_INPUT, files=[{"name": "tiny.bmp", "mimeType": "image/bmp", "buffer": big_bmp(100, 100)}])
+    expect(page.get_by_text("This photo is too small. Try a larger one.")).to_be_visible()
+
+
 def test_vision_error_is_friendly(page, registered):
     # The vision route nests its envelope under "detail" (FastAPI HTTPException).
     page.route("**/api/v1/vision/analyze", lambda r: r.fulfill(status=422, json={
