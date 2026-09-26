@@ -16,7 +16,10 @@ class Client(httpx.Client):
             if resp.status_code != 429:
                 return resp
             resp.close()
-            time.sleep(float(resp.headers.get("Retry-After", 5)))
+            # The gateway sends Redis TTL, which is -2/-1 if the key expired meanwhile; an
+            # HTTP-date or missing header falls back to 5 s.
+            after = resp.headers.get("Retry-After", "")
+            time.sleep(max(1, int(after)) if after.lstrip("-").isdigit() else 5)
         return resp
 
 
