@@ -25,6 +25,20 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+  ### TESTER (make gate) ###
+  # Integration + e2e suite in tests/. Profile `test`: never started by `make up`.
+  # Run: docker compose --profile test run --rm tester [pytest args]
+  tester:
+    build:
+      context: ./tests
+    profiles: ["test"]
+    volumes:
+      - ./tests:/tests:ro
+      - ./scripts/jupyter/test_data:/test_data:ro
+      - nginx-ssl:/nginx-ssl:ro
+    networks:
+      - backend-network  # api-gateway:8001 (integration)
+      - proxy            # nginx:443 (e2e)
   ### LITELLM PROXY (inference gateway) ###
   litellm:
     container_name: ft_transcendence_litellm
