@@ -61,3 +61,48 @@ def test_live_password_rules(page):
     page.get_by_label("Password", exact=True).fill("abcdefg1")
     expect(page.locator('[data-rule="length"]')).to_have_attribute("data-met", "true")
     expect(page.locator('[data-rule="number"]')).to_have_attribute("data-met", "true")
+
+
+def test_weak_new_password_is_not_sent(page, registered):
+    calls = spy(page, r"/api/v1/auth/change-password")
+    page.goto("/profile")
+    page.get_by_label("Current password").fill(registered["password"])
+    page.get_by_label("New password", exact=True).fill("weak")
+    page.get_by_label("Confirm new password").fill("weak")
+    page.get_by_role("button", name="Change password").click()
+    expect(page.get_by_label("New password", exact=True)).to_be_focused()
+    assert calls == []
+
+
+def test_wrong_current_password_is_translated(page, registered):
+    page.goto("/profile")
+    page.get_by_label("Language").select_option("it")
+    page.get_by_label("Password attuale").fill("Wrong-Pass-999")
+    page.get_by_label("Nuova password", exact=True).fill("Brand-New-123")
+    page.get_by_label("Conferma nuova password").fill("Brand-New-123")
+    page.get_by_role("button", name="Cambia password").click()
+    expect(page.get_by_text("La password attuale non è corretta.")).to_be_visible()
+    expect(page.get_by_text("Current password is incorrect.")).to_have_count(0)
+
+
+def test_pet_name_required(page, registered, fake_vision):
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Save as my pet").click()
+    dialog = page.get_by_role("dialog")
+    dialog.get_by_role("button", name="Save").click()
+    expect(dialog.get_by_label("Name")).to_have_attribute("aria-invalid", "true")
+    expect(dialog.get_by_text("This field is required.").first).to_be_visible()
+
+
+def test_pet_weight_must_be_positive(page, registered, fake_vision):
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Save as my pet").click()
+    page.get_by_role("dialog").get_by_label("Name").fill("Biscotto")
+    page.get_by_role("dialog").get_by_role("button", name="Save").click()
+    expect(page).to_have_url(re.compile(r"/pets/[0-9a-f-]{36}$"))
+    patches = []
+    page.on("request", lambda r: patches.append(r.url) if r.method == "PATCH" else None)
+    page.get_by_label("Weight (kg)").fill("0")
+    page.get_by_role("button", name="Save changes").click()
+    expect(page.get_by_label("Weight (kg)")).to_have_attribute("aria-invalid", "true")
+    assert patches == []

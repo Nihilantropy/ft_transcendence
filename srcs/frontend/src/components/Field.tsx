@@ -7,10 +7,9 @@ export default function Field({ label, error, id, ...props }:
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={fieldId} className="font-bold">{label}</label>
-      <input id={fieldId} aria-invalid={!!error} aria-describedby={error ? `${fieldId}-err` : undefined}
+      <input {...props} id={fieldId} aria-invalid={!!error} aria-describedby={error ? `${fieldId}-err` : undefined}
         aria-required={props.required || undefined}
-        className="rounded-2xl border border-field bg-card px-4 py-3 focus-visible:outline-2 focus-visible:outline-accent"
-        {...props} />
+        className="rounded-2xl border border-field bg-card px-4 py-3 focus-visible:outline-2 focus-visible:outline-accent" />
       {error && <p id={`${fieldId}-err`} className="text-danger">{error}</p>}
     </div>
   )

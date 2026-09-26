@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
-import { api, fieldError, type Pet } from '../api'
+import { api, type Pet } from '../api'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import Dropzone from '../components/Dropzone'
 import ErrorNote from '../components/ErrorNote'
+import ErrorSummary from '../components/ErrorSummary'
 import Field from '../components/Field'
 import Illustration from '../components/Illustration'
 import { breedLabel, useI18n } from '../i18n'
 import { toJpegDataUrl } from '../image'
 import { usePageTitle } from '../usePageTitle'
+import { useForm } from '../useForm'
+import { max100, required } from '../validation'
+
+const SAVE_FORM = { name: [required, max100] }
 
 export type Analysis = {
   species: 'dog' | 'cat'
@@ -128,14 +133,14 @@ function Result({ result, preview, onAgain }: { result: Analysis; preview: strin
 function SaveDialog({ dialog, result }: { dialog: RefObject<HTMLDialogElement | null>; result: Analysis }) {
   const { t } = useI18n()
   const navigate = useNavigate()
-  const [error, setError] = useState<unknown>()
-  const [busy, setBusy] = useState(false)
+  const form = useForm(SAVE_FORM)
 
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const name = String(new FormData(e.currentTarget).get('name') ?? '').trim()
-    setBusy(true)
-    setError(undefined)
+    const v = form.check(e.currentTarget)
+    if (!v) return
+    const name = v.name.trim()
+    form.setBusy(true)
     try {
       const b = result.breed_analysis
       // breed = the classifier id (max_length 100), never a composed crossbreed string.
@@ -145,20 +150,21 @@ function SaveDialog({ dialog, result }: { dialog: RefObject<HTMLDialogElement | 
       await api(`/pets/${pet.id}`, { method: 'PATCH', body: { breed_confidence: b.confidence } }).catch(() => {})
       navigate(`/pets/${pet.id}`)
     } catch (err) {
-      setError(err)
-      setBusy(false)
+      form.setApiError(err)
+      form.setBusy(false)
     }
   }
 
   return (
     <dialog ref={dialog} className="m-auto w-[min(28rem,calc(100%-2rem))] rounded-3xl bg-card p-6 text-fg backdrop:bg-black/40">
-      <form onSubmit={save} className="flex flex-col gap-4">
+      <form onSubmit={save} className="flex flex-col gap-4" noValidate>
         <h2 className="text-2xl font-bold">{t('save.title')}</h2>
-        <Field label={t('save.name')} name="name" required maxLength={100} autoFocus error={fieldError(error, 'name')} />
-        {error ? <ErrorNote error={error} /> : null}
+        <Field label={t('save.name')} name="name" required autoFocus error={form.message('name')} />
+        <ErrorSummary items={form.summary({ name: t('save.name') })} />
+        {form.apiError ? <ErrorNote error={form.apiError} /> : null}
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => dialog.current?.close()}>{t('save.cancel')}</Button>
-          <Button disabled={busy}>{t('save.submit')}</Button>
+          <Button busy={form.busy}>{t('save.submit')}</Button>
         </div>
       </form>
     </dialog>

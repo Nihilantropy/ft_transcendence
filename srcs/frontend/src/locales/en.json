@@ -43,6 +43,7 @@
   "password.rule.number": "At least one number",
   "password.rule_met": "(done)",
   "password.rule_unmet": "(missing)",
+  "password.rules_status": "{met} of 3 requirements met",
   "analyze.title": "Analyze a photo",
   "analyze.drop": "Drag or take a photo",
   "analyze.drop_hint": "A dog or a cat, well lit, looking at the camera.",

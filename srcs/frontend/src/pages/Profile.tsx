@@ -1,20 +1,29 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { api, fieldError } from '../api'
+import { ApiError, api } from '../api'
 import { useAuth } from '../auth'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import ErrorNote from '../components/ErrorNote'
-import Field from '../components/Field'
+import ErrorSummary from '../components/ErrorSummary'
+import PasswordField from '../components/PasswordField'
 import { useI18n } from '../i18n'
 import { usePageTitle } from '../usePageTitle'
+import { useForm } from '../useForm'
+import { required, sameAs, strongPassword } from '../validation'
+
+const PASSWORD_FORM = {
+  current_password: [required],
+  new_password: [required, strongPassword],
+  new_password_confirm: [required, sameAs('new_password')],
+}
 
 export default function Profile() {
   const { t } = useI18n()
   usePageTitle(t('profile.title'))
   const { user, logout, clear } = useAuth()
   const navigate = useNavigate()
-  const [pwError, setPwError] = useState<unknown>()
+  const pw = useForm(PASSWORD_FORM)
   const [pwDone, setPwDone] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [understood, setUnderstood] = useState(false)
@@ -23,15 +32,19 @@ export default function Profile() {
   async function changePassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = e.currentTarget
-    setPwError(undefined)
     setPwDone(false)
+    const v = pw.check(form)
+    if (!v) return
+    pw.setBusy(true)
     try {
       // The server revokes every session and re-issues this one's cookies.
-      await api('/auth/change-password', { method: 'PUT', body: Object.fromEntries(new FormData(form)) })
+      await api('/auth/change-password', { method: 'PUT', body: v })
       form.reset()
       setPwDone(true)
     } catch (err) {
-      setPwError(err)
+      pw.setApiError(err)
+    } finally {
+      pw.setBusy(false)
     }
   }
 
@@ -46,6 +59,12 @@ export default function Profile() {
     }
   }
 
+  const labels = {
+    current_password: t('profile.current_password'),
+    new_password: t('profile.new_password'),
+    new_password_confirm: t('profile.new_password_confirm'),
+  }
+
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -53,7 +72,7 @@ export default function Profile() {
           <h1 className="text-2xl font-bold">{t('profile.title')}</h1>
           <p>{user?.email}</p>
         </div>
-        <Button variant="ghost" onClick={async () => { await logout(); navigate('/', { replace: true }) }}>
+        <Button variant="ghost" className="self-start" onClick={async () => { await logout(); navigate('/', { replace: true }) }}>
           {t('profile.logout')}
         </Button>
       </div>
@@ -61,22 +80,24 @@ export default function Profile() {
       <Card>
         <form onSubmit={changePassword} className="flex flex-col gap-4" noValidate>
           <h2 className="text-2xl font-bold">{t('profile.password_title')}</h2>
-          <Field label={t('profile.current_password')} name="current_password" type="password"
-            autoComplete="current-password" required error={fieldError(pwError, 'current_password')} />
-          <Field label={t('profile.new_password')} name="new_password" type="password"
-            autoComplete="new-password" required error={fieldError(pwError, 'new_password')} />
-          <Field label={t('profile.new_password_confirm')} name="new_password_confirm" type="password"
-            autoComplete="new-password" required error={fieldError(pwError, 'new_password_confirm')} />
-          {pwError ? <ErrorNote error={pwError} /> : null}
+          <PasswordField label={labels.current_password} name="current_password" required
+            autoComplete="current-password" error={pw.message('current_password')} />
+          <PasswordField label={labels.new_password} name="new_password" required rules
+            autoComplete="new-password" error={pw.message('new_password')} />
+          <PasswordField label={labels.new_password_confirm} name="new_password_confirm" required
+            autoComplete="new-password" error={pw.message('new_password_confirm')} />
+          <ErrorSummary items={pw.summary(labels)} />
+          {pw.apiError && !(pw.apiError instanceof ApiError && pw.apiError.code === 'VALIDATION_ERROR')
+            ? <ErrorNote error={pw.apiError} /> : null}
           {pwDone && <p role="status" className="font-bold">{t('profile.password_done')}</p>}
-          <Button>{t('profile.password_submit')}</Button>
+          <Button busy={pw.busy} className="self-start">{t('profile.password_submit')}</Button>
         </form>
       </Card>
 
       <Card className="flex flex-col gap-4">
         <h2 className="text-2xl font-bold">{t('profile.delete_title')}</h2>
         {!confirming ? (
-          <Button variant="ghost" onClick={() => setConfirming(true)}>{t('profile.delete_start')}</Button>
+          <Button variant="ghost" className="self-start" onClick={() => setConfirming(true)}>{t('profile.delete_start')}</Button>
         ) : (
           <>
             <p>{t('profile.delete_warning')}</p>
@@ -86,7 +107,7 @@ export default function Profile() {
               {t('profile.delete_check')}
             </label>
             {delError ? <ErrorNote error={delError} /> : null}
-            <Button variant="danger" disabled={!understood} onClick={deleteAccount}>{t('profile.delete_submit')}</Button>
+            <Button variant="danger" className="self-start" disabled={!understood} onClick={deleteAccount}>{t('profile.delete_submit')}</Button>
           </>
         )}
       </Card>

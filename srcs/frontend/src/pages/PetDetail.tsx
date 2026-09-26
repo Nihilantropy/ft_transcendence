@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { api, fieldError, type Pet } from '../api'
+import { api, type Pet } from '../api'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import ErrorNote from '../components/ErrorNote'
+import ErrorSummary from '../components/ErrorSummary'
 import Field from '../components/Field'
 import Illustration from '../components/Illustration'
 import { breedLabel, useI18n } from '../i18n'
 import { usePageTitle } from '../usePageTitle'
+import { useForm } from '../useForm'
+import { positiveNumber, wholeNumber } from '../validation'
+
+const PET_FORM = { age: [wholeNumber], weight: [positiveNumber] }
 
 // Exactly the conditions the recommender scores (recommendation-service feature_engineering.py).
 const HEALTH = ['sensitive_stomach', 'weight_management', 'joint_health', 'skin_allergies', 'dental_health', 'kidney_health']
@@ -23,7 +28,7 @@ export default function PetDetail() {
   const [error, setError] = useState<unknown>()
   const [recs, setRecs] = useState<Rec[]>()
   const [recError, setRecError] = useState<unknown>()
-  const [formError, setFormError] = useState<unknown>()
+  const form = useForm(PET_FORM)
   const [saved, setSaved] = useState(false)
 
   const loadRecs = useCallback(() => {
@@ -37,20 +42,23 @@ export default function PetDetail() {
 
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const f = new FormData(e.currentTarget)
-    const num = (k: string) => {
-      const v = String(f.get(k) ?? '').trim()
-      return v === '' ? null : Number(v) // empty = unknown, which the backend accepts
-    }
     setSaved(false)
-    setFormError(undefined)
+    const v = form.check(e.currentTarget)
+    if (!v) return
+    form.setBusy(true)
     try {
-      const body = { age: num('age'), weight: num('weight'), health_conditions: f.getAll('health') }
+      const body = {
+        age: v.age === '' ? null : Number(v.age),
+        weight: v.weight === '' ? null : Number(v.weight),
+        health_conditions: new FormData(e.currentTarget).getAll('health'),
+      }
       setPet(await api<Pet>(`/pets/${pid}`, { method: 'PATCH', body }))
       setSaved(true)
       loadRecs()
     } catch (err) {
-      setFormError(err)
+      form.setApiError(err)
+    } finally {
+      form.setBusy(false)
     }
   }
 
@@ -68,12 +76,12 @@ export default function PetDetail() {
       </div>
 
       <Card>
-        <form onSubmit={save} className="flex flex-col gap-4">
+        <form onSubmit={save} className="flex flex-col gap-4" noValidate>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t('pet.age')} name="age" type="number" min={0} step={1} inputMode="numeric"
-              defaultValue={pet.age ?? ''} error={fieldError(formError, 'age')} />
+              defaultValue={pet.age ?? ''} error={form.message('age')} />
             <Field label={t('pet.weight')} name="weight" type="number" min={0.1} step="any" inputMode="decimal"
-              defaultValue={pet.weight ?? ''} error={fieldError(formError, 'weight')} />
+              defaultValue={pet.weight ?? ''} error={form.message('weight')} />
           </div>
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 font-bold">{t('pet.health')}</legend>
@@ -85,9 +93,10 @@ export default function PetDetail() {
               </label>
             ))}
           </fieldset>
-          {formError ? <ErrorNote error={formError} /> : null}
+          <ErrorSummary items={form.summary({ age: t('pet.age'), weight: t('pet.weight') })} />
+          {form.apiError ? <ErrorNote error={form.apiError} /> : null}
           <div className="flex items-center gap-3">
-            <Button>{t('pet.save')}</Button>
+            <Button busy={form.busy}>{t('pet.save')}</Button>
             {saved && (
               <>
                 <span role="status" className="font-bold">{t('pet.saved')}</span>

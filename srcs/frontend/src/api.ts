@@ -98,9 +98,3 @@ export async function api<T = unknown>(path: string, opts: Opts = {}, retried = 
   if (err?.code) throw new ApiError(err.code, err.message ?? '', res.status, err.details ?? {})
   throw new ApiError(STATUS_CODES[res.status] ?? 'UNKNOWN', text.slice(0, 200), res.status)
 }
-
-export function fieldError(e: unknown, field: string): string | undefined {
-  if (!(e instanceof ApiError)) return undefined
-  const v = e.details[field]
-  return Array.isArray(v) ? v[0] : v
-}

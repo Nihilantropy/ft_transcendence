@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { ApiError, api, fieldError, setLogoutHandler } from './api'
+import { ApiError, api, setLogoutHandler } from './api'
 
 type Reply = { status: number; body?: unknown; html?: string; headers?: Record<string, string> }
 const json = (r: Reply) =>
@@ -38,8 +38,6 @@ describe('api', () => {
     const e = await api<any>('/auth/register', { method: 'POST', body: {} }).catch((x) => x)
     expect(e).toBeInstanceOf(ApiError)
     expect([e.code, e.status, e.details]).toEqual(['VALIDATION_ERROR', 422, { email: ['bad'] }])
-    expect(fieldError(e, 'email')).toBe('bad')
-    expect(fieldError(e, 'password')).toBeUndefined()
   })
 
   test('vision detail-wrapped envelope becomes ApiError', async () => {

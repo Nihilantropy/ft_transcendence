@@ -32,12 +32,11 @@ export default function PasswordField({ label, error, rules = false, onChange, .
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="font-bold">{label}</label>
       <div className="relative">
-        <input id={id} type={visible ? 'text' : 'password'} aria-invalid={!!error}
+        <input {...props} id={id} type={visible ? 'text' : 'password'} aria-invalid={!!error}
           aria-describedby={described || undefined} aria-required={props.required || undefined}
           onKeyDown={onKey} onKeyUp={onKey}
           onChange={(e) => { setValue(e.target.value); onChange?.(e) }}
-          className="w-full rounded-2xl border border-field bg-card py-3 pr-14 pl-4 focus-visible:outline-2 focus-visible:outline-accent"
-          {...props} />
+          className="w-full rounded-2xl border border-field bg-card py-3 pr-14 pl-4 focus-visible:outline-2 focus-visible:outline-accent" />
         <button type="button" aria-controls={id} aria-pressed={visible} aria-label={t('password.show')}
           onClick={() => setVisible((v) => !v)}
           className="absolute top-1/2 right-2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-xl hover:bg-bg focus-visible:outline-2 focus-visible:outline-accent">
@@ -49,17 +48,22 @@ export default function PasswordField({ label, error, rules = false, onChange, .
       </div>
       {caps && <p id={`${id}-caps`} role="status" className="font-bold">{t('password.caps')}</p>}
       {rules && (
-        <ul id={`${id}-rules`} aria-live="polite" className="flex flex-col gap-0.5">
-          {PASSWORD_RULES.map((r) => {
-            const met = r.test(value)
-            return (
-              <li key={r.id} data-rule={r.id} data-met={met} className="flex items-center gap-2">
-                <span aria-hidden="true">{met ? '✓' : '○'}</span>
-                {t(r.key)}<span className="sr-only">{t(met ? 'password.rule_met' : 'password.rule_unmet')}</span>
-              </li>
-            )
-          })}
-        </ul>
+        <>
+          <ul id={`${id}-rules`} className="flex flex-col gap-0.5">
+            {PASSWORD_RULES.map((r) => {
+              const met = r.test(value)
+              return (
+                <li key={r.id} data-rule={r.id} data-met={met} className="flex items-center gap-2">
+                  <span aria-hidden="true">{met ? '✓' : '○'}</span>
+                  {t(r.key)}<span className="sr-only">{t(met ? 'password.rule_met' : 'password.rule_unmet')}</span>
+                </li>
+              )
+            })}
+          </ul>
+          <p aria-live="polite" className="sr-only">
+            {t('password.rules_status').replace('{met}', String(PASSWORD_RULES.filter((r) => r.test(value)).length))}
+          </p>
+        </>
       )}
       {error && <p id={`${id}-err`} className="text-danger">{error}</p>}
     </div>
