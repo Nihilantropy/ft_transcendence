@@ -57,6 +57,16 @@ async def test_proxy_forwards_to_user_service():
 
     assert response.status_code == 200
 
+def test_gateway_client_never_stores_cookies():
+    """Regression: the shared client must not keep Set-Cookie from backends (session leak)."""
+    import httpx
+    from routes.proxy import httpx_client
+    request = httpx.Request("POST", "http://auth-service:3001/api/v1/auth/login")
+    response = httpx.Response(200, headers={"set-cookie": "refresh_token=SECRET; Path=/"}, request=request)
+    httpx_client.cookies.extract_cookies(response)
+    assert len(httpx_client.cookies.jar) == 0
+
+
 @pytest.mark.asyncio
 async def test_proxy_adds_user_context_headers():
     """Test that proxy adds X-User-ID and X-User-Role headers"""
