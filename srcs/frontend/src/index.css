@@ -38,3 +38,45 @@
 body {
   @apply bg-bg text-fg font-sans;
 }
+
+/* ── Line-art animations ─────────────────────────────────────────────────────────────
+   Only transform / opacity / stroke-dashoffset. "Once" animations use `backwards` so their resting
+   state (after the run, or with animation: none) is the finished drawing. */
+[class*="ill-"] { transform-box: fill-box; }
+
+.ill-hello path { animation: ill-draw 1.2s ease-out backwards; }
+@keyframes ill-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+.ill-hello .ill-ear-l, .pet-card:hover .ill-ear-l, .pet-card:focus-visible .ill-ear-l { transform-origin: 90% 10%; animation: ill-flap-l .9s ease-in-out 1.3s 2 backwards; }
+.ill-hello .ill-ear-r, .pet-card:hover .ill-ear-r, .pet-card:focus-visible .ill-ear-r { transform-origin: 10% 10%; animation: ill-flap-r .9s ease-in-out 1.3s 2 backwards; }
+.pet-card:hover .ill-ear-l, .pet-card:focus-visible .ill-ear-l, .pet-card:hover .ill-ear-r, .pet-card:focus-visible .ill-ear-r { animation-delay: 0s; animation-iteration-count: 1; }
+@keyframes ill-flap-l { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-16deg); } 60% { transform: rotate(5deg); } }
+@keyframes ill-flap-r { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(16deg); } 60% { transform: rotate(-5deg); } }
+.ill-hello .ill-eyes { transform-origin: 50% 50%; animation: ill-blink .3s ease-in-out 2.6s 1; }
+@keyframes ill-blink { 50% { transform: scaleY(.1); } }
+
+.ill-sniff { transform-origin: 50% 100%; animation: ill-sniff 1.2s ease-in-out infinite; }
+@keyframes ill-sniff { 0%, 100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(.6px) rotate(-3deg); } 75% { transform: translateY(.6px) rotate(3deg); } }
+.ill-step { animation: ill-step 1.8s ease-in-out infinite; }
+@keyframes ill-step { 0%, 100% { opacity: 0; } 20%, 60% { opacity: 1; } }
+
+.ill-hop { animation: ill-hop 1s ease-out backwards; }
+@keyframes ill-hop { 0% { transform: translateY(0); } 30% { transform: translateY(-3px); } 55% { transform: translateY(0); } 75% { transform: translateY(-1px); } }
+.ill-pop { transform-origin: 50% 50%; animation: ill-pop .8s ease-out .15s backwards; }
+@keyframes ill-pop { from { opacity: 0; transform: scale(.2); } 60% { opacity: 1; transform: scale(1.25); } to { transform: scale(1); } }
+.ill-twinkle { transform-origin: 50% 50%; animation: ill-twinkle 1s ease-out .3s backwards; }
+@keyframes ill-twinkle { from { opacity: 0; transform: scale(.4) rotate(-30deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+
+.ill-tilt { transform-origin: 50% 60%; animation: ill-tilt 1.2s ease-in-out backwards; }
+@keyframes ill-tilt { 0% { transform: rotate(0); } 40%, 100% { transform: rotate(-14deg); } }
+.ill-qm { animation: ill-qm .9s ease-out .3s backwards; }
+@keyframes ill-qm { from { opacity: 0; transform: translateY(-6px); } 50% { opacity: 1; transform: translateY(0); } 70% { transform: translateY(-2px); } to { transform: translateY(0); } }
+
+.ill-wobble { transform-origin: 50% 100%; animation: ill-wobble 1.4s ease-in-out .5s backwards; }
+@keyframes ill-wobble { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-6deg); } 40% { transform: rotate(5deg); } 60% { transform: rotate(-3deg); } 80% { transform: rotate(2deg); } }
+.ill-drop { animation: ill-drop 1s cubic-bezier(.3,1.4,.6,1) backwards; }
+@keyframes ill-drop { from { opacity: 0; transform: translateY(-14px) rotate(-40deg); } 30% { opacity: 1; } }
+
+.ill-wing-l { transform-origin: 100% 80%; animation: ill-wing-l .5s ease-in-out infinite alternate; }
+.ill-wing-r { transform-origin: 0 80%; animation: ill-wing-r .5s ease-in-out infinite alternate; }
+@keyframes ill-wing-l { to { transform: rotate(-22deg) scaleY(.8); } }
+@keyframes ill-wing-r { to { transform: rotate(22deg) scaleY(.8); } }

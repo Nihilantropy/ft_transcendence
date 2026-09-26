@@ -86,7 +86,12 @@ export default function PetDetail() {
           {formError ? <ErrorNote error={formError} /> : null}
           <div className="flex items-center gap-3">
             <Button>{t('pet.save')}</Button>
-            {saved && <span role="status" className="font-bold">{t('pet.saved')}</span>}
+            {saved && (
+              <>
+                <span role="status" className="font-bold">{t('pet.saved')}</span>
+                <Illustration name="success" className="h-10 w-10 text-accent" />
+              </>
+            )}
           </div>
         </form>
       </Card>

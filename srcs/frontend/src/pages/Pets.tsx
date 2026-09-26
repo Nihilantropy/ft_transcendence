@@ -29,7 +29,7 @@ export default function Pets() {
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {pets.map((p) => (
             <li key={p.id}>
-              <Link to={`/pets/${p.id}`} className="flex items-center gap-4 rounded-3xl bg-card p-4 shadow-sm transition hover:shadow-md">
+              <Link to={`/pets/${p.id}`} className="pet-card flex items-center gap-4 rounded-3xl bg-card p-4 shadow-sm transition hover:shadow-md">
                 <Illustration name={p.species === 'cat' ? 'cat' : 'dog'} className="h-16 w-16 shrink-0 text-accent" />
                 <div>
                   <p className="font-bold">{p.name}</p>

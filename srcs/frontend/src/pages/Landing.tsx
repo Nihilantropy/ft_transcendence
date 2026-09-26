@@ -7,7 +7,7 @@ export default function Landing() {
   const { t } = useI18n()
   return (
     <section className="flex flex-col items-center gap-6 py-12 text-center">
-      <Illustration name="dog" className="h-40 w-40 text-accent" />
+      <Illustration name="hello" className="h-40 w-40 text-accent" />
       <h1 className="text-2xl font-bold">{t('landing.title')}</h1>
       <p>{t('landing.subtitle')}</p>
       <div className="flex flex-wrap justify-center gap-3">
