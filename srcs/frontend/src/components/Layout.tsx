@@ -1,10 +1,14 @@
 import { Link, Outlet } from 'react-router'
+import { useAuth } from '../auth'
 import { LANGS, useI18n, type Lang } from '../i18n'
+import NavBar from './NavBar'
 
 export default function Layout() {
   const { t, lang, setLang } = useI18n()
+  const { user } = useAuth()
   return (
     <div className="flex min-h-dvh flex-col">
+      {user && <NavBar />}
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <Outlet />
       </main>

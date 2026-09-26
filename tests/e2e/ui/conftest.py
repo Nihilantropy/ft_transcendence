@@ -58,6 +58,18 @@ def no_csp_violations(page):
 
 
 @pytest.fixture
+def registered(page, ui_user):
+    """ui_user, registered through the UI and signed in, on /analyze."""
+    page.goto("/register")
+    page.get_by_label("Email").fill(ui_user["email"])
+    page.get_by_label("Password", exact=True).fill(ui_user["password"])
+    page.get_by_label("Confirm password").fill(ui_user["password"])
+    page.get_by_role("button", name="Create account").click()
+    expect(page).to_have_url(re.compile(r"/analyze$"))
+    return ui_user
+
+
+@pytest.fixture
 def ui_user(page):
     """A unique gate-…@example.com identity; the account (if the test created one) is deleted after."""
     user = {"email": f"gate-{uuid.uuid4().hex[:12]}@example.com", "password": PASSWORD}
