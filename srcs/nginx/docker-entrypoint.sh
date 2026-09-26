@@ -23,12 +23,14 @@ envsubst '${HOST_DOMAIN}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx
 # self-signed warning. The subject requires compatibility with the latest
 # stable Chrome. Python's ssl module applies the same rule, so without a SAN the
 # certificate could not be verified by a test client either.
+# DNS:nginx is for the `tester` container (make gate), which reaches nginx by its
+# compose service name and verifies this certificate from the nginx-ssl volume.
 echo "Generating SSL certificate for ${HOST_DOMAIN}..."
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout /etc/nginx/ssl/selfsigned.key \
     -out /etc/nginx/ssl/selfsigned.crt \
     -subj "/C=IT/ST=State/L=City/O=42/CN=${HOST_DOMAIN}" \
-    -addext "subjectAltName=DNS:${HOST_DOMAIN},DNS:localhost,IP:127.0.0.1"
+    -addext "subjectAltName=DNS:${HOST_DOMAIN},DNS:localhost,DNS:nginx,IP:127.0.0.1"
 
 # Set proper permissions
 chmod 644 /etc/nginx/ssl/selfsigned.crt

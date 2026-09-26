@@ -24,7 +24,7 @@ DOWN_PROFILES = local,cloud,elk
 # one from the other silently matched nothing.
 TRANSCENDENCE_CONTAINERS = ft_transcendence_nginx ft_transcendence_litellm ollama ft_transcendence_ai_service ft_transcendence_classification_service ft_transcendence_auth_service ft_transcendence_user_service ft_transcendence_redis ft_transcendence_db ft_transcendence_api_gateway ft_transcendence_recommendation_service ft_transcendence_elk_setup ft_transcendence_elasticsearch ft_transcendence_logstash ft_transcendence_kibana ft_transcendence_vector
 
-TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache $(PROJECT_NAME)_es-data $(PROJECT_NAME)_elk-certs $(PROJECT_NAME)_elk-snapshots $(PROJECT_NAME)_vector-data
+TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache $(PROJECT_NAME)_es-data $(PROJECT_NAME)_elk-certs $(PROJECT_NAME)_elk-snapshots $(PROJECT_NAME)_vector-data $(PROJECT_NAME)_nginx-ssl
 
 # Compose prefixes each network in the `networks:` block with the project name.
 # The old value named a `transcendence_network` that this compose file has never
@@ -34,7 +34,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage elk elk-creds $(TEST_FLAGS)
+.PHONY: all setup build up show stop start down restart re clean fclean help test test-coverage gate elk elk-creds $(TEST_FLAGS)
 
 # Default target
 all: build up elk show logs
@@ -235,6 +235,26 @@ elk-creds:
 test-integration:
 	@echo "Running integration tests..."
 	@scripts/run-integration-tests.sh
+
+## gate: Merge gate — unit + integration + e2e on the running stack. Must be green before any merge;
+##       paste the last lines into the PR.
+gate:
+	@echo "Starting the stack and waiting for healthchecks (classification can take ~5 min cold)..."
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --build --wait --wait-timeout 600
+	@# The gate must test HEAD, not what is already running: --build picks up baked-in code, and
+	@# these FastAPI services bind-mount their code but run without --reload, so they are restarted.
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --force-recreate --no-deps --wait --wait-timeout 600 api-gateway ai-service recommendation-service
+	@# nginx resolves api-gateway once at startup: after the gateway is recreated (new IP) it
+	@# would keep proxying to the old address and answer 502, so restart it too.
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart nginx
+	@scripts/run-migrations.sh
+	@scripts/seed-db.sh
+	@scripts/create-superuser.sh
+	@scripts/run-unit-tests.sh
+	@scripts/run-integration-tests.sh
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --profile test run --rm --build tester
+	@echo ""
+	@echo "✅ GATE PASSED — $$(git rev-parse --abbrev-ref HEAD) @ $$(git rev-parse --short HEAD)$$(git diff --quiet HEAD || echo ' (uncommitted changes)')"
 
 $(TEST_FLAGS):
 	@:
