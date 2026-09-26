@@ -26,7 +26,7 @@ def test_change_password(page, registered):
     expect(page).to_have_url(re.compile(r"/$"))
     page.goto("/login")
     page.get_by_label("Email").fill(registered["email"])
-    page.get_by_label("Password").fill(NEW_PASSWORD)
+    page.get_by_label("Password", exact=True).fill(NEW_PASSWORD)
     page.get_by_role("button", name="Log in").click()
     expect(page).to_have_url(re.compile(r"/analyze$"))
 
@@ -51,7 +51,7 @@ def test_delete_account_needs_double_confirmation(page, registered):
 
     page.goto("/login")
     page.get_by_label("Email").fill(registered["email"])
-    page.get_by_label("Password").fill(registered["password"])
+    page.get_by_label("Password", exact=True).fill(registered["password"])
     page.get_by_role("button", name="Log in").click()
     expect(page.get_by_text("Wrong email or password.")).to_be_visible()
 

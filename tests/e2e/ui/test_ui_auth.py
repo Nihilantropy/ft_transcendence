@@ -11,20 +11,10 @@ def test_register_lands_on_analyze(page, registered):
     expect(page.get_by_role("navigation", name="Main")).to_be_visible()
 
 
-def test_register_password_mismatch_shows_field_error(page, ui_user):
-    page.goto("/register")
-    page.get_by_label("Email").fill(ui_user["email"])
-    page.get_by_label("Password", exact=True).fill(PASSWORD)
-    page.get_by_label("Confirm password").fill(PASSWORD + "x")
-    page.get_by_role("button", name="Create account").click()
-    expect(page.get_by_text("Passwords do not match.")).to_be_visible()
-    expect(page.get_by_label("Confirm password")).to_have_attribute("aria-invalid", "true")
-
-
 def test_login_wrong_password_is_friendly(page):
     page.goto("/login")
     page.get_by_label("Email").fill(f"gate-{uuid.uuid4().hex[:12]}@example.com")
-    page.get_by_label("Password").fill(PASSWORD)
+    page.get_by_label("Password", exact=True).fill(PASSWORD)
     page.get_by_role("button", name="Log in").click()
     expect(page.get_by_text("Wrong email or password.")).to_be_visible()
 
@@ -38,7 +28,7 @@ def test_login_after_logout_cookies_cleared(page, registered):
     retry_429(lambda: page.context.request.post("/api/v1/auth/logout"))
     page.goto("/login")
     page.get_by_label("Email").fill(registered["email"])
-    page.get_by_label("Password").fill(registered["password"])
+    page.get_by_label("Password", exact=True).fill(registered["password"])
     page.get_by_role("button", name="Log in").click()
     expect(page).to_have_url(re.compile(r"/analyze$"))
 

@@ -9,7 +9,8 @@ export const required: Rule = (v) => (v.trim() ? null : 'validation.required')
 export const email: Rule = (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? null : 'validation.email')
 
 // Mirrors auth-service: MinimumLengthValidator(8) + PasswordValidator (a letter and a digit).
-// Similarity to the email and common-password checks stay server-side (serverFieldKey).
+// Similarity to the email stays server-side (serverFieldKey) — auth-service has no
+// common-password check.
 export const PASSWORD_RULES = [
   { id: 'length', key: 'password.rule.length', test: (v: string) => v.length >= 8 },
   { id: 'letter', key: 'password.rule.letter', test: (v: string) => /[A-Za-z]/.test(v) },

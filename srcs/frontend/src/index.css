@@ -40,6 +40,10 @@ body {
 }
 main h1:focus { outline: none; }
 
+/* A progress indicator, deliberately not an `ill-*` class: it keeps spinning when motion is paused. */
+.spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ── Line-art animations ─────────────────────────────────────────────────────────────
    Only transform / opacity / stroke-dashoffset. "Once" animations use `backwards` so their resting
    state (after the run, or with animation: none) is the finished drawing. */

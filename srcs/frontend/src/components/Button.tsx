@@ -12,7 +12,12 @@ export function buttonClass(variant: Variant = 'primary') {
   return `inline-flex items-center justify-center rounded-2xl px-5 py-3 font-bold transition disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${STYLES[variant]}`
 }
 
-export default function Button({ variant = 'primary', className = '', ...props }:
-  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
-  return <button className={`${buttonClass(variant)} ${className}`} {...props} />
+export default function Button({ variant = 'primary', busy = false, className = '', disabled, children, ...props }:
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean }) {
+  return (
+    <button className={`${buttonClass(variant)} ${className}`} disabled={disabled || busy} aria-busy={busy || undefined} {...props}>
+      {busy && <span className="spinner mr-2" aria-hidden="true" />}
+      {children}
+    </button>
+  )
 }
