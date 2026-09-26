@@ -13,7 +13,7 @@ export default function Layout() {
         <Link to="/privacy" className="underline-offset-4 hover:underline">{t('footer.privacy')}</Link>
         <Link to="/terms" className="underline-offset-4 hover:underline">{t('footer.terms')}</Link>
         <select aria-label={t('footer.language')} value={lang} onChange={(e) => setLang(e.target.value as Lang)}
-          className="ml-auto rounded-xl border border-line bg-card px-3 py-1">
+          className="ml-auto rounded-2xl border border-line bg-card px-3 py-1">
           {LANGS.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
         </select>
       </footer>
