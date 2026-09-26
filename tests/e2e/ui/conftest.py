@@ -6,7 +6,7 @@ import uuid
 import pytest
 from playwright.sync_api import expect
 
-from helpers import PASSWORD
+from helpers import PASSWORD, retry_429
 
 EDGE_URL = os.environ.get("EDGE_URL", "https://nginx")
 
@@ -88,10 +88,14 @@ def ui_user(page):
     user = {"email": f"gate-{uuid.uuid4().hex[:12]}@example.com", "password": PASSWORD}
     yield user
     req = page.context.request  # shares the browser's cookies
-    resp = req.delete("/api/v1/auth/delete")
+    # retry_429: teardown runs right after a full test's worth of page/asset/API traffic, which
+    # can trip nginx's general_limit (200 r/m) or the gateway's per-user limit (60 r/m) - the same
+    # real-config flake tests/helpers.py's Client already retries for the httpx-based suites.
+    resp = retry_429(lambda: req.delete("/api/v1/auth/delete"))
     if resp.status == 401:  # the test ended the session: log back in
-        login = req.post("/api/v1/auth/login", data={"email": user["email"], "password": user["password"]})
+        login = retry_429(lambda: req.post(
+            "/api/v1/auth/login", data={"email": user["email"], "password": user["password"]}))
         if login.status in (401, 422):  # never registered, or the test deleted the account
             return
-        resp = req.delete("/api/v1/auth/delete")
+        resp = retry_429(lambda: req.delete("/api/v1/auth/delete"))
     assert resp.ok, f"teardown delete -> {resp.status}: {resp.text()[:300]}"

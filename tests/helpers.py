@@ -27,3 +27,16 @@ def ok(resp, status=200):
     assert resp.status_code == status, (
         f"{resp.request.method} {resp.request.url.path} -> {resp.status_code}: {resp.text[:500]}")
     return resp.json() if resp.content else None
+
+
+def retry_429(request_fn, tries=12):
+    """Same retry as Client.send above, for Playwright's APIRequestContext (tests/e2e/ui/*), which
+    has no client-level hook to install it on. request_fn is a zero-arg callable making one call
+    (e.g. `lambda: req.delete(url)`); returns the final APIResponse."""
+    for _ in range(tries):
+        resp = request_fn()
+        if resp.status != 429:
+            return resp
+        after = resp.headers.get("retry-after", "")
+        time.sleep(max(1, int(after)) if after.lstrip("-").isdigit() else 5)
+    return resp
