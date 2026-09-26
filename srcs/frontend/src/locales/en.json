@@ -76,7 +76,7 @@
   "privacy.title": "Privacy Policy",
   "privacy.p1": "SmartBreeds keeps only what it needs to work: your email address, your password (stored hashed, never readable), the pets you save (name, species, breed, age, weight, health needs). Your language choice stays in your browser.",
   "privacy.p2": "Photos you analyze travel over an encrypted connection, are processed to recognise the animal and are then discarded: they are not stored. To write the report the photo is processed by an AI model, which may be a hosted service (Mistral AI) acting on our behalf.",
-  "privacy.p3": "We use only two technical cookies, needed to keep you signed in. No advertising, no tracking, no third-party analytics.",
+  "privacy.p3": "We use only two technical cookies, needed to keep you signed in. No advertising, no tracking, no third-party analytics. Our servers keep technical logs (IP address, requested page, time) for security and troubleshooting; they are deleted after a limited time.",
   "privacy.p4": "You can change your data from Profile and My pets at any time. Deleting your account permanently erases it together with every pet linked to it.",
   "privacy.p5": "SmartBreeds is a student project built at 42. For any question about your data, contact the project team.",
   "terms.title": "Terms of Service",

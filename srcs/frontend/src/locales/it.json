@@ -76,7 +76,7 @@
   "privacy.title": "Informativa sulla privacy",
   "privacy.p1": "SmartBreeds conserva solo ciò che serve a funzionare: il tuo indirizzo email, la password (salvata in forma cifrata, mai leggibile), gli animali che salvi (nome, specie, razza, età, peso, esigenze di salute). La lingua scelta resta nel tuo browser.",
   "privacy.p2": "Le foto che analizzi viaggiano su una connessione cifrata, vengono elaborate per riconoscere l'animale e poi scartate: non vengono conservate. Per scrivere il referto la foto è elaborata da un modello di intelligenza artificiale, che può essere un servizio esterno (Mistral AI) che agisce per nostro conto.",
-  "privacy.p3": "Usiamo solo due cookie tecnici, necessari per mantenerti connesso. Niente pubblicità, niente tracciamento, niente statistiche di terze parti.",
+  "privacy.p3": "Usiamo solo due cookie tecnici, necessari per mantenerti connesso. Niente pubblicità, niente tracciamento, niente statistiche di terze parti. I nostri server conservano log tecnici (indirizzo IP, pagina richiesta, orario) per sicurezza e risoluzione dei problemi; vengono eliminati dopo un periodo di tempo limitato.",
   "privacy.p4": "Puoi modificare i tuoi dati da Profilo e I miei animali in qualsiasi momento. Eliminando l'account lo cancelli per sempre insieme a tutti gli animali collegati.",
   "privacy.p5": "SmartBreeds è un progetto studentesco realizzato a 42. Per qualsiasi domanda sui tuoi dati, contatta il team del progetto.",
   "terms.title": "Termini di servizio",
