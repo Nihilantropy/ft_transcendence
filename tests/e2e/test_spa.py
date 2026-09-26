@@ -7,6 +7,10 @@ def test_root_serves_the_app(edge):
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     assert '<div id="root">' in resp.text
+    # index.html has no content hash: it must revalidate after every redeploy.
+    assert "no-cache" in resp.headers["cache-control"]
+    # `expires` on location = /index.html must not drop the server-level security headers.
+    assert "script-src 'self'" in resp.headers["content-security-policy"]
 
 
 def test_client_route_reload_serves_the_app(edge):

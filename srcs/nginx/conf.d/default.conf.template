@@ -145,6 +145,15 @@ server {
         try_files $uri /index.html;
     }
 
+    # index.html has no content hash: it must revalidate after every redeploy, or a browser can
+    # keep serving a stale shell that references assets a new build already deleted.
+    # `expires` is not `add_header` (see the note above location /), so the server-level security
+    # headers still apply here.
+    location = /index.html {
+        root /usr/share/nginx/html;
+        expires -1;
+    }
+
     # Vite puts a content hash in every file name under /assets: cache for a year.
     location /assets/ {
         root /usr/share/nginx/html;
