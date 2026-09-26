@@ -160,6 +160,12 @@ step 1 via `call_next`, so `request.state` stays empty: the outbound request car
 - **`/redoc` requires auth** while `/docs` and `/openapi.json` do not — `/redoc` was simply never added to
   the public set.
 - **`httpx_client` is a module-level `AsyncClient` that is never closed**; there is no lifespan handler.
+- **`httpx_client` has a reject-all cookie jar** (`cookies=CookieJar(policy=DefaultCookiePolicy(allowed_domains=[]))`,
+  `proxy.py:13-18`). httpx's default jar would otherwise store every backend `Set-Cookie` and replay it
+  on a later cookie-less request to the same host, handing one user's session to another caller (e.g. an
+  anonymous `POST /api/v1/auth/refresh` picking up the last logged-in user's refresh cookie). This only
+  affects the client's own storage — `Set-Cookie` headers are still forwarded to the browser via
+  `ProxyResponse.raw_headers`.
 - **`PORT`, `HOST`, `DEBUG`, `LOG_LEVEL` are declared in `config.py:8-11` and read by nothing.** The port
   comes from `Dockerfile:21`, the log level from `logging.basicConfig(level=logging.INFO)`
   (`logging_middleware.py:10`).

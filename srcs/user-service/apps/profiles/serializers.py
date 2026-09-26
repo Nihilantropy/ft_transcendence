@@ -98,13 +98,14 @@ class PetCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Pet
-        fields = ['name', 'species', 'breed', 'age', 'weight', 'health_conditions']
+        fields = ['name', 'species', 'breed', 'age', 'weight', 'health_conditions', 'image_url']
         extra_kwargs = {
             'species': {'required': True},
             'breed': {'required': False, 'allow_blank': True},
             'age': {'required': False},
             'weight': {'required': False},
-            'health_conditions': {'required': False}
+            'health_conditions': {'required': False},
+            'image_url': {'required': False}
         }
     
     def validate_age(self, value):

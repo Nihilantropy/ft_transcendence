@@ -192,6 +192,28 @@ class TestPetViewSet:
         pet = Pet.objects.get(name='Buddy')
         assert pet.user_id == user_id
 
+    def test_create_pet_sets_image_url(self):
+        """Test POST /pets accepts and stores image_url"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+
+        request = factory.post(
+            '/api/v1/pets/',
+            data=json.dumps({
+                'name': 'Buddy', 'species': 'dog', 'image_url': 'file:///tmp/buddy.jpg'
+            }),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'post': 'create'})
+        response = view(request)
+
+        assert response.status_code == 201
+        pet = Pet.objects.get(name='Buddy')
+        assert pet.image_url == 'file:///tmp/buddy.jpg'
+
     def test_retrieve_pet_enforces_ownership(self):
         """Test GET /pets/{id} checks ownership"""
         factory = RequestFactory()
@@ -399,7 +421,31 @@ class TestPetViewSetAdditional:
         pet.refresh_from_db()
         assert pet.age == 24
         assert pet.name == 'Buddy'  # Unchanged
-    
+
+    def test_partial_update_pet_sets_image_url(self):
+        """Test PATCH /pets/{id} sets image_url on a pet created without one"""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        pet = Pet.objects.create(
+            user_id=user_id, name='Buddy', species='dog'
+        )
+        assert pet.image_url is None
+
+        request = factory.patch(
+            f'/api/v1/pets/{pet.id}/',
+            data=json.dumps({'image_url': 'file:///tmp/buddy-new.jpg'}),
+            content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+
+        view = PetViewSet.as_view({'patch': 'partial_update'})
+        response = view(request, pk=pet.id)
+
+        assert response.status_code == 200
+        pet.refresh_from_db()
+        assert pet.image_url == 'file:///tmp/buddy-new.jpg'
+
     def test_delete_pet(self):
         """Test DELETE /pets/{id} deletes pet"""
         factory = RequestFactory()
