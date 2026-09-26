@@ -58,6 +58,19 @@ def no_csp_violations(page):
 
 
 @pytest.fixture
+def fake_vision(page):
+    """Answer /vision/analyze with CANNED (no model call) and record each request body."""
+    seen = []
+
+    def handle(route):
+        seen.append(route.request.post_data_json)
+        route.fulfill(json=CANNED)
+
+    page.route("**/api/v1/vision/analyze", handle)
+    return seen
+
+
+@pytest.fixture
 def registered(page, ui_user):
     """ui_user, registered through the UI and signed in, on /analyze."""
     page.goto("/register")
