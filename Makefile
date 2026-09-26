@@ -240,7 +240,10 @@ test-integration:
 ##       paste the last lines into the PR.
 gate:
 	@echo "Starting the stack and waiting for healthchecks (classification can take ~5 min cold)..."
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --wait --wait-timeout 600
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --build --wait --wait-timeout 600
+	@# The gate must test HEAD, not what is already running: --build picks up baked-in code, and
+	@# these FastAPI services bind-mount their code but run without --reload, so they are restarted.
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --force-recreate --no-deps --wait --wait-timeout 600 api-gateway ai-service recommendation-service
 	@scripts/run-migrations.sh
 	@scripts/seed-db.sh
 	@scripts/create-superuser.sh
