@@ -23,6 +23,7 @@ def test_change_password(page, registered):
     registered["password"] = NEW_PASSWORD  # teardown logs back in with it
 
     page.get_by_role("button", name="Log out").click()
+    expect(page).to_have_url(re.compile(r"/$"))
     page.goto("/login")
     page.get_by_label("Email").fill(registered["email"])
     page.get_by_label("Password").fill(NEW_PASSWORD)

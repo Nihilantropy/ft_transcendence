@@ -33,19 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser((await api<{ user: User }>('/auth/register', { method: 'POST', body })).user)
     },
     async logout() {
-      // Synchronous XHR, not fetch: the access/refresh cookies are httpOnly, so only this
-      // response's Set-Cookie can clear them, and a caller may hard-navigate immediately
-      // after this call returns (e.g. straight to /login). An async fetch — even keepalive,
-      // even sendBeacon — gets cancelled by Chromium before the response lands when the
-      // document is torn down that fast; a synchronous request blocks until it's actually done.
-      try {
-        const req = new XMLHttpRequest()
-        req.open('POST', '/api/v1/auth/logout', false)
-        req.withCredentials = true
-        req.send()
-      } catch {
-        // ponytail: best-effort; the local session ends regardless
-      }
+      // ponytail: the server call may fail (already expired); the local session ends regardless
+      await api('/auth/logout', { method: 'POST' }).catch(() => {})
       setUser(null)
     },
     clear: () => setUser(null),
