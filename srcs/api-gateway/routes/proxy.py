@@ -90,9 +90,13 @@ async def forward_request(
     # Get user context headers from middleware
     backend_headers = getattr(request.state, "backend_headers", {})
 
-    # Forward original headers (except host)
-    forward_headers = dict(request.headers)
-    forward_headers.pop("host", None)
+    # Forward original headers, except host and the identity headers this gateway owns.
+    # Keys are lowercase under ASGI while backend_headers are canonical-case, so without this a
+    # client-sent x-user-id / x-user-role survived the merge below as a second header (GW-16).
+    forward_headers = {
+        k: v for k, v in request.headers.items()
+        if k != "host" and not k.startswith("x-user-") and k != "x-request-id"
+    }
 
     # Strip cookies for non-auth endpoints (auth service needs cookies for refresh/logout)
     if not path.startswith("/api/v1/auth"):

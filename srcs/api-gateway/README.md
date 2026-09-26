@@ -112,10 +112,10 @@ matches, but `/health/` does not, and prefixes never do:
 
 ```
 /health   /docs   /openapi.json
-/api/v1/auth/login   /api/v1/auth/register   /api/v1/auth/refresh
+/api/v1/auth/login   /api/v1/auth/register   /api/v1/auth/refresh   /api/v1/auth/logout
 ```
 
-Everything else, including `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete` and
+Everything else, including `/api/v1/auth/verify`, `/api/v1/auth/delete` and
 `/api/v1/auth/change-password`, requires a valid `access_token` cookie.
 
 ### Prefix routing table
@@ -147,6 +147,7 @@ reason:
 |------|-----------|--------|
 | Headers | all inbound headers forwarded, `host` removed | `routes/proxy.py:94-95` |
 | Cookies | `cookie` header **stripped** unless the path starts with `/api/v1/auth` | `routes/proxy.py:98-99` |
+| Identity | client-sent `x-user-*` and `x-request-id` **dropped** (backends trust these) | `routes/proxy.py` |
 | Context | `X-User-ID`, `X-User-Role`, `X-Request-ID`, `X-Correlation-ID` merged in — only present for authenticated requests | `auth_middleware.py:57-62`, `proxy.py:91,102` |
 | Body | read and forwarded for `POST`/`PUT`/`PATCH` only; a `DELETE` body is dropped | `routes/proxy.py:109-110` |
 | Query | `dict(request.query_params)` — repeated keys collapse to the last value | `routes/proxy.py:125` |

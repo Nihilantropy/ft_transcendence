@@ -165,7 +165,7 @@ The `refresh_tokens.expires_at` column is **not** consulted here; expiry is enfo
 
 ### POST /api/v1/auth/logout
 
-Always **200** with `{"message": "Successfully logged out"}` and both cookies cleared. If a decodable refresh token is present its row is revoked; missing, malformed, expired or unknown tokens are swallowed (`views.py:255-276`).
+Always **200** with `{"message": "Successfully logged out"}` and both cookies cleared. If the `access_token` cookie carries a token we signed (`exp` is **not** checked — it may have expired in an idle tab), **every** non-revoked refresh token of that user is revoked. A browser never sends the path-scoped `refresh_token` cookie here; a client that does gets that one token revoked as well. Missing, malformed or forged tokens are swallowed. The gateway lists `/logout` as public so this works with an expired access token.
 
 ### GET /api/v1/auth/verify
 
@@ -362,10 +362,6 @@ Tests sign real JWTs with the real key pair from `keys/` — they need those fil
 ## Troubleshooting
 
 **Container starts, every token operation fails.** `keys/jwt-private.pem` or `keys/jwt-public.pem` is missing and `DEBUG=True`, so `settings.py:158-164` fell back to empty key strings after printing `Warning: JWT private key not found at …`. Run `./keys/generate-keys.sh`, then restart. With `DEBUG=False` the same condition kills the process at startup instead.
-
-**Gateway returns 401 on `/api/v1/auth/logout` or `/verify`.** Only `login`, `register` and `refresh` are gateway-public (`srcs/api-gateway/middleware/auth_middleware.py:22-29`). With an expired access token the gateway rejects the logout before this service sees it.
-
-**Logout does not revoke the refresh token in a browser.** The `refresh_token` cookie is scoped to `Path=/api/v1/auth/refresh` (`utils.py:59`), so a browser does not send it to `/api/v1/auth/logout`. The view then falls through its `if refresh_token:` guard and returns 200 without revoking anything. Cookies are still cleared. The tests do not catch this because Django's test client ignores cookie paths.
 
 **404 on an endpoint that clearly exists.** You added a trailing slash. `APPEND_SLASH = False` (`settings.py:41`) disables Django's redirect; the response is the JSON `NOT_FOUND` produced by `Custom404Middleware`.
 

@@ -253,7 +253,22 @@ class LogoutView(APIView):
     """
 
     def post(self, request):
-        # Try to revoke token if present and valid
+        # Browsers never send the refresh cookie here (it is path-scoped to /auth/refresh), so
+        # the access token is what identifies the session. It may have expired while the tab
+        # sat idle: the signature is still checked, only exp is not — a token we signed for
+        # this user may end that user's sessions.
+        access_token = request.COOKIES.get('access_token')
+        if access_token:
+            try:
+                payload = decode_token(access_token, verify_exp=False)
+                if payload.get('token_type') == 'access' and payload.get('user_id'):
+                    RefreshToken.objects.filter(
+                        user_id=payload['user_id'], is_revoked=False
+                    ).update(is_revoked=True)
+            except jwt.InvalidTokenError:
+                pass
+
+        # Fallback: a client that does send the refresh cookie revokes that one token
         refresh_token = request.COOKIES.get('refresh_token')
         if refresh_token:
             try:

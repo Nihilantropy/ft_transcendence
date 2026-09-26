@@ -255,7 +255,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 **Authentication Flow:**
 1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:59)
 2. Browser automatically sends cookies with each request
-3. API Gateway validates JWT using RS256 public key, extracts user context (user_id, role)
+3. API Gateway validates JWT using RS256 public key, requires `token_type == "access"`, extracts user context (user_id, role); client-sent `X-User-*` headers are dropped
 4. Gateway forwards to backend services with headers: `X-User-ID`, `X-User-Role`, `X-Request-ID`
 5. Backend services trust API Gateway validation (network isolation ensures security)
 
@@ -502,9 +502,10 @@ Order of execution (bottom to top):
 4. **Authentication Middleware**: JWT validation, extracts user context
 
 Public paths (exact match, `middleware/auth_middleware.py:22-29`): `/health`, `/docs`,
-`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh`.
+`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh`,
+`/api/v1/auth/logout` (so an idle user whose access token expired can still log out).
 Everything else requires the `access_token` cookie — including `/redoc` (served by FastAPI but never
-added to the set), `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete` and
+added to the set), `/api/v1/auth/verify`, `/api/v1/auth/delete` and
 `/api/v1/auth/change-password`.
 
 ### Standardized Error Responses
@@ -615,7 +616,7 @@ Services use environment variables from `.env` files:
 
 **Add public endpoint** (no auth): Edit `srcs/api-gateway/middleware/auth_middleware.py` and add the
 **exact full path** to the `self.public_endpoints` set (`:22-29`). Matching is exact equality on
-`request.url.path` (`:33`), not a prefix test — `/api/v1/auth/logout` is protected precisely because
+`request.url.path` (`:33`), not a prefix test — `/api/v1/auth/verify` is protected precisely because
 only the exact literals are listed.
 
 **Change rate limits**: Update `RATE_LIMIT_PER_MINUTE` in `srcs/api-gateway/.env`.
@@ -702,10 +703,10 @@ total; do not trust them.
 - **Rate Limiting**: Two layers (NGINX: 200/min, API Gateway: 60/min per user)
 - **Password Hashing**: argon2 in auth service
 - **HTTPS**: TLS 1.2+ via Nginx (self-signed cert in dev, replace in production)
-- **Token Blacklist**: **not implemented.** Logout clears the cookies and marks the `refresh_tokens`
-  row revoked; a stolen access token remains valid until its 15-minute `exp`. (In a real browser the
-  revocation branch never even runs: the `refresh_token` cookie is `Path=/api/v1/auth/refresh`, so it
-  is not sent to `/api/v1/auth/logout`.)
+- **Token Blacklist**: **not implemented.** Logout clears the cookies and revokes **all** of the
+  user's refresh tokens, identified from the `access_token` cookie (signature checked, `exp` not —
+  it may have expired in an idle tab; the path-scoped `refresh_token` cookie never reaches
+  `/logout`). A stolen access token remains valid until its 15-minute `exp`.
 
 ## Current State
 
@@ -826,7 +827,7 @@ total; do not trust them.
 - Always use `deleted_counts.get('authentication.User', 0)` for per-model accuracy
 
 **Recommendation service product duplicates:**
-- Seed script is idempotent — skips if any products exist, prints a warning
+- Seed script is idempotent by product name — inserts only the `products.yaml` entries missing from the table (integration-test leftovers no longer block it)
 - Use `--force` flag to clear and re-seed: `docker exec ft_transcendence_recommendation_service python scripts/seed_products.py --force`
 - Product data lives in `scripts/products.yaml` — edit there, not in Python
 
