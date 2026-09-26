@@ -66,7 +66,7 @@ def generate_refresh_token(user, token_id):
         token_type='refresh'
     )
 
-def decode_token(token):
+def decode_token(token, verify_exp=True):
     """
     Decode and validate JWT token.
 
@@ -87,7 +87,8 @@ def decode_token(token):
         token,
         settings.JWT_KEYS['public'],
         algorithms=[settings.JWT_ALGORITHM],
-        leeway=5
+        leeway=5,
+        options={'verify_exp': verify_exp}
     )
 
     return payload

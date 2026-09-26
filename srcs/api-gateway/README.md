@@ -112,10 +112,10 @@ matches, but `/health/` does not, and prefixes never do:
 
 ```
 /health   /docs   /openapi.json
-/api/v1/auth/login   /api/v1/auth/register   /api/v1/auth/refresh
+/api/v1/auth/login   /api/v1/auth/register   /api/v1/auth/refresh   /api/v1/auth/logout
 ```
 
-Everything else, including `/api/v1/auth/logout`, `/api/v1/auth/verify`, `/api/v1/auth/delete` and
+Everything else, including `/api/v1/auth/verify`, `/api/v1/auth/delete` and
 `/api/v1/auth/change-password`, requires a valid `access_token` cookie.
 
 ### Prefix routing table

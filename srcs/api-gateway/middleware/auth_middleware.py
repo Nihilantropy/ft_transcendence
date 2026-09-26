@@ -25,7 +25,10 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/api/v1/auth/login",
             "/api/v1/auth/register",
-            "/api/v1/auth/refresh"
+            "/api/v1/auth/refresh",
+            # Must work with an expired/missing access token, or an idle user can't log out
+            # and the refresh cookie resurrects the session. auth-service validates what it gets.
+            "/api/v1/auth/logout"
         }
 
     async def dispatch(self, request: Request, call_next):
