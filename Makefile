@@ -244,6 +244,9 @@ gate:
 	@# The gate must test HEAD, not what is already running: --build picks up baked-in code, and
 	@# these FastAPI services bind-mount their code but run without --reload, so they are restarted.
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --force-recreate --no-deps --wait --wait-timeout 600 api-gateway ai-service recommendation-service
+	@# nginx resolves api-gateway once at startup: after the gateway is recreated (new IP) it
+	@# would keep proxying to the old address and answer 502, so restart it too.
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart nginx
 	@scripts/run-migrations.sh
 	@scripts/seed-db.sh
 	@scripts/create-superuser.sh
