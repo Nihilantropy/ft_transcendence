@@ -15,6 +15,7 @@ type Rec = { product_id: number; name: string; brand: string; price: string | nu
 
 export default function PetDetail() {
   const { id } = useParams()
+  const pid = encodeURIComponent(id ?? '')
   const { t } = useI18n()
   const [pet, setPet] = useState<Pet>()
   const [error, setError] = useState<unknown>()
@@ -24,13 +25,13 @@ export default function PetDetail() {
   const [saved, setSaved] = useState(false)
 
   const loadRecs = useCallback(() => {
-    api<{ recommendations: Rec[] }>(`/recommendations/food?pet_id=${id}&limit=6`)
+    api<{ recommendations: Rec[] }>(`/recommendations/food?pet_id=${pid}&limit=6`)
       .then((d) => setRecs(d.recommendations), setRecError)
-  }, [id])
+  }, [pid])
 
   useEffect(() => {
-    api<Pet>(`/pets/${id}`).then((p) => { setPet(p); loadRecs() }, setError)
-  }, [id, loadRecs])
+    api<Pet>(`/pets/${pid}`).then((p) => { setPet(p); loadRecs() }, setError)
+  }, [pid, loadRecs])
 
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -43,7 +44,7 @@ export default function PetDetail() {
     setFormError(undefined)
     try {
       const body = { age: num('age'), weight: num('weight'), health_conditions: f.getAll('health') }
-      setPet(await api<Pet>(`/pets/${id}`, { method: 'PATCH', body }))
+      setPet(await api<Pet>(`/pets/${pid}`, { method: 'PATCH', body }))
       setSaved(true)
       loadRecs()
     } catch (err) {
@@ -69,7 +70,7 @@ export default function PetDetail() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t('pet.age')} name="age" type="number" min={0} step={1} inputMode="numeric"
               defaultValue={pet.age ?? ''} error={fieldError(formError, 'age')} />
-            <Field label={t('pet.weight')} name="weight" type="number" min={0.1} step={0.1} inputMode="decimal"
+            <Field label={t('pet.weight')} name="weight" type="number" min={0.1} step="any" inputMode="decimal"
               defaultValue={pet.weight ?? ''} error={fieldError(formError, 'weight')} />
           </div>
           <fieldset className="flex flex-col gap-2">

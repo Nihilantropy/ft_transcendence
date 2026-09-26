@@ -96,6 +96,17 @@ describe('api', () => {
     expect(logout).toHaveBeenCalledOnce()
   })
 
+  test('401 after a successful refresh still logs out and rethrows', async () => {
+    const logout = vi.fn()
+    setLogoutHandler(logout)
+    mockFetch({
+      '/api/v1/pets': [fail(401, 'UNAUTHORIZED'), fail(401, 'UNAUTHORIZED')],
+      '/api/v1/auth/refresh': [ok({})],
+    })
+    await expect(api('/pets')).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
+    expect(logout).toHaveBeenCalledOnce()
+  })
+
   test('401 on login is a plain error, no refresh', async () => {
     const calls = mockFetch({ '/api/v1/auth/login': [fail(401, 'INVALID_CREDENTIALS')] })
     await expect(api('/auth/login', { method: 'POST', body: {} })).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })

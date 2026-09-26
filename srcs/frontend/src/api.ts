@@ -78,8 +78,8 @@ export async function api<T = unknown>(path: string, opts: Opts = {}, retried = 
     await new Promise((r) => setTimeout(r, retryDelayMs(res)))
   }
 
-  if (res.status === 401 && !retried && !NO_REFRESH.includes(path)) {
-    if (await refresh()) return api<T>(path, opts, true)
+  if (res.status === 401 && !NO_REFRESH.includes(path)) {
+    if (!retried && (await refresh())) return api<T>(path, opts, true)
     onLogout()
   }
 

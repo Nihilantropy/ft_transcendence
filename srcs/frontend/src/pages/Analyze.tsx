@@ -28,6 +28,7 @@ export default function Analyze() {
   async function analyze(file: File) {
     setError(undefined)
     setResult(undefined)
+    setPreview(undefined)
     setBusy(true)
     try {
       const image = await toJpegDataUrl(file)
