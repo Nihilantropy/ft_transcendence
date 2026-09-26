@@ -826,7 +826,7 @@ total; do not trust them.
 - Always use `deleted_counts.get('authentication.User', 0)` for per-model accuracy
 
 **Recommendation service product duplicates:**
-- Seed script is idempotent — skips if any products exist, prints a warning
+- Seed script is idempotent by product name — inserts only the `products.yaml` entries missing from the table (integration-test leftovers no longer block it)
 - Use `--force` flag to clear and re-seed: `docker exec ft_transcendence_recommendation_service python scripts/seed_products.py --force`
 - Product data lives in `scripts/products.yaml` — edit there, not in Python
 

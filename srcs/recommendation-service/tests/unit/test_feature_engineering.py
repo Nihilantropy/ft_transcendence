@@ -232,3 +232,19 @@ def test_product_all_ingredients_capped_at_one():
     extractor = ProductFeatureExtractor()
     features = extractor.extract(product)
     assert features[14] == pytest.approx(1.0)
+
+
+@pytest.mark.unit
+def test_pet_with_unknown_age_and_weight_gets_adult_profile():
+    """A pet saved from a photo analysis has no age/weight: user-service sends them as None.
+
+    Unknown age must land on the adult path (not the puppy one) and leave the age feature at 0.
+    """
+    pet_data = {"age_months": None, "weight_kg": None, "breed": "golden retriever",
+                "health_conditions": []}
+    features = PetFeatureExtractor().extract(pet_data)
+    assert features[0] == pytest.approx(0.0)
+    assert features[1] == pytest.approx(0.0)
+    assert features[11] == pytest.approx(0.7)
+    assert features[12] == pytest.approx(0.5)
+    assert features[13] == pytest.approx(0.6)
