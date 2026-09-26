@@ -1,0 +1,37 @@
+@import "tailwindcss";
+@import "@fontsource/nunito/400.css";
+@import "@fontsource/nunito/700.css";
+
+:root {
+  --bg: #FBF6EF;
+  --fg: #3B2F2A;
+  --card: #FFFFFF;
+  --accent: #B4553A; /* terracotta #C8664A darkened: white-on-accent passes 4.5:1 */
+  --ok: #7A9E7E;
+  --line: #E8DDD0;
+  --danger: #A23B2A;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #2A211D;
+    --fg: #EFE6D8;
+    --card: #362B26;
+    --accent: #D9805F;
+    --ok: #93B596;
+    --line: #4A3C35;
+    --danger: #F0A493;
+  }
+}
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-card: var(--card);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-line: var(--line);
+  --color-danger: var(--danger);
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+}
+body {
+  @apply bg-bg text-fg font-sans;
+}
