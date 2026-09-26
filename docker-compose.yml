@@ -8,6 +8,10 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./srcs/nginx/.env
+    volumes:
+      # Shared read-only with the `tester` service (make gate), which uses the
+      # certificate as its trust anchor. Regenerated on every nginx start.
+      - nginx-ssl:/etc/nginx/ssl
     ports:
       - "8000:80"
       - "8443:443"
@@ -519,6 +523,8 @@ networks:
 ### VOLUMES ###
 volumes:
   db-data:
+    driver: local
+  nginx-ssl:
     driver: local
   redis-data:
     driver: local
