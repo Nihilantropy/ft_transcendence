@@ -83,9 +83,9 @@ HTTP-only cookie); this service performs no JWT validation of its own.
 | PUT | `/api/v1/admin/products/{product_id}` | JWT (gateway) | update product |
 | DELETE | `/api/v1/admin/products/{product_id}` | JWT (gateway) | soft delete → 204 |
 
-> The admin routes' docstrings claim "Requires admin role (enforced by API Gateway)", but the
-> gateway only validates the JWT and forwards `X-User-Role`; neither the gateway nor this
-> service checks that the role is admin. Any authenticated user can call the admin endpoints.
+> The whole `/api/v1/admin` router depends on `require_admin` (`src/routes/admin.py`): no
+> `X-User-Role` → 401, a role other than `admin` → 403. The gateway only authenticates and
+> forwards the role; enforcing it is this service's job.
 
 ### GET /api/v1/recommendations/food
 
@@ -479,8 +479,10 @@ no active product matches the species.
 `is_active = true` row with that `target_species`. Run `make seed` (dog + cat rows), or check
 `GET /api/v1/admin/products?species=dog`.
 
-**`⚠️ Skipping seed: N products already exist.`** Expected — the seeder is idempotent. Use
-`--force` only if you accept losing every existing product row.
+**`✅ Seeded 0 missing products … (N already present).`** Expected — the seeder is idempotent
+by product name: it inserts only the `products.yaml` entries whose name is not in the table, so
+leftover (soft-deleted) rows from the integration tests no longer stop the real catalog from
+being loaded. Use `--force` only if you accept losing every existing product row.
 
 **`UNAUTHORIZED` in the body but HTTP 200.** The gateway did not inject `X-User-ID`, which in
 practice means the request bypassed the gateway. Call through 8001 or nginx.
