@@ -803,6 +803,36 @@ class TestLogoutView:
         assert data['success'] is True
         assert data['data']['message'] == 'Successfully logged out'
 
+    def test_logout_with_only_an_expired_access_token_revokes_all_sessions(
+            self, client, user_with_refresh_token):
+        """Browsers never send the path-scoped refresh cookie to /logout, and after 15 idle
+        minutes the access token has expired: its signed user_id must still end the session."""
+        import jwt as pyjwt
+        user, _, record = user_with_refresh_token
+        now = int(timezone.now().timestamp())
+        expired = pyjwt.encode(
+            {'user_id': str(user.id), 'email': user.email, 'role': user.role,
+             'token_type': 'access', 'iat': now - 3600, 'exp': now - 1800},
+            settings.JWT_KEYS['private'], algorithm=settings.JWT_ALGORITHM)
+        client.cookies['access_token'] = expired
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        record.refresh_from_db()
+        assert record.is_revoked is True
+
+    def test_logout_ignores_a_forged_access_token(self, client, user_with_refresh_token):
+        """Only a token signed by us may revoke sessions; garbage is ignored, logout still 200."""
+        _, _, record = user_with_refresh_token
+        client.cookies['access_token'] = 'not.a.jwt'
+
+        response = client.post('/api/v1/auth/logout')
+
+        assert response.status_code == 200
+        record.refresh_from_db()
+        assert record.is_revoked is False
+
     def test_logout_revokes_refresh_token(self, client, user_with_refresh_token):
         """Logout revokes the refresh token in database"""
         user, token, record = user_with_refresh_token

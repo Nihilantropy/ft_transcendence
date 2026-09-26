@@ -100,7 +100,8 @@ step 1 via `call_next`, so `request.state` stays empty: the outbound request car
   is a prefix of, or prefixed by, an existing one, the more specific string must be inserted **first**.
 - **Making a path public** means adding the exact full path to the `self.public_endpoints` set in
   `middleware/auth_middleware.py:22-29`. It is a set-membership test on `request.url.path`, not a prefix
-  test — `/api/v1/auth/logout` is protected precisely because it is not listed.
+  test — `/api/v1/auth/verify` is protected precisely because it is not listed. `/api/v1/auth/logout`
+  is listed on purpose: an idle user with an expired access token must still be able to log out.
 - **Slow endpoints get an entry in `SERVICE_TIMEOUTS`** (`proxy.py:16-18`), never a bump of the 30 s
   default on `httpx_client` (`proxy.py:13`).
 - **Gateway-generated error bodies always use the envelope**

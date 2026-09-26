@@ -100,7 +100,7 @@ Inbound is always the API Gateway, which strips `Cookie` for every prefix **exce
 
 ## Gotchas
 
-- **`refresh_token` cookie is path-scoped to `/api/v1/auth/refresh`** (`utils.py:59`). A real browser therefore never sends it to `/api/v1/auth/logout`, so `LogoutView`'s revocation branch is dead in production while the tests pass — Django's test client ignores cookie paths. Do not "fix" the tests; changing the path affects the gateway and the frontend contract.
+- **`refresh_token` cookie is path-scoped to `/api/v1/auth/refresh`** (`utils.py:59`), so a browser never sends it to `/api/v1/auth/logout`. `LogoutView` therefore revokes all the user's refresh tokens from the `access_token` cookie (`decode_token(..., verify_exp=False)`); the refresh-cookie branch is only a fallback. Django's test client ignores cookie paths, so the gate test `tests/integration/test_auth.py::test_logout_revokes_the_refresh_token_server_side` is what proves the browser case.
 - **`COOKIE_DOMAIN` has a magic value.** `domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN != 'localhost' else None` appears four times (`utils.py:49,60,127,139`). Literal `localhost` means "emit no Domain attribute". Change all four together.
 - **`RefreshToken.token_hash` is unique and is inserted as the literal `'placeholder'`** before being updated with the real hash (`utils.py:28-39`). Two concurrent issuances inside that window collide with `IntegrityError`. Also: it means a row briefly exists that no token matches.
 - **Refresh expiry is enforced only by the JWT `exp`.** `refresh_tokens.expires_at` is written at creation and never read (`RefreshView`, `views.py:194-209`, checks revocation and hash only). `last_used_at` is never written at all.
