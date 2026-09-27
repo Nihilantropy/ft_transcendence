@@ -85,6 +85,7 @@ export default function PetDetail() {
         </div>
       </div>
       <PhotoControls pet={pet} path={`/pets/${pid}`} onChange={setPet} />
+      <Link to={`/analyze?pet=${pid}`} className={`${buttonClass('ghost')} self-start`}>{t('pet.analyze_again')}</Link>
 
       <Card>
         <form onSubmit={save} onBlurCapture={form.onBlur} className="flex flex-col gap-4" noValidate>
