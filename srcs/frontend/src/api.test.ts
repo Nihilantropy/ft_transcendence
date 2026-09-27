@@ -111,6 +111,15 @@ describe('api', () => {
     expect(calls).toEqual(['/api/v1/auth/login'])
   })
 
+  test('401 on the 2FA login step is a plain error, no refresh, no logout', async () => {
+    const logout = vi.fn()
+    setLogoutHandler(logout)
+    const calls = mockFetch({ '/api/v1/auth/login/2fa': [fail(401, 'INVALID_2FA_CODE')] })
+    await expect(api('/auth/login/2fa', { method: 'POST', body: {} })).rejects.toMatchObject({ code: 'INVALID_2FA_CODE' })
+    expect(calls).toEqual(['/api/v1/auth/login/2fa'])
+    expect(logout).not.toHaveBeenCalled()
+  })
+
   test('429 then 200 retries and resolves', async () => {
     vi.useFakeTimers()
     try {

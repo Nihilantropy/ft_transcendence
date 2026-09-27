@@ -23,7 +23,7 @@ export class ApiError extends Error {
 type Opts = { method?: string; body?: unknown; timeoutMs?: number }
 
 // Paths whose 401 means "wrong credentials / no session", never "access token expired".
-const NO_REFRESH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout']
+const NO_REFRESH = ['/auth/login', '/auth/login/2fa', '/auth/register', '/auth/refresh', '/auth/logout']
 
 // nginx answers these itself with an HTML page, not the JSON envelope.
 const STATUS_CODES: Record<number, string> = {
