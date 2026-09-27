@@ -7,6 +7,7 @@ from apps.authentication.views import (
     ChangePasswordView, UpdateProfileView, TwoFactorLoginView,
     TwoFactorSetupView, TwoFactorEnableView, TwoFactorDisableView
 )
+from apps.authentication.oauth42 import OAuth42StartView
 
 urlpatterns = [
     path('register', RegisterView.as_view(), name='register'),
@@ -21,4 +22,5 @@ urlpatterns = [
     path('2fa/setup', TwoFactorSetupView.as_view(), name='2fa-setup'),
     path('2fa/enable', TwoFactorEnableView.as_view(), name='2fa-enable'),
     path('2fa/disable', TwoFactorDisableView.as_view(), name='2fa-disable'),
+    path('oauth/42/start', OAuth42StartView.as_view(), name='oauth-42-start'),
 ]

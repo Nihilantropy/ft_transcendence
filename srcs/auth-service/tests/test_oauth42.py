@@ -10,6 +10,7 @@ import httpx
 import pytest
 from django.db import IntegrityError, transaction
 
+from apps.authentication import oauth42
 from apps.authentication import two_factor
 from apps.authentication.jwt_utils import decode_token, generate_access_token
 from apps.authentication.models import OAuthAccount, RefreshToken, User
@@ -121,3 +122,75 @@ class TestSetPassword:
 
         assert response.status_code == 422
         assert 'current_password' in response.json()['error']['details']
+
+
+START = '/api/v1/auth/oauth/42/start'
+REDIRECT_URI = 'https://localhost:8443/api/v1/auth/oauth/42/callback'
+
+
+@pytest.fixture
+def configured(settings):
+    settings.OAUTH_42_CLIENT_ID = 'uid-123'
+    settings.OAUTH_42_CLIENT_SECRET = 's3cret'
+    settings.OAUTH_42_REDIRECT_URI = REDIRECT_URI
+    return settings
+
+
+@pytest.fixture
+def unconfigured(settings):
+    settings.OAUTH_42_CLIENT_ID = ''
+    settings.OAUTH_42_CLIENT_SECRET = ''
+    return settings
+
+
+@pytest.mark.django_db
+class TestStart:
+    def test_redirects_to_the_intra_authorize_page(self, client, configured):
+        response = client.get(START)
+
+        assert response.status_code == 302
+        url = urlsplit(response['Location'])
+        assert (url.scheme, url.netloc, url.path) == ('https', 'api.intra.42.fr', '/oauth/authorize')
+        query = parse_qs(url.query)
+        assert query['client_id'] == ['uid-123']
+        assert query['redirect_uri'] == [REDIRECT_URI]
+        assert query['response_type'] == ['code']
+        assert query['scope'] == ['public']
+        assert query['state'] == [response.cookies['oauth_state'].value]
+
+    def test_state_cookie(self, client, configured):
+        cookie = client.get(START).cookies['oauth_state']
+
+        assert len(cookie.value) >= 43  # 32 random bytes, urlsafe base64
+        assert cookie['httponly'] is True
+        assert cookie['samesite'] == 'Lax'  # Strict would not come back on the redirect from the intra
+        assert cookie['path'] == '/api/v1/auth/oauth'
+        assert cookie['max-age'] == 600
+
+    def test_state_cookie_is_secure_when_cookies_are(self, client, configured):
+        configured.COOKIE_SECURE = True
+
+        assert client.get(START).cookies['oauth_state']['secure'] is True
+
+    def test_every_start_gets_a_new_state(self, client, configured):
+        first = client.get(START).cookies['oauth_state'].value
+        second = client.get(START).cookies['oauth_state'].value
+
+        assert first != second
+
+    def test_the_client_secret_never_reaches_the_browser(self, client, configured):
+        response = client.get(START)
+
+        assert 's3cret' not in response['Location']
+        assert 's3cret' not in response.cookies.output()
+
+    @pytest.mark.parametrize('client_id, secret', [('', ''), ('uid-123', ''), ('', 's3cret')])
+    def test_unconfigured_says_unavailable(self, client, settings, client_id, secret):
+        settings.OAUTH_42_CLIENT_ID = client_id
+        settings.OAUTH_42_CLIENT_SECRET = secret
+
+        response = client.get(START)
+
+        assert response.status_code == 302
+        assert response['Location'] == '/login?oauth=unavailable'
+        assert response.cookies['oauth_state'].value == ''  # nothing to carry
