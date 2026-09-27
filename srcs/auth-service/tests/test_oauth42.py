@@ -260,6 +260,14 @@ class TestCallbackState:
         assert response['Location'] == '/login?oauth=unavailable'
         assert response.cookies['oauth_state'].value == ''
 
+    def test_unconfigured_wins_over_a_missing_state(self, client, unconfigured):
+        """is_configured() is checked before the state: an unconfigured deployment always answers
+        unavailable, even for a forged callback with no state cookie at all."""
+        response = callback(client, cookie=None)
+
+        assert response['Location'] == '/login?oauth=unavailable'
+        assert response.cookies['oauth_state'].value == ''
+
 
 FAILURES = {
     'token refused': ('post', intra_response('POST', oauth42.TOKEN_URL, 401, json={'error': 'invalid_grant'})),

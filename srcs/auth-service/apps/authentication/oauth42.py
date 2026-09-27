@@ -142,7 +142,7 @@ def user_for_profile(profile):
     with transaction.atomic():
         user = User.objects.filter(email__iexact=email).first()
         if user is not None and user.has_usable_password():
-            raise EmailTaken(email)
+            raise EmailTaken
         if user is None:
             user = User.objects.create_user(  # no password: unusable until set from Profile
                 email=email,
@@ -162,6 +162,9 @@ class OAuth42CallbackView(APIView):
     """
 
     def get(self, request):
+        if not is_configured():
+            return _redirect(UNAVAILABLE)
+
         state = request.GET.get('state', '')
         expected = request.COOKIES.get(STATE_COOKIE, '')
         # Bytes: compare_digest raises TypeError on non-ASCII str, and the query is the caller's
@@ -173,9 +176,6 @@ class OAuth42CallbackView(APIView):
         if not code:  # the user said no on the intra (?error=access_denied)
             logger.warning('42 login refused on the intra: %r', request.GET.get('error', 'no code')[:64])
             return _redirect(FAILED)
-
-        if not is_configured():
-            return _redirect(UNAVAILABLE)
 
         try:
             user = user_for_profile(fetch_profile(exchange_code(code)))

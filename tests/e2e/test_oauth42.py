@@ -41,7 +41,9 @@ def test_callback_with_a_forged_state_signs_nobody_in(edge, cookie):
     resp = edge.get(CALLBACK, params={"code": "anything", "state": "forged"}, headers=headers)
 
     assert resp.status_code == 302, resp.text
-    assert resp.headers["location"] == "/login?oauth=error"
+    # Unconfigured (empty OAUTH_42_CLIENT_ID/SECRET) answers unavailable before the state is even
+    # looked at; configured answers error for a forged/missing state. Either way nobody is signed in.
+    assert resp.headers["location"] in ("/login?oauth=error", "/login?oauth=unavailable"), resp.headers["location"]
     cookies = _set_cookies(resp)
     assert not any(c.startswith(("access_token=", "refresh_token=")) for c in cookies), cookies
     assert any(c.startswith('oauth_state="";') for c in cookies), cookies  # spent
