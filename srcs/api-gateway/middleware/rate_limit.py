@@ -32,8 +32,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # Authenticated: rate limit by user_id
             rate_key = f"rate_limit:user:{user_id}"
         else:
-            # Unauthenticated: rate limit by IP
-            client_ip = request.client.host if request.client else "unknown"
+            # Unauthenticated: rate limit by IP. Behind nginx, request.client.host is always
+            # nginx's own IP, which would put every anonymous visitor in one shared bucket.
+            # nginx overwrites X-Real-IP with $remote_addr, so it is the real client here.
+            # (The gateway is only reachable through nginx or from the backend network;
+            # make up-dev's 127.0.0.1:8001 is dev-only, where a spoofed header only affects
+            # the developer's own limit.)
+            client_ip = request.headers.get("x-real-ip") or (
+                request.client.host if request.client else "unknown")
             rate_key = f"rate_limit:ip:{client_ip}"
 
         # Get current request count

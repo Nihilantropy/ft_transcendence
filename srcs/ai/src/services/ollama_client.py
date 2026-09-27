@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional
 logger = logging.getLogger(__name__)
 
 # Report languages the contextual prompt can target (keys match the API's `language` field)
-LANGUAGE_NAMES = {"en": "English", "it": "Italian"}
+LANGUAGE_NAMES = {"en": "English", "it": "Italian", "es": "Spanish"}
 
 # Allowed trait values, in the order a hedged answer ("small/medium") is resolved
 TRAIT_VALUES = {"size": ("small", "medium", "large"), "energy_level": ("low", "medium", "high")}
@@ -387,7 +387,7 @@ Probabilities should sum to approximately 1.0."""
             species: Pre-classified species (dog/cat)
             breed_analysis: Complete breed classification result
             rag_context: RAG-enriched breed knowledge (can be None)
-            language: Report language code ("en" or "it")
+            language: Report language code ("en", "it" or "es")
 
         Returns:
             Dict with visual description, traits, health observations

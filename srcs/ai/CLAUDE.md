@@ -11,7 +11,7 @@ there is no direct Ollama call anywhere in this codebase, despite the file and t
 ## Essential Commands
 
 ```bash
-# tests (98). run --rm is fine: everything is mocked, no cross-service hostname needed.
+# tests (107). run --rm is fine: everything is mocked, no cross-service hostname needed.
 docker compose run --rm ai-service python -m pytest tests/ -v
 docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py -v
 docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=term  # pytest-cov is in the image
@@ -51,7 +51,7 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 | `src/utils/logger.py` | JSON log formatter, mutes uvicorn/fastapi/httpx to WARNING |
 | `data/knowledge_base/spiecies/` | 34 markdown docs (dogs/cats × purebreeds/crossbreeds/health). Mounted read-only. Directory name misspelled on purpose-by-accident — do not rename |
 | `data/chroma/` | ChromaDB persistence mount point (`ai-chroma-data` volume) |
-| `tests/` | 98 unit tests, no conftest.py |
+| `tests/` | 107 unit tests, no conftest.py |
 
 ## Request / Data Flow
 
@@ -121,9 +121,11 @@ tolerate it being `None` before startup.
   (`ollama_client.py:404-409`). A 4xx/5xx from LiteLLM (e.g. wrong `LLM_API_KEY`) raises
   `httpx.HTTPStatusError` and surfaces as a 500, while the same failure inside `analyze_breed` /
   `generate` becomes a 503. Do not "fix" one side without checking the tests on the other.
-- **`routes/vision.py` `error_map` keys are unreachable.** `ImageProcessor` raises `ValueError`
-  with prose (`"Image exceeds 5MB limit"`), so `INVALID_IMAGE_FORMAT`, `IMAGE_TOO_LARGE` and
-  `IMAGE_TOO_SMALL` never appear; the prose lands in `error.code`.
+- **`ImageProcessor` raises `ValueError` with the `error_map` codes directly**
+  (`INVALID_IMAGE_FORMAT`, `IMAGE_TOO_LARGE`, `IMAGE_TOO_SMALL`), never prose — `routes/vision.py`
+  uses `str(e)` as `error.code`, so the exception message IS the code. Undecodable base64 and
+  unopenable image bytes (PIL `UnidentifiedImageError`/`OSError`) also map to
+  `INVALID_IMAGE_FORMAT`. Keep new validation failures in this file raising a code, not a message.
 - **`error_response()` has no status argument.** `routes/rag.py:138-142`, `:198-202`, `:256-260`
   pass `status.HTTP_503_SERVICE_UNAVAILABLE` as the `details` parameter and `return` (not `raise`),
   so those branches answer **HTTP 200** with `success: false`.
@@ -181,7 +183,7 @@ tolerate it being `None` before startup.
 - `Embedder` tests patch `src.services.embedder.SentenceTransformer`; never let a test download a
   model.
 - `scripts/run-unit-tests.sh:119-121` still claims 37 tests for this service; the real collection is
-  104. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
+  107. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
 
 ## Config & Thresholds
 

@@ -133,6 +133,25 @@ JWT_REFRESH_TOKEN_LIFETIME_DAYS = config('JWT_REFRESH_TOKEN_LIFETIME_DAYS', defa
 JWT_PRIVATE_KEY_PATH = config('JWT_PRIVATE_KEY_PATH', default=str(BASE_DIR / 'keys' / 'jwt-private.pem'))
 JWT_PUBLIC_KEY_PATH = config('JWT_PUBLIC_KEY_PATH', default=str(BASE_DIR / 'keys' / 'jwt-public.pem'))
 
+# Two-factor authentication (TOTP, RFC 6238)
+TWO_FACTOR_ISSUER = config('TWO_FACTOR_ISSUER', default='SmartBreeds')  # label shown in authenticator apps
+# Fernet key (urlsafe base64, 32 bytes) encrypting TOTP secrets at rest; empty = derive one from SECRET_KEY
+TWO_FACTOR_ENCRYPTION_KEY = config('TWO_FACTOR_ENCRYPTION_KEY', default='')
+TWO_FACTOR_WINDOW = config('TWO_FACTOR_WINDOW', default=1, cast=int)  # accepted 30 s steps either side of now
+TWO_FACTOR_MAX_ATTEMPTS = config('TWO_FACTOR_MAX_ATTEMPTS', default=5, cast=int)  # failures before lockout
+TWO_FACTOR_LOCKOUT_MINUTES = config('TWO_FACTOR_LOCKOUT_MINUTES', default=15, cast=int)
+# Time allowed to type the code after the password step
+TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES = config('TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES', default=5, cast=int)
+
+# OAuth 2.0 "Log in with 42" (authorization code grant, apps/authentication/oauth42.py).
+# Id or secret empty = not configured: /oauth/42/start answers /login?oauth=unavailable and nothing
+# else changes. The redirect URI must match, character for character, the one registered on the intra.
+OAUTH_42_CLIENT_ID = config('OAUTH_42_CLIENT_ID', default='')
+OAUTH_42_CLIENT_SECRET = config('OAUTH_42_CLIENT_SECRET', default='')
+OAUTH_42_REDIRECT_URI = config(
+    'OAUTH_42_REDIRECT_URI', default='https://localhost:8443/api/v1/auth/oauth/42/callback'
+)
+
 # Cookie Settings
 COOKIE_SECURE = config('COOKIE_SECURE', default=False, cast=bool)
 COOKIE_SAMESITE = config('COOKIE_SAMESITE', default='Strict')

@@ -40,7 +40,7 @@ class VisionOrchestrator:
 
         Args:
             image: Base64-encoded image (with or without data URI prefix)
-            language: Language of the free-text report fields ("en" or "it")
+            language: Language of the free-text report fields ("en", "it" or "es")
 
         Returns:
             Dict with species, breed_analysis, description, traits,

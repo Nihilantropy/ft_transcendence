@@ -7,8 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **SmartBreeds** is a luxury pet companion platform using AI-powered computer vision for breed identification and health monitoring. The system employs a microservices architecture with Docker-based deployment.
 
 **Core Technologies:**
-- Frontend: **not started**. `srcs/frontend/` holds only empty placeholder files and the compose
-  service is commented out (docker-compose.yml:156-176). Intended stack: React + Vite + Tailwind CSS
+- Frontend: React + Vite + TypeScript + Tailwind SPA in `srcs/frontend/`, built inside the
+  nginx image and served same-origin (see srcs/frontend/README.md). WCAG 2.1 AA target;
+  animations are CSS-only and pausable (`data-motion` on `<html>`)
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
 - Backend Services: Django 5.0.1 (auth-service) and Django 5.1.5 (user-service), both on `python:3.11-slim`
 - AI Services:
@@ -28,16 +29,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 make all           # build + up + show + logs (Makefile:25) — ends tailing logs in the foreground
 make build         # Build Docker images (bakes in requirements)
-make up            # Start services in detached mode — HTTPS only, via nginx on 8443
+make up            # Generate the JWT keys if missing (make keys), then start — HTTPS only, via nginx on 8443
 make up-dev        # Same, plus the gateway on http://127.0.0.1:8001 (notebooks / curl debugging)
+make keys          # Generate the JWT RS256 key pair if missing — idempotent, never rotates an existing key
 make down          # Stop and remove containers
 make downv         # Stop and remove containers + volumes
 make restart       # Restart all services
 make logs          # Follow all logs
 make logs-SERVICE  # View specific service logs (e.g., make logs-api-gateway)
-make purge         # `down -v` then remove containers/images/volumes/networks (Makefile:131)
-make re            # Soft rebuild — literally `down all` (Makefile:157)
-make ref           # Full rebuild — literally `purge all` (Makefile:160)
+make purge         # `down -v` then remove containers/images/volumes/networks (Makefile:135)
+make re            # Soft rebuild — literally `down all` (Makefile:161)
+make ref           # Full rebuild — literally `purge all` (Makefile:164)
 make show          # Show system status (containers, networks, volumes)
 make migration     # Run database migrations (scripts/run-migrations.sh)
 make seed          # Seed the product catalog (scripts/seed-db.sh)
@@ -134,40 +136,59 @@ unit suites, recommendation-service's integration tests, then the root `tests/` 
 (`tests/integration/` via the gateway, `tests/e2e/` via nginx over verified HTTPS) in the
 `tester` service (profile `test`, networks `backend-network` + `proxy`, reads nginx's cert from
 the `nginx-ssl` volume). Paste its last lines into the PR. How to add a test: `tests/README.md`.
+UI tests: Playwright (Chromium) in `tests/e2e/ui/`, same `tester` service; fixtures `registered`
+and `fake_vision` in `tests/e2e/ui/conftest.py`. Every UI test also runs an autouse axe-core WCAG
+2.1 A/AA audit (`no_axe_violations`) and a CSP watchdog (`no_csp_violations`); `test_ui_a11y.py`
+covers keyboard navigation, reflow at 320 px and the dark theme. The whole UI suite runs from one
+container IP, and the frontend's `api.ts` retries 429s (up to 2 retries, honoring `Retry-After` or
+2 s, capped at 5 s) so nginx's per-IP limit (200 r/m, burst 20) doesn't trip it mid-suite. Anonymous
+visitors without the `session` localStorage hint (set on login, cleared on logout) also make no
+`/auth/verify` or `/auth/refresh` calls on load, so the suite's throwaway/unauthenticated pages
+don't add to that per-IP count either.
+
+2FA in gate tests: `helpers.totp(secret, step=1)` (stdlib RFC 6238) gives the next valid code — the
+server never accepts the same 30 s step twice, and 2fa/enable already spent the current one. Store
+`totp_secret` / `recovery_codes` on the fixture user (UI fixture `two_factor` does it) and `pop()` a
+recovery code when you use it: the `gw_user` / `ui_user` teardowns finish a 2FA login with what is left.
 
 **Critical Docker Workflow:**
 - Rebuild rules differ per service:
   - **classification-service**: no source bind mount — ANY `src/` or `tests/` edit needs
     `docker compose build classification-service`
-  - **api-gateway**: only `src/`, `routes/`, `tests/` are mounted (docker-compose.yml:298-301) —
+  - **api-gateway**: only `src/`, `routes/`, `tests/` are mounted (docker-compose.yml:305-308) —
     editing `main.py`, `config.py`, `middleware/`, `auth/`, `utils/` needs a rebuild; mounted
     changes still need a restart (uvicorn runs without `--reload`)
   - **auth-service, user-service, recommendation-service**: whole service dir is mounted rw —
     only `requirements.txt` changes need a rebuild
   - **ai-service**: `src/` and `tests/` are mounted — only `requirements.txt`/Dockerfile changes
     need a rebuild
+  - **frontend**: baked into the nginx image — any `srcs/frontend` edit needs
+    `docker compose build nginx && docker compose up -d nginx`; the build also runs Vitest. For a
+    fast loop use `npm run dev` (srcs/frontend/README.md)
   - **No FastAPI service runs `--reload`** (`api-gateway/Dockerfile:21`, `ai/Dockerfile:35`,
     `recommendation-service/Dockerfile:32`), so a mounted code edit needs
     `docker compose restart SERVICE` to take effect. Only auth-service and user-service really
     hot-reload — they run `manage.py runserver`, which has Django's autoreloader. The
     "hot reload" comments on the compose volume blocks are aspirational
-- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls)
+- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls). auth-service tests sign real JWTs
+  and the api-gateway container bind-mounts the public key, so on a fresh clone run `make keys` once first
+  (`make test`, `make up` and the scripts do it for you)
 - Integration tests: MUST use `docker exec` on a running container — `run --rm` cannot
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
-**API Gateway Tests** (33 tests total):
+**API Gateway Tests** (48 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (102 tests total)
+# Auth Service tests (409 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # User Service tests (89 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# AI Service tests (98 tests total)
+# AI Service tests (107 tests total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
@@ -245,7 +266,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 ### Microservices Communication
 
 **Network Topology:**
-- **Proxy Network**: Nginx only (the `frontend` service is commented out in docker-compose.yml:156-176)
+- **Proxy Network**: Nginx (which also serves the SPA's static files)
 - **Backend Network**: Nginx ↔ API Gateway ↔ Backend Services ↔ Databases
 - **Nginx** bridges both networks (docker-compose.yml:14-16). The API Gateway lives on
   `backend-network` only and is **not** published on the host by default. `make up-dev` layers
@@ -253,11 +274,18 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
   never used by the application
 
 **Authentication Flow:**
-1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:59)
+1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:61)
 2. Browser automatically sends cookies with each request
 3. API Gateway validates JWT using RS256 public key, requires `token_type == "access"`, extracts user context (user_id, role); client-sent `X-User-*` headers are dropped
 4. Gateway forwards to backend services with headers: `X-User-ID`, `X-User-Role`, `X-Request-ID`
 5. Backend services trust API Gateway validation (network isolation ensures security)
+
+**Two-factor login (accounts with TOTP 2FA enabled):** `POST /api/v1/auth/login` with a correct password returns
+`{"mfa_required": true, "mfa_token": …}` — no cookies, existing sessions untouched. The client then calls the
+gateway-public `POST /api/v1/auth/login/2fa` with `mfa_token` + a 6-digit code (or a recovery code), which issues the
+cookies and revokes previous sessions. The `mfa_token` is a JWT signed with the same key as access tokens but with
+`token_type: "mfa"`; it is only harmless because the gateway and every auth-service view reject any `token_type`
+other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-factor authentication*.
 
 **Why RS256 Asymmetric Keys:** Auth Service signs tokens with private key (never leaves auth-service). API Gateway verifies with public key only (cannot forge tokens). More secure than HS256 symmetric secrets.
 
@@ -288,10 +316,22 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
   are unreachable from the host)
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 102 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 409 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
 - User registration (requires email, password, password_confirm) and login endpoints
-- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens
+- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens; new password
+  must differ from the current one, pass the validators *with the user in scope*, and be ≤128 chars
+- Profile update (PATCH /api/v1/auth/me): first_name, last_name, email. An email change needs the current password
+  (and a 2FA code when 2FA is on) and re-issues the session because the access token embeds the email
+- TOTP two-factor authentication for Aegis / Microsoft Authenticator / Google Authenticator
+  (`POST /api/v1/auth/2fa/{setup,enable,disable}`, `POST /api/v1/auth/login/2fa`): secrets encrypted at rest (Fernet),
+  10 single-use hashed recovery codes, replay protection, per-account lockout (5 failures → 15 min)
+- "Log in with 42" (OAuth 2.0 authorization code grant, `apps/authentication/oauth42.py`):
+  `GET /api/v1/auth/oauth/42/{start,callback}`, public at the gateway. Links by intra id, then by email,
+  else creates a user without a password (`has_password: false`; `change-password` then works without
+  `current_password`). 2FA users get the login challenge in `/login?oauth=mfa#<token>`. Empty
+  `OAUTH_42_CLIENT_ID`/`SECRET` in `srcs/auth-service/.env` → the button says "unavailable"; how to create
+  the intra app: srcs/auth-service/README.md "Create the 42 application and fill `.env`"
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
@@ -303,11 +343,11 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 98 passing tests]
+**AI Service (FastAPI - internal port 3003):** [Complete - 107 passing tests]
 - Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
 - LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
-- Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info)
+- Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info); `language`: en | it | es
 - Coordinates between Classification Service (HF models, optional) and the LLM
 - `CLASSIFICATION_ENABLED=false` → VLM-only pipeline (LLM does species/breed, no NSFW filter) —
   debugging only; keep it `true`, since classification-service runs in every stack
@@ -348,9 +388,9 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 **Nginx (host ports 8000→80, 8443→443):**
 - TLS termination (`listen 443 ssl`, `default.conf.template:25`); port 80 only 301-redirects
   (`:154-163`) to `https://$host` — i.e. port 443, which is **not** published
-- **No static application files are served.** The `frontend` proxy block is commented out
-  (`:112-129`), `location /` just returns a hardcoded JSON blob (`:132-136`); the only files read
-  from disk are the internal `/50x.html` and `/429.html` error pages (`:54-63`)
+- Serves the SPA from /usr/share/nginx/html: `location /` → `try_files $uri /index.html`,
+  `/assets/` cached 1y. Neither location may declare add_header (it would drop the server-level
+  security headers and the CSP)
 - Reverse proxy of `/api` → `api-gateway:8001`, with a nested `location /api/v1/vision` that raises
   the body limit to 8 MB and the read timeout to 300 s (everything else keeps 1 MB / 30 s)
 - Self-signed certificate is generated at container start with a SAN covering `HOST_DOMAIN`,
@@ -382,10 +422,12 @@ Treat these as known exceptions, not as the pattern to copy.
 
 **Redis Usage:**
 - Rate limiting (**the only implemented use**): `rate_limit:user:{user_id}` when authenticated,
-  `rate_limit:ip:{client_ip}` otherwise. Fixed 60-second window (`SETEX key 60 1` then `INCR`), so a
-  caller can burst 2× the limit across a window boundary. Fails **open** if Redis errors.
-  `srcs/api-gateway/middleware/rate_limit.py:10,25,33,37,45,54,56-58` — note this is the
-  **synchronous** redis client called from async middleware.
+  `rate_limit:ip:{client_ip}` otherwise, where `client_ip` is nginx's `X-Real-IP` (the real client
+  address; `request.client.host` behind nginx is always nginx's own IP) falling back to
+  `request.client.host` only when the header is absent. Fixed 60-second window (`SETEX key 60 1`
+  then `INCR`), so a caller can burst 2× the limit across a window boundary. Fails **open** if
+  Redis errors. `srcs/api-gateway/middleware/rate_limit.py:10,25,33,37,45,54,56-58` — note this is
+  the **synchronous** redis client called from async middleware.
 - Not implemented (aspirational only): token blacklist, breed response cache.
 
 ### AI/ML Architecture
@@ -501,12 +543,17 @@ Order of execution (bottom to top):
 3. **Rate Limiting Middleware**: Redis-backed, per-user or per-IP
 4. **Authentication Middleware**: JWT validation, extracts user context
 
-Public paths (exact match, `middleware/auth_middleware.py:22-29`): `/health`, `/docs`,
-`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh`,
-`/api/v1/auth/logout` (so an idle user whose access token expired can still log out).
-Everything else requires the `access_token` cookie — including `/redoc` (served by FastAPI but never
-added to the set), `/api/v1/auth/verify`, `/api/v1/auth/delete` and
-`/api/v1/auth/change-password`.
+Public paths (exact match, `middleware/auth_middleware.py:22-33`): `/health`, `/docs`,
+`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`,
+`/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/oauth/42/start`, `/api/v1/auth/oauth/42/callback`
+(so an idle user whose access token expired can still log out). `/api/v1/auth/login/2fa` is the second
+login step: the caller holds only the challenge token, in the JSON body. The two OAuth paths are browser
+navigations that arrive before any session exists. Everything else requires the `access_token` cookie — including `/redoc`
+(served by FastAPI but never added to the set), `/api/v1/auth/verify`, `/api/v1/auth/delete`,
+`/api/v1/auth/change-password`, `/api/v1/auth/me` and `/api/v1/auth/2fa/{setup,enable,disable}`.
+The cookie's JWT must have `token_type == "access"` and a non-empty `user_id`
+(`auth/jwt_utils.py::decode_jwt`, `:39-44`): refresh and 2FA-challenge (`"mfa"`) tokens are signed with
+the same key and are rejected with 401.
 
 ### Standardized Error Responses
 
@@ -585,12 +632,17 @@ Services use environment variables from `.env` files:
 - JWT Key Pair (RS256):
   - Auth Service: Private key at `srcs/auth-service/keys/jwt-private.pem` (signs tokens)
   - API Gateway: Public key mounted read-only from auth-service keys directory (verifies tokens)
-  - Generated once, never regenerate in production (invalidates all tokens)
+  - **Neither key is tracked by git.** `make keys` (run by `make up`, `make test` and the test scripts) creates the
+    pair when the private key is missing; when it exists it only rewrites a public key that does not match it.
+    `srcs/auth-service/keys/generate-keys.sh --force` rotates and invalidates every issued token — never in production
 - Service URLs use Docker Compose service names (e.g., `http://auth-service:3001`)
 - `.env.example` files exist for ai, api-gateway, auth-service, classification-service, db, nginx,
   recommendation-service and user-service. **`srcs/litellm/` and `srcs/ollama/` have none** — they
   are configured entirely from the root `.env` (`LITELLM_MASTER_KEY`, `OLLAMA_BASE_URL`,
   `MISTRAL_API_KEY`) plus `srcs/litellm/config.yaml`. `srcs/frontend/.env.example` exists but is 0 bytes
+- `OAUTH_42_CLIENT_ID` / `OAUTH_42_CLIENT_SECRET` (auth-service) stay empty in `.env.example`: the gate
+  passes either way (`/start` → intra, or → `/login?oauth=unavailable`). Real values only in the gitignored
+  `srcs/auth-service/.env`, followed by `docker compose up -d --force-recreate auth-service`
 
 ## Development Workflow
 
@@ -671,9 +723,9 @@ make test [init] [flags]                              # make shortcut (no -- pre
   (verify with `make -n test init`). Prefer `./scripts/init-and-test.sh --init` if you only want the
   script's build/start/migrate phase
 
-Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — gateway 28 (real 30,
-`:109`), ai 37 (real 104, `:121`), recommendation 42 (real 48, `:129`). They only feed a printed
-total; do not trust them.
+Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 104, `:121`),
+recommendation 42 (real 48, `:129`), gateway 45 (real 48, `:113`), auth 357 (real 409, `:117`). They only
+feed a printed total; do not trust them.
 
 **Jupyter Notebook Testing (E2E Integration):**
 - Location: `scripts/jupyter/test_ai_service.ipynb`
@@ -697,11 +749,19 @@ total; do not trust them.
 - **JWT Tokens**: RS256 asymmetric algorithm, stored in HTTP-only cookies
   - Auth Service: Signs tokens with RSA private key (jwt-private.pem, never shared)
   - API Gateway: Verifies tokens with RSA public key only (jwt-public.pem, read-only mount)
-  - Key generation: 4096-bit RSA (`srcs/auth-service/keys/generate-keys.sh:11`), stored in `srcs/auth-service/keys/`
+  - Key generation: 4096-bit RSA (`make keys` → `srcs/auth-service/keys/generate-keys.sh`), stored in `srcs/auth-service/keys/` and gitignored (`.dockerignore` keeps them out of image layers too)
   - Volume mount: `./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro`
 - **Network Isolation**: Backend services not exposed externally, only via API Gateway
 - **Rate Limiting**: Two layers (NGINX: 200/min, API Gateway: 60/min per user)
 - **Password Hashing**: argon2 in auth service
+- **Two-Factor Authentication**: TOTP (RFC 6238; SHA-1 / 6 digits / 30 s, the only profile all authenticator apps
+  honour), stdlib implementation pinned to the RFC test vectors. Secrets are Fernet-encrypted at rest
+  (`TWO_FACTOR_ENCRYPTION_KEY`, else derived from `SECRET_KEY` — changing either invalidates stored secrets);
+  recovery codes are SHA-256 hashed and consumed atomically; a used time step is never accepted twice; five
+  consecutive failures lock the account's second step for 15 minutes. Because the gateway's rate limits are per
+  user/IP, the lockout lives in the database on the account.
+- **Token types**: the auth service signs `access`, `refresh` and `mfa` JWTs with one key. Every verifier must check
+  `token_type`; the gateway enforces `access` (ROADMAP `GW-01`).
 - **HTTPS**: TLS 1.2+ via Nginx (self-signed cert in dev, replace in production)
 - **Token Blacklist**: **not implemented.** Logout clears the cookies and revokes **all** of the
   user's refresh tokens, identified from the `access_token` cookie (signature checked, `exp` not —
@@ -711,10 +771,10 @@ total; do not trust them.
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 33 passing tests
-- Auth Service (Django) with authentication endpoints - 102 passing tests
+- API Gateway (FastAPI) with full middleware stack - 48 passing tests
+- Auth Service (Django) with authentication, profile (PATCH /auth/me), TOTP 2FA and Log in with 42 - 409 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 98 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 107 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
 - Crossbreed detection with intelligent thresholding
@@ -724,10 +784,8 @@ total; do not trust them.
 - Redis integration for rate limiting (caching is not implemented — see Redis Usage above)
 - Ollama GPU setup for AI inference (qwen3-vl:8b model, `local` profile, fronted by LiteLLM)
 - Jupyter notebook for E2E pipeline testing
-
-**Not Started:**
-- Frontend — `srcs/frontend/` contains only empty placeholder files (.env, .env.example, Dockerfile,
-  README.md, all 0 bytes) and the compose service is commented out (docker-compose.yml:156-176)
+- Frontend SPA: Analyze / My pets / Profile (name + email, 2FA, password or "Set a password" for 42 accounts),
+  2FA code step and "Log in with 42" on log in, IT/EN/ES, Playwright UI tests in the gate
 
 **Recently Completed:**
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
@@ -740,6 +798,11 @@ total; do not trust them.
 
 ## Common Troubleshooting
 
+**`docker compose up` fails with "bind source path does not exist" (jwt-public.pem):**
+- `srcs/auth-service/keys/jwt-public.pem` is generated, not tracked by git. After pulling a branch or
+  cloning fresh, run `make keys` once (idempotent, never rotates an existing key) — `make up`,
+  `make test` and `make gate` already do this for you, but a bare `docker compose up` does not
+
 **"Connection refused" on localhost:8001:**
 - **Expected under plain `make up`** — the gateway port is no longer published. Use
   `https://localhost:8443/api/...`, or start with `make up-dev` to get `127.0.0.1:8001`
@@ -751,8 +814,8 @@ total; do not trust them.
 - Check networks: `docker network inspect ft_transcendence_backend-network`
 
 **JWT always rejected:**
-- Verify RSA key pair exists: `ls -la srcs/auth-service/keys/`
-- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem`
+- Verify RSA key pair exists and matches: `make keys` (creates it if absent; if the public key does not match the private one it is rewritten, tokens stay valid)
+- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem` (with the key missing, `docker compose up` fails with `bind source path does not exist` instead of starting the gateway — run `make keys`)
 - Check key permissions: Public key must be readable
 - Verify cookie is being set: `curl -kv https://localhost:8443/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
 - Test token signature: Tokens signed with RS256 private key must be verifiable with RS256 public key

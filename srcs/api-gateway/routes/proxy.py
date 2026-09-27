@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from starlette.responses import Response
 from starlette.datastructures import MutableHeaders
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 import httpx
 import json
 from config import settings
@@ -9,8 +10,12 @@ from typing import Dict, List, Tuple
 
 router = APIRouter()
 
-# Async HTTP client for backend requests (default 30s timeout)
-httpx_client = httpx.AsyncClient(timeout=30.0)
+# Async HTTP client for backend requests (default 30s timeout).
+# The gateway is a pass-through: it must never keep cookies of its own. httpx's default jar would
+# store every Set-Cookie from auth-service and replay it on the next cookie-less request, handing
+# one user's session to another caller (e.g. an anonymous POST /api/v1/auth/refresh).
+_NO_COOKIES = CookieJar(policy=DefaultCookiePolicy(allowed_domains=[]))
+httpx_client = httpx.AsyncClient(timeout=30.0, cookies=_NO_COOKIES)
 
 # Per-service timeout overrides (seconds) — vision/AI pipeline can be very slow
 SERVICE_TIMEOUTS: Dict[str, float] = {
