@@ -243,7 +243,7 @@ test-integration:
 
 ## gate: Merge gate — unit + integration + e2e on the running stack. Must be green before any merge;
 ##       paste the last lines into the PR.
-gate:
+gate: keys
 	@echo "Starting the stack and waiting for healthchecks (classification can take ~5 min cold)..."
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --build --wait --wait-timeout 600
 	@# The gate must test HEAD, not what is already running: --build picks up baked-in code, and
