@@ -50,6 +50,22 @@ class TestUserSerializer:
         assert serializer.is_valid()
         assert 'two_factor_enabled' not in serializer.validated_data
 
+    def test_has_password(self):
+        """An account created through 42 has no password until the user sets one from Profile"""
+        with_password = User.objects.create_user(email='a@example.com', password='testpass123')
+        without = User.objects.create_user(email='b@example.com')
+
+        assert UserSerializer(with_password).data['has_password'] is True
+        assert UserSerializer(without).data['has_password'] is False
+
+    def test_has_password_cannot_be_written(self):
+        user = User.objects.create_user(email='test@example.com', password='testpass123')
+
+        serializer = UserSerializer(user, data={'has_password': False}, partial=True)
+
+        assert serializer.is_valid()
+        assert 'has_password' not in serializer.validated_data
+
 
 @pytest.mark.django_db
 class TestRegisterSerializer:
