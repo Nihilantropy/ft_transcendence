@@ -158,3 +158,72 @@ def test_change_password_with_two_factor_needs_a_code(page, two_factor):
     form.get_by_role("button", name="Change password").click()
     expect(page.get_by_text("Password changed")).to_be_visible()
     two_factor["password"] = NEW_PASSWORD
+
+
+def _turn_on_from_profile(page, user):
+    """Profile → Turn on → read the key from the page → confirm; returns the recovery-codes dialog."""
+    page.goto("/profile")
+    section = page.get_by_role("region", name="Two-factor authentication")
+    expect(section).to_contain_text("Status: off")
+    section.get_by_role("button", name="Turn on", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Set up two-factor authentication")
+    expect(dialog.get_by_role("img", name="QR code to add SmartBreeds to your authenticator app")).to_be_visible()
+    key = dialog.locator("code")
+    expect(key).to_have_text(re.compile(r"^[A-Z2-7]{4}( [A-Z2-7]{4}){7}$"))
+    secret = key.inner_text().replace(" ", "")
+    dialog.get_by_role("button", name="Next").click()
+    dialog.get_by_label("Current password").fill(user["password"])
+    dialog.get_by_label("Authentication code", exact=True).fill(totp(secret))
+    dialog.get_by_role("button", name="Confirm and turn on").click()
+    codes = page.get_by_role("dialog", name="Your recovery codes")
+    items = codes.get_by_role("listitem")
+    expect(items).to_have_count(10)
+    user["totp_secret"] = secret
+    user["recovery_codes"] = items.all_inner_texts()
+    return codes
+
+
+def test_turn_on_shows_the_recovery_codes_once(page, registered):
+    codes = _turn_on_from_profile(page, registered)
+    assert all(re.fullmatch(r"[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}", c) for c in registered["recovery_codes"])
+    page.emulate_media(color_scheme="dark")
+    violations = axe_scan(page)  # the open dialog, dark theme
+    assert not violations, describe_violations(violations)
+
+    done = codes.get_by_role("button", name="Done")
+    expect(done).to_be_disabled()
+    with page.expect_download() as download:
+        codes.get_by_role("button", name="Download .txt").click()
+    assert download.value.suggested_filename == "smartbreeds-recovery-codes.txt"
+    codes.get_by_label("I've saved my recovery codes").check()
+    done.click()
+    expect(codes).to_be_hidden()
+    expect(page.get_by_role("region", name="Two-factor authentication")).to_contain_text("Status: on")
+    expect(page.get_by_role("form", name="Change password")
+           .get_by_label("Authentication or recovery code", exact=True)).to_be_visible()
+
+
+def test_two_factor_round_trip_from_the_ui(page, registered):
+    codes = _turn_on_from_profile(page, registered)
+    codes.get_by_label("I've saved my recovery codes").check()
+    codes.get_by_role("button", name="Done").click()
+    expect(codes).to_be_hidden()
+
+    page.get_by_role("button", name="Log out").click()
+    expect(page).to_have_url(re.compile(r"/$"))
+    page.goto("/login")
+    page.get_by_label("Email").fill(registered["email"])
+    page.get_by_label("Password", exact=True).fill(registered["password"])
+    page.get_by_role("button", name="Log in").click()
+    page.get_by_label("Authentication code", exact=True).fill(totp(registered["totp_secret"], step=1))
+    page.get_by_role("button", name="Verify").click()
+    expect(page).to_have_url(re.compile(r"/analyze$"))
+
+    page.goto("/profile")
+    section = page.get_by_role("region", name="Two-factor authentication")
+    section.get_by_role("button", name="Turn off", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Turn off two-factor authentication")
+    dialog.get_by_label("Current password").fill(registered["password"])
+    dialog.get_by_label("Authentication or recovery code", exact=True).fill(registered["recovery_codes"].pop(0))
+    dialog.get_by_role("button", name="Confirm and turn off").click()
+    expect(section).to_contain_text("Status: off")

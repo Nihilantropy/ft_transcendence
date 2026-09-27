@@ -9,6 +9,7 @@ import ErrorNote from '../components/ErrorNote'
 import ErrorSummary from '../components/ErrorSummary'
 import Field from '../components/Field'
 import PasswordField from '../components/PasswordField'
+import TwoFactorSection from '../components/TwoFactorSection'
 import { useI18n } from '../i18n'
 import { usePageTitle } from '../usePageTitle'
 import { useForm } from '../useForm'
@@ -57,6 +58,7 @@ export default function Profile() {
       </div>
 
       <DetailsForm user={user} />
+      <TwoFactorSection />
       <PasswordForm twoFactor={user.two_factor_enabled} />
 
       <Card className="flex flex-col gap-4">
