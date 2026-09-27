@@ -14,11 +14,11 @@ Read `README.md` first for routes, config table and error codes. This file is on
 ## Essential Commands
 
 ```bash
-# Tests (33, flat tests/ — there is no tests/unit or tests/integration)
+# Tests (45, flat tests/ — there is no tests/unit or tests/integration)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 docker compose run --rm --no-deps api-gateway python -m pytest tests/ -v   # skip starting auth/user/db
 docker exec ft_transcendence_api_gateway python -m pytest tests/test_proxy.py -v
-./scripts/run-unit-tests.sh --gateway          # same command; its printed "28" is stale and unasserted
+./scripts/run-unit-tests.sh --gateway          # same command; its printed count is cosmetic, not asserted
 
 # pytest-cov is NOT in requirements.txt
 docker exec ft_transcendence_api_gateway pip install pytest-cov

@@ -548,14 +548,14 @@ docker exec ft_transcendence_auth_service python -m pytest tests/ --cov=apps --c
 
 | File | Tests | Covers |
 |---|---:|---|
-| `tests/test_views.py` | 71 | `TestLoginView` 12, `TestRegisterView` 16, `TestRefreshView` 13, `TestLogoutView` 9, `TestChangePasswordView` 21 (incl. same-password, similarity, length cap, 2FA code, lockout) |
+| `tests/test_views.py` | 73 | `TestLoginView` 12, `TestRegisterView` 16, `TestRefreshView` 13, `TestLogoutView` 11, `TestChangePasswordView` 21 (incl. same-password, similarity, length cap, 2FA code, lockout) |
 | `tests/test_views_two_factor.py` | 67 | `2fa/setup` 8, `2fa/enable` 14, login password step 6, `login/2fa` 26, `2fa/disable` 12, one full register→enable→2-step login→disable lifecycle |
 | `tests/test_views_me.py` | 43 | `PATCH /me`: names 9, email 12, email + 2FA 5, input handling / mass assignment / wrong types 17 |
 | `tests/test_two_factor.py` | 66 | RFC 4226/6238 vectors, drift window, malformed codes, `otpauth://` URI, Fernet, recovery codes, replay, lockout (frozen clock) |
 | `tests/test_serializers.py` | 60 | User/Register/Login, `ChangePasswordSerializer` 16, `UpdateProfileSerializer` 20, `TwoFactorConfirm`/`TwoFactorLogin` |
 | `tests/test_utils.py` | 16 | `get_authenticated_user` (401/403 matrix incl. refresh and mfa tokens refused), `parse_json_body` |
 | `tests/test_models.py` | 16 | User, RefreshToken, `TwoFactorAuth` / `RecoveryCode` (defaults, uniqueness, cascade, `two_factor_enabled`) |
-| `tests/test_jwt_utils.py` | 9 | Access/refresh/mfa generation and decoding, hashing |
+| `tests/test_jwt_utils.py` | 11 | Access/refresh/mfa generation and decoding, hashing |
 | `tests/test_validators.py` | 5 | `PasswordValidator` letter/number rules and help text |
 
 `GET /api/v1/auth/verify` and `DELETE /api/v1/auth/delete` have **no view tests**.

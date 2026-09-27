@@ -714,7 +714,7 @@ make test [init] [flags]                              # make shortcut (no -- pre
   script's build/start/migrate phase
 
 Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 104, `:121`),
-recommendation 42 (real 48, `:129`). (gateway 41 and auth 353 were refreshed with the 2FA work.) They only
+recommendation 42 (real 48, `:129`). (gateway 45 and auth 357 were refreshed with the 2FA work.) They only
 feed a printed total; do not trust them.
 
 **Jupyter Notebook Testing (E2E Integration):**

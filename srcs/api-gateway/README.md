@@ -337,10 +337,10 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-r
 | `tests/test_cors.py` | 3 | preflight on `/health`: allow-origin, allow-credentials, allow-headers |
 | `tests/test_error_handling.py` | 5 | 404 on unrouted prefix, 404 on unknown API version, 401 before route resolution, envelope shape on a malformed login body (asserts only the `success`/`error` keys — the call is unmocked, so it actually 503s); one empty placeholder (`test_500_returns_standardized_error`) |
 | `tests/test_health.py` | 2 | status code and body shape |
-| `tests/test_jwt_utils.py` | 4 | decode valid, expired, wrong key, malformed |
+| `tests/test_jwt_utils.py` | 5 | decode valid, expired, wrong key, malformed, refresh token rejected |
 | `tests/test_logging.py` | 6 | request logged, duration logged, `user_id` + `X-Request-ID` on a proxied call |
-| `tests/test_proxy.py` | 3 | routing to auth-service and user-service, context headers on the outbound call |
-| `tests/test_rate_limit.py` | 3 | under-limit passthrough + headers, 429 body shape, user-keyed counter |
+| `tests/test_proxy.py` | 4 | routing to auth-service and user-service, context headers on the outbound call, cookies never stored |
+| `tests/test_rate_limit.py` | 5 | under-limit passthrough + headers, 429 body shape, user-keyed counter, anonymous keyed by `X-Real-IP`, falls back to the connection host without it |
 
 `scripts/run-unit-tests.sh --gateway` runs the same command but prints a hardcoded count
 (`scripts/run-unit-tests.sh`); the number is cosmetic and is not asserted.
