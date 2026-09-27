@@ -134,4 +134,5 @@ def test_email_change_needs_the_password_and_renews_the_session(gw_user):
     ok(resp)
     gw_user["email"] = new_email  # teardown logs in with it if needed
     assert "access_token" in resp.cookies  # the token embeds the email: re-issued
+    assert "refresh_token" in resp.cookies
     assert ok(c.get("/api/v1/auth/verify"))["data"]["user"]["email"] == new_email
