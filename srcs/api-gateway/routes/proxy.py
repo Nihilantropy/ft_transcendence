@@ -113,10 +113,9 @@ async def forward_request(
     # Build full backend URL
     full_url = f"{backend_url}{path}"
 
-    # Get request body if present
-    body = None
-    if method in ["POST", "PUT", "PATCH"]:
-        body = await request.body()
+    # Forward the body for every method: the client's Content-Length is forwarded too, and
+    # dropping a DELETE body made httpx fail with "Too little data for declared Content-Length".
+    body = await request.body()
 
     # Determine timeout for this path (use longer timeout for slow services)
     timeout = next(
