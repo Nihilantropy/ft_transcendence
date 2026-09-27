@@ -312,10 +312,10 @@ nothing imports it and it is not tracked by git.
 
 ## Testing
 
-Layout is flat — `tests/*.py`, no `unit/` or `integration/` subdirectories. **41 tests.**
+Layout is flat — `tests/*.py`, no `unit/` or `integration/` subdirectories. **45 tests.**
 
 ```bash
-# all 41 (works even when the container is not running)
+# all 45 (works even when the container is not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
 # skip starting auth-service/user-service/db first
