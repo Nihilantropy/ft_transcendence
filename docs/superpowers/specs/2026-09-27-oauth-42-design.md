@@ -89,3 +89,11 @@ Other providers, unlinking a 42 account, importing the intra avatar.
 - Known, documented (not fixed): nginx access logs keep the callback query string (the single-use
   authorization code); a 42-only user whose 2FA challenge expires must click "Log in with 42" again;
   42 app secrets expire and must be rotated in `.env`.
+- **No auto-link by email to an account that has a password** (review of the callback): local
+  registration does not verify email ownership, so linking a 42 identity by email to a password
+  account would let whoever registered that address first take over the 42 user's account
+  (pre-hijacking). The callback links by email only when the local account has no usable password;
+  otherwise it redirects to `/login?oauth=exists` ("an account with this email already exists — log in
+  with your password"). Linking an existing password account to 42 from Profile is out of scope.
+- The auth-service dev server (`runserver`) also logs the callback query string to stdout, which Vector
+  ships to Elasticsearch when ELK runs — same single-use-code caveat as the nginx access log.
