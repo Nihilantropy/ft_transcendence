@@ -156,3 +156,27 @@ class RecoveryCode(models.Model):
 
     def __str__(self):
         return f"RecoveryCode for {self.user.email}"
+
+
+class OAuthAccount(models.Model):
+    """
+    A remote identity (today only the 42 intra, provider '42') linked to a local user.
+
+    provider_user_id is the provider's own stable id (the intra's numeric user id, as text), never
+    the email: an email can change on either side, the id cannot.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    provider = models.CharField(max_length=20)
+    provider_user_id = models.CharField(max_length=64)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='oauth_accounts')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'oauth_accounts'
+        constraints = [
+            models.UniqueConstraint(fields=['provider', 'provider_user_id'], name='oauth_account_provider_uid'),
+        ]
+
+    def __str__(self):
+        return f"{self.provider} account {self.provider_user_id} of {self.user.email}"

@@ -143,6 +143,15 @@ TWO_FACTOR_LOCKOUT_MINUTES = config('TWO_FACTOR_LOCKOUT_MINUTES', default=15, ca
 # Time allowed to type the code after the password step
 TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES = config('TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES', default=5, cast=int)
 
+# OAuth 2.0 "Log in with 42" (authorization code grant, apps/authentication/oauth42.py).
+# Id or secret empty = not configured: /oauth/42/start answers /login?oauth=unavailable and nothing
+# else changes. The redirect URI must match, character for character, the one registered on the intra.
+OAUTH_42_CLIENT_ID = config('OAUTH_42_CLIENT_ID', default='')
+OAUTH_42_CLIENT_SECRET = config('OAUTH_42_CLIENT_SECRET', default='')
+OAUTH_42_REDIRECT_URI = config(
+    'OAUTH_42_REDIRECT_URI', default='https://localhost:8443/api/v1/auth/oauth/42/callback'
+)
+
 # Cookie Settings
 COOKIE_SECURE = config('COOKIE_SECURE', default=False, cast=bool)
 COOKIE_SAMESITE = config('COOKIE_SAMESITE', default='Strict')

@@ -26,6 +26,9 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/api/v1/auth/login",
             "/api/v1/auth/login/2fa",
             "/api/v1/auth/register",
+            # "Log in with 42": the browser follows redirects here before it has any session
+            "/api/v1/auth/oauth/42/start",
+            "/api/v1/auth/oauth/42/callback",
             "/api/v1/auth/refresh",
             # Must work with an expired/missing access token, or an idle user can't log out
             # and the refresh cookie resurrects the session. auth-service validates what it gets.

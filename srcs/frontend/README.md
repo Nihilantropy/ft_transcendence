@@ -36,3 +36,16 @@ Strings live in `src/locales/{it,en,es}.json` — every file must have the same 
   (`serverFieldKey`).
 - Two forms with the same field names on one page: pass an id prefix, `useForm(schema, 'details')`,
   and `id={form.id('field')}` on each input (ids must stay unique for axe and for the error summary links).
+
+## Log in with 42
+
+- "Log in with 42" on Log in and Register is a plain `<a href="/api/v1/auth/oauth/42/start">`: the browser
+  itself follows auth-service's redirects to the intra and back (fetch could not).
+- Returns are read once by `src/oauth.ts`: `/analyze?oauth=ok` makes `auth.tsx` call `/auth/verify` even
+  without the `session` hint; `/login?oauth=error|unavailable|exists` shows `error.OAUTH_FAILED` /
+  `error.OAUTH_UNAVAILABLE` / `error.OAUTH_EXISTS` (an intra email already belongs to a local account that
+  has a password — no auto-link, log in with the password instead); `/login?oauth=mfa#<token>` opens the
+  2FA code step with that challenge. The marker and the fragment are then removed from the address bar
+  with a replace navigation.
+- `user.has_password === false` (account created with 42): Profile shows "Set a password" (no current
+  password), a read-only email with a hint, and "Set a password first" instead of turning 2FA on.

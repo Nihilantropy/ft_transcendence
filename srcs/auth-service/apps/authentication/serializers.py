@@ -19,10 +19,13 @@ class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model output"""
 
     two_factor_enabled = serializers.BooleanField(read_only=True)
+    # False for an account created through 42 until the user sets a password from Profile
+    has_password = serializers.BooleanField(source='has_usable_password', read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'is_verified', 'two_factor_enabled']
+        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'is_verified', 'two_factor_enabled',
+                  'has_password']
         read_only_fields = ['id', 'role', 'is_verified']
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -92,6 +95,14 @@ class ChangePasswordSerializer(serializers.Serializer):
     )
     code = serializers.CharField(required=False, write_only=True, max_length=CODE_MAX_LENGTH)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user = self.context.get('user')
+        # "Set a password": an account created through 42 has no current password to confirm, so
+        # the field does not exist for it (anything sent under that name is ignored).
+        if user is not None and not user.has_usable_password():
+            del self.fields['current_password']
+
     def validate_current_password(self, value):
         user = self.context.get('user')
         if user and not user.check_password(value):
@@ -108,7 +119,7 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 'new_password_confirm': 'New passwords do not match.'
             })
-        if attrs['new_password'] == attrs['current_password']:
+        if attrs['new_password'] == attrs.get('current_password'):
             raise serializers.ValidationError({
                 'new_password': 'New password must be different from the current password.'
             })

@@ -26,6 +26,14 @@ async def health_route():
 async def two_factor_login_route():
     return {"message": "reached"}
 
+@app.get("/api/v1/auth/oauth/42/start")
+async def oauth_start_route():
+    return {"message": "reached"}
+
+@app.get("/api/v1/auth/oauth/42/callback")
+async def oauth_callback_route():
+    return {"message": "reached"}
+
 client = TestClient(app)
 
 def create_test_token(user_id: str, role: str = "user", exp_minutes: int = 30, token_type: str = "access"):
@@ -137,3 +145,21 @@ def test_two_factor_login_endpoint_is_public():
 
     assert response.status_code == 200
     assert response.json() == {"message": "reached"}
+
+
+@pytest.mark.parametrize("path", [
+    "/api/v1/auth/oauth/42/start",
+    "/api/v1/auth/oauth/42/callback?code=c&state=s",
+])
+def test_oauth_42_endpoints_are_public(path):
+    """The browser arrives without a session: logging in with 42 is how it gets one"""
+    response = client.get(path)
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "reached"}
+
+def test_only_the_two_oauth_paths_are_public():
+    """Exact match: nothing else under /api/v1/auth/oauth skips authentication"""
+    response = client.get("/api/v1/auth/oauth/42/anything")
+
+    assert response.status_code == 401

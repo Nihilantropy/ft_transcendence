@@ -22,6 +22,8 @@ export default function TwoFactorSection() {
   const { t } = useI18n()
   const { user, refreshUser } = useAuth()
   const on = !!user?.two_factor_enabled
+  // An account created with 42 has no password yet, and turning 2FA on asks for one.
+  const needsPassword = user?.has_password === false
   const dialog = useRef<HTMLDialogElement>(null)
   const [step, setStep] = useState<Step | null>(null)
   const [setup, setSetup] = useState<{ secret: string; qr: string }>()
@@ -113,10 +115,14 @@ export default function TwoFactorSection() {
         <p className="font-bold">{t(on ? 'tfa.status_on' : 'tfa.status_off')}</p>
         <p>{t(on ? 'tfa.intro_on' : 'tfa.intro_off')}</p>
         {startError ? <ErrorNote error={startError} /> : null}
-        <Button variant={on ? 'ghost' : 'primary'} className="self-start" busy={starting}
-          onClick={on ? () => go('off') : start}>
-          {t(on ? 'tfa.turn_off' : 'tfa.turn_on')}
-        </Button>
+        {needsPassword && !on ? (
+          <p>{t('profile.set_password_first')}</p>
+        ) : (
+          <Button variant={on ? 'ghost' : 'primary'} className="self-start" busy={starting}
+            onClick={on ? () => go('off') : start}>
+            {t(on ? 'tfa.turn_off' : 'tfa.turn_on')}
+          </Button>
+        )}
       </section>
 
       {/* Escape may not skip the recovery codes: they are shown once. */}

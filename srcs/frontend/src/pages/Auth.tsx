@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../api'
 import { useAuth } from '../auth'
-import Button from '../components/Button'
+import Button, { buttonClass } from '../components/Button'
 import Card from '../components/Card'
 import CodeField from '../components/CodeField'
 import ErrorNote from '../components/ErrorNote'
@@ -10,6 +10,7 @@ import ErrorSummary from '../components/ErrorSummary'
 import Field from '../components/Field'
 import PasswordField from '../components/PasswordField'
 import { useI18n } from '../i18n'
+import { OAUTH_42_START, readOAuthReturn } from '../oauth'
 import { usePageTitle } from '../usePageTitle'
 import { useForm } from '../useForm'
 import { CODE_RULES, email, required, sameAs, strongPassword, type CodeKind } from '../validation'
@@ -21,15 +22,32 @@ const REGISTER = {
   password_confirm: [required, sameAs('password')],
 }
 
+// A frontend-only ApiError code per non-mfa ?oauth= return; error.<code> carries the copy.
+const OAUTH_ERROR_CODE = { error: 'OAUTH_FAILED', unavailable: 'OAUTH_UNAVAILABLE', exists: 'OAUTH_EXISTS' } as const
+
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { t } = useI18n()
   const { login, register } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const register_ = mode === 'register'
   const form = useForm(register_ ? REGISTER : LOGIN)
-  // Set after a correct password on a 2FA account: the card switches to the code step.
-  const [mfaToken, setMfaToken] = useState<string | null>(null)
+  // Back from "Log in with 42" (/login?oauth=…): read once, before the effect below cleans the URL.
+  const [oauth] = useState(() => (register_ ? null : readOAuthReturn(location.search, location.hash)))
+  // Set after a correct password — or by the 42 callback — on a 2FA account: the card switches to the code step.
+  const [mfaToken, setMfaToken] = useState<string | null>(oauth?.kind === 'mfa' ? oauth.token : null)
   const [lastEmail, setLastEmail] = useState('')
   usePageTitle(t(register_ ? 'page.register' : 'page.login'))
+
+  // Once, on arrival: drop ?oauth= and the #challenge from the address bar (a replace, so neither
+  // stays in history nor in a copied link), and explain a failed, unavailable or pre-existing 42 login.
+  useEffect(() => {
+    if (!oauth) return
+    navigate(location.pathname, { replace: true })
+    if (oauth.kind !== 'mfa') {
+      form.setApiError(null, new ApiError(OAUTH_ERROR_CODE[oauth.kind], '', 0))
+    }
+  }, [])
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -83,6 +101,17 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <ErrorSummary items={form.summary(labels)} />
         {form.apiError ? <ErrorNote error={form.apiError} /> : null}
         <Button busy={form.busy} className="self-start">{t(register_ ? 'auth.register_submit' : 'auth.login_submit')}</Button>
+        {/* A plain link, not fetch: the browser itself must follow the redirects to the 42 intra and back. */}
+        <a href={OAUTH_42_START} className={`${buttonClass('ghost')} gap-2 self-start`}>
+          {/* Tabler "login-2" (MIT, see Illustration.tsx); the 42 logo is a trademark. */}
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5}
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+            <path d="M9 8v-2a2 2 0 0 1 2 -2h7a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-2" />
+            <path d="M3 12h13l-3 -3" />
+            <path d="M13 15l3 -3" />
+          </svg>
+          {t('auth.oauth_42')}
+        </a>
         <Link to={register_ ? '/login' : '/register'} className="text-accent underline-offset-4 hover:underline">
           {t(register_ ? 'auth.to_login' : 'auth.to_register')}
         </Link>
