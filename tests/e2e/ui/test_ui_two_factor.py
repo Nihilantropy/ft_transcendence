@@ -3,7 +3,7 @@ import re
 
 from playwright.sync_api import expect
 
-from helpers import retry_429, totp
+from helpers import axe_scan, describe_violations, retry_429, totp
 
 MFA = {"success": True, "error": None, "timestamp": "2026-09-27T00:00:00",
        "data": {"mfa_required": True, "mfa_token": "challenge"}}
@@ -89,3 +89,72 @@ def test_lockout_has_its_own_message(page):
     # api.ts retries a 429 twice (Retry-After: 1 s each) before giving up
     expect(page.get_by_text("Too many wrong codes. Wait 15 minutes and try again.")).to_be_visible(timeout=15_000)
     expect(code).to_have_attribute("aria-invalid", "true")
+
+
+NEW_PASSWORD = "Gate-Test-Pass-456"
+
+
+def test_profile_names_are_saved(page, registered):
+    page.goto("/profile")
+    details = page.get_by_role("form", name="Your details")
+    details.get_by_label("First name").fill("Ada")
+    details.get_by_label("Last name").fill("Lovelace")
+    details.get_by_role("button", name="Save details").click()
+    expect(page.get_by_text("Details saved")).to_be_visible()
+    page.reload()
+    details = page.get_by_role("form", name="Your details")
+    expect(details.get_by_label("First name")).to_have_value("Ada")
+    expect(details.get_by_label("Last name")).to_have_value("Lovelace")
+
+
+def test_email_change_asks_for_the_password(page, registered):
+    page.goto("/profile")
+    details = page.get_by_role("form", name="Your details")
+    expect(details.get_by_label("Email")).to_have_value(registered["email"])
+    expect(details.get_by_label("Current password")).to_have_count(0)
+    new_email = registered["email"].replace("gate-", "gate-moved-")
+    details.get_by_label("Email").fill(new_email)
+    details.get_by_label("Current password").fill(registered["password"])
+    details.get_by_role("button", name="Save details").click()
+    expect(page.get_by_text("Details saved")).to_be_visible()
+    registered["email"] = new_email  # teardown logs in with it if needed
+    expect(details.get_by_label("Current password")).to_have_count(0)
+    page.reload()
+    expect(page.get_by_role("form", name="Your details").get_by_label("Email")).to_have_value(new_email)
+
+
+def test_email_change_with_two_factor_needs_a_code(page, two_factor):
+    page.goto("/profile")
+    details = page.get_by_role("form", name="Your details")
+    expect(details.get_by_label("Email")).to_have_value(two_factor["email"])
+    new_email = two_factor["email"].replace("gate-", "gate-moved-")
+    details.get_by_label("Email").fill(new_email)
+    code = details.get_by_label("Authentication or recovery code", exact=True)
+    expect(code).to_be_visible()
+    # Both forms now show a current-password and a code field: ids must still be unique.
+    violations = axe_scan(page)
+    assert not violations, describe_violations(violations)
+
+    details.get_by_label("Current password").fill(two_factor["password"])
+    code.fill("000000")
+    details.get_by_role("button", name="Save details").click()
+    expect(code).to_have_attribute("aria-invalid", "true")
+    code.fill(two_factor["recovery_codes"].pop(0))
+    details.get_by_role("button", name="Save details").click()
+    expect(page.get_by_text("Details saved")).to_be_visible()
+    two_factor["email"] = new_email
+
+
+def test_change_password_with_two_factor_needs_a_code(page, two_factor):
+    page.goto("/profile")
+    form = page.get_by_role("form", name="Change password")
+    form.get_by_label("Current password").fill(two_factor["password"])
+    form.get_by_label("New password", exact=True).fill(NEW_PASSWORD)
+    form.get_by_label("Confirm new password").fill(NEW_PASSWORD)
+    form.get_by_role("button", name="Change password").click()
+    code = form.get_by_label("Authentication or recovery code", exact=True)
+    expect(code).to_be_focused()  # required: caught in the browser, nothing sent
+    code.fill(two_factor["recovery_codes"].pop(0))
+    form.get_by_role("button", name="Change password").click()
+    expect(page.get_by_text("Password changed")).to_be_visible()
+    two_factor["password"] = NEW_PASSWORD
