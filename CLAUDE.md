@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Core Technologies:**
 - Frontend: React + Vite + TypeScript + Tailwind SPA in `srcs/frontend/`, built inside the
-  nginx image and served same-origin (see srcs/frontend/README.md)
+  nginx image and served same-origin (see srcs/frontend/README.md). WCAG 2.1 AA target;
+  animations are CSS-only and pausable (`data-motion` on `<html>`)
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
 - Backend Services: Django 5.0.1 (auth-service) and Django 5.1.5 (user-service), both on `python:3.11-slim`
 - AI Services:
@@ -135,9 +136,14 @@ unit suites, recommendation-service's integration tests, then the root `tests/` 
 `tester` service (profile `test`, networks `backend-network` + `proxy`, reads nginx's cert from
 the `nginx-ssl` volume). Paste its last lines into the PR. How to add a test: `tests/README.md`.
 UI tests: Playwright (Chromium) in `tests/e2e/ui/`, same `tester` service; fixtures `registered`
-and `fake_vision` in `tests/e2e/ui/conftest.py`. The whole UI suite runs from one container IP, and
-the frontend's `api.ts` retries 429s (up to 2 retries, honoring `Retry-After` or 2 s, capped at 5 s)
-so nginx's per-IP limit (200 r/m, burst 20) doesn't trip it mid-suite.
+and `fake_vision` in `tests/e2e/ui/conftest.py`. Every UI test also runs an autouse axe-core WCAG
+2.1 A/AA audit (`no_axe_violations`) and a CSP watchdog (`no_csp_violations`); `test_ui_a11y.py`
+covers keyboard navigation, reflow at 320 px and the dark theme. The whole UI suite runs from one
+container IP, and the frontend's `api.ts` retries 429s (up to 2 retries, honoring `Retry-After` or
+2 s, capped at 5 s) so nginx's per-IP limit (200 r/m, burst 20) doesn't trip it mid-suite. Anonymous
+visitors without the `session` localStorage hint (set on login, cleared on logout) also make no
+`/auth/verify` or `/auth/refresh` calls on load, so the suite's throwaway/unauthenticated pages
+don't add to that per-IP count either.
 
 **Critical Docker Workflow:**
 - Rebuild rules differ per service:

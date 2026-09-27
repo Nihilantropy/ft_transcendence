@@ -11,3 +11,14 @@ React + Vite + TypeScript + Tailwind SPA. Served in production by nginx (the ngi
 
 Strings live in `src/locales/{it,en,es}.json` — every file must have the same keys
 (`i18n.test.ts` enforces it). A new language = one JSON file + one entry in `LANGS`.
+
+## Accessibility & motion
+
+- Every form uses `validation.ts` + `useForm` for client-side validation and translated field
+  errors; backend field text is never rendered verbatim.
+- `--field` (`index.css`) is the border color for form controls, chosen to hit ≥ 3:1 contrast
+  against both `--card` and `--bg` in light and dark (covered by a contrast test).
+- Illustrations (`Illustration.tsx`) animate via `ill-*` classes — CSS keyframes only, no JS/canvas.
+  `useMotion` reflects the user's choice (or `prefers-reduced-motion`) as `data-motion` on `<html>`,
+  which pauses every `ill-*` animation and the flying-cats sky.
+  The line art is Tabler Icons (MIT); the notice lives at the top of `Illustration.tsx`.

@@ -1,8 +1,8 @@
 # Frontend round 2 (A) — WCAG 2.1 AA, QoL, validation, animated line art
 
 Date: 2026-09-26
-Status: **design agreed in brainstorming, spec awaiting review.** Builds on `feat/frontend` (PR #32);
-branch `feat/frontend-a11y`.
+Status: **implemented** on `feat/frontend-a11y` (plan: docs/superpowers/plans/2026-09-26-frontend-a11y.md).
+Builds on `feat/frontend` (PR #32); branch `feat/frontend-a11y`.
 
 This is sub-project **A** of three. B (2FA + profile editing, taking over PR #12) and C (OAuth 2.0
 with 42 Intra) get their own specs. Password reset is out: the subject does not require it.

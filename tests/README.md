@@ -7,7 +7,9 @@ Integration and e2e tests against the real running stack. Run everything with `m
 - `e2e/` — a user flow through nginx over verified HTTPS (`https://nginx`).
 - `e2e/ui/` — the same flows in Chromium (Playwright), against the built SPA. Fixtures in
   `e2e/ui/conftest.py`: `ui_user` / `registered` (throwaway account) and `fake_vision` (canned
-  analysis, no LLM call). Selectors use the English UI.
+  analysis, no LLM call). Selectors use the English UI. Every test also runs two autouse
+  watchdogs: `no_csp_violations` and `no_axe_violations` — the latter calls `helpers.axe_scan`
+  (axe-core, WCAG 2.1 A/AA) on the page the test ends on and fails on any violation.
 
 ## Add a test
 1. Create `tests/integration/test_x.py` or `tests/e2e/test_x.py`.
