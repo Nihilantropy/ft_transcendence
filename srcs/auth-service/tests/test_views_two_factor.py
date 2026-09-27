@@ -380,7 +380,8 @@ class TestLoginSecondStep:
         assert response.status_code == 200
 
     def test_expired_challenge_is_401_token_expired(self, client, challenge, settings, frozen_time):
-        frozen_time.tick(timedelta(minutes=settings.TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES, seconds=1))
+        # decode_token accepts 5 s of leeway past exp (clock-step tolerance), so step beyond it
+        frozen_time.tick(timedelta(minutes=settings.TWO_FACTOR_CHALLENGE_LIFETIME_MINUTES, seconds=6))
 
         response = self.complete(client, challenge.token, two_factor.totp(challenge.secret))
 
