@@ -85,3 +85,99 @@ class OAuth42StartView(APIView):
             samesite='Lax',  # not Strict: it must come back on the top-level redirect from the intra
         )
         return response
+
+
+def exchange_code(code):
+    """Authorization code → intra access token"""
+    response = httpx.post(TOKEN_URL, data={
+        'grant_type': 'authorization_code',
+        'client_id': settings.OAUTH_42_CLIENT_ID,
+        'client_secret': settings.OAUTH_42_CLIENT_SECRET,
+        'code': code,
+        'redirect_uri': settings.OAUTH_42_REDIRECT_URI,
+    }, timeout=TIMEOUT)
+    response.raise_for_status()
+    return response.json()['access_token']
+
+
+def fetch_profile(access_token):
+    """The intra's /v2/me: id, email, login, first_name, last_name, …"""
+    response = httpx.get(ME_URL, headers={'Authorization': f'Bearer {access_token}'}, timeout=TIMEOUT)
+    response.raise_for_status()
+    return response.json()
+
+
+def user_for_profile(profile):
+    """
+    The local account for an intra profile: the linked one; else the user with the same email,
+    linked now; else a new user with no usable password and the intra's names.
+
+    Linking by email trusts the intra: 42 addresses are issued by the school. Never reuse this for a
+    provider whose users pick their own unverified email — whoever registered that address there
+    would take the local account over.
+    """
+    provider_user_id = str(profile['id'])
+    account = (OAuthAccount.objects.select_related('user')
+               .filter(provider=PROVIDER, provider_user_id=provider_user_id).first())
+    if account:
+        return account.user
+
+    email = (profile.get('email') or '').strip().lower()
+    if not email:
+        raise ValueError('intra profile has no email')
+
+    with transaction.atomic():
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            user = User.objects.create_user(  # no password: unusable until set from Profile
+                email=email,
+                first_name=(profile.get('first_name') or '')[:150],
+                last_name=(profile.get('last_name') or '')[:150],
+            )
+        OAuthAccount.objects.create(provider=PROVIDER, provider_user_id=provider_user_id, user=user)
+    return user
+
+
+class OAuth42CallbackView(APIView):
+    """
+    GET /api/v1/auth/oauth/42/callback?code=…&state=…
+
+    Public at the gateway: the intra redirects the browser here. Signs the user in like POST /login
+    (single session, or the 2FA challenge) and always answers with a redirect into the SPA.
+    """
+
+    def get(self, request):
+        state = request.GET.get('state', '')
+        expected = request.COOKIES.get(STATE_COOKIE, '')
+        # Bytes: compare_digest raises TypeError on non-ASCII str, and the query is the caller's
+        if not (state and expected and secrets.compare_digest(state.encode(), expected.encode())):
+            logger.warning('42 login refused: state missing or mismatched')
+            return _redirect(FAILED)
+
+        code = request.GET.get('code')
+        if not code:  # the user said no on the intra (?error=access_denied)
+            logger.warning('42 login refused on the intra: %r', request.GET.get('error', 'no code')[:64])
+            return _redirect(FAILED)
+
+        if not is_configured():
+            return _redirect(UNAVAILABLE)
+
+        try:
+            user = user_for_profile(fetch_profile(exchange_code(code)))
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, IntegrityError) as e:
+            # Type and status only: messages can carry the email or the intra's reply
+            status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else ''
+            logger.warning('42 login failed: %s %s', type(e).__name__, status)
+            return _redirect(FAILED)
+
+        if not user.is_active:
+            logger.warning('42 login refused: account disabled')
+            return _redirect(FAILED)
+
+        if user.two_factor_enabled:
+            # The same challenge as POST /login; the Log in page finishes it with POST /login/2fa
+            return _redirect(MFA + generate_mfa_token(user))
+
+        # Single-session policy, as on POST /login
+        RefreshToken.objects.filter(user=user, is_revoked=False).update(is_revoked=True)
+        return issue_auth_tokens(user, _redirect(SUCCESS))
