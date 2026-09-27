@@ -1,8 +1,21 @@
 import time
 
 import httpx
+from axe_playwright_python.sync_playwright import Axe
 
 PASSWORD = "Gate-Test-Pass-123"
+_AXE = Axe()
+WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
+
+
+def axe_scan(page):
+    """axe-core violations (WCAG 2.1 A/AA) on the current page, as a list of rule dicts."""
+    result = _AXE.run(page, options={"runOnly": {"type": "tag", "values": WCAG_TAGS}})
+    return result.response["violations"]
+
+
+def describe_violations(violations):
+    return "\n".join(f"{v['id']}: {v['help']} -> {[n['target'] for n in v['nodes']][:5]}" for v in violations)
 
 
 class Client(httpx.Client):

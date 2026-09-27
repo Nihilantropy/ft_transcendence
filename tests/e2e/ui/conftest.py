@@ -6,7 +6,7 @@ import uuid
 import pytest
 from playwright.sync_api import expect
 
-from helpers import PASSWORD, retry_429
+from helpers import PASSWORD, axe_scan, describe_violations, retry_429
 
 EDGE_URL = os.environ.get("EDGE_URL", "https://nginx")
 
@@ -55,6 +55,17 @@ def no_csp_violations(page):
             if m.type == "error" and "Content Security Policy" in m.text else None)
     yield
     assert not violations, violations
+
+
+@pytest.fixture(autouse=True)
+def no_axe_violations(page):
+    """Every UI test doubles as a WCAG 2.1 AA audit of the page it ends on."""
+    yield
+    if page.is_closed() or page.url.startswith("about:"):
+        return
+    page.wait_for_load_state("networkidle")
+    violations = axe_scan(page)
+    assert not violations, describe_violations(violations)
 
 
 @pytest.fixture
