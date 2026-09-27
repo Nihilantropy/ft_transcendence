@@ -62,3 +62,25 @@ def test_pet_photo_from_analysis_then_remove_and_add(page, registered, fake_visi
 
     page.get_by_role("link", name="All my pets").click()
     expect(page.get_by_role("link", name=re.compile("Biscotto")).locator("img")).to_be_visible()
+
+
+def test_analyze_again_updates_the_same_pet(page, registered, fake_vision):
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Save as my pet").click()
+    page.get_by_role("dialog").get_by_label("Name").fill("Biscotto")
+    page.get_by_role("dialog").get_by_role("button", name="Save").click()
+    expect(page).to_have_url(re.compile(r"/pets/[0-9a-f-]{36}$"))
+    pet_url = page.url
+    # Without a photo, the re-analysis visibly brings one back.
+    page.get_by_role("button", name="Remove photo").click()
+    expect(page.get_by_role("img", name="Biscotto")).to_have_count(0)
+
+    page.get_by_role("link", name="Analyze again").click()
+    expect(page.get_by_text("New analysis for Biscotto")).to_be_visible()
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Update Biscotto").click()
+
+    expect(page).to_have_url(pet_url)
+    expect(page.get_by_role("img", name="Biscotto")).to_be_visible()
+    page.get_by_role("link", name="All my pets").click()
+    expect(page.get_by_role("link", name=re.compile("Biscotto"))).to_have_count(1)

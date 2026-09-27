@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { api, type Pet } from '../api'
 import Button from '../components/Button'
 import Card from '../components/Card'
@@ -32,6 +32,13 @@ export default function Analyze() {
   const [result, setResult] = useState<Analysis>()
   const [error, setError] = useState<unknown>()
   const [busy, setBusy] = useState(false)
+  // /analyze?pet=<id> (from a pet's page): the result can update that pet instead of creating one.
+  const petId = useSearchParams()[0].get('pet')
+  const [pet, setPet] = useState<Pet>()
+  useEffect(() => {
+    // ponytail: an unknown or foreign id just falls back to the plain analysis
+    if (petId) api<Pet>(`/pets/${encodeURIComponent(petId)}`).then(setPet, () => {})
+  }, [petId])
 
   async function analyze(file: File) {
     setError(undefined)
@@ -56,9 +63,10 @@ export default function Analyze() {
   return (
     <section className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold">{t('analyze.title')}</h1>
+      {pet && <p>{t('analyze.for')} <strong>{pet.name}</strong></p>}
       {error ? <ErrorNote error={error} /> : null}
       {result && preview
-        ? <Result result={result} preview={preview} photo={photo} onAgain={() => { setResult(undefined); setPreview(undefined) }} />
+        ? <Result result={result} preview={preview} photo={photo} pet={pet} onAgain={() => { setResult(undefined); setPreview(undefined) }} />
         : <Dropzone onFile={analyze} />}
     </section>
   )
@@ -80,12 +88,30 @@ function Waiting({ preview }: { preview?: string }) {
   )
 }
 
-function Result({ result, preview, photo, onAgain }: { result: Analysis; preview: string; photo: string; onAgain: () => void }) {
+function Result({ result, preview, photo, pet, onAgain }:
+  { result: Analysis; preview: string; photo: string; pet?: Pet; onAgain: () => void }) {
   const { t } = useI18n()
+  const navigate = useNavigate()
+  const [updating, setUpdating] = useState(false)
+  const [updateError, setUpdateError] = useState<unknown>()
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { heading.current?.focus() }, [])
   const b = result.breed_analysis
+
+  async function update(p: Pet) {
+    setUpdating(true)
+    setUpdateError(undefined)
+    try {
+      const body = { species: result.species, breed: b.primary_breed, breed_confidence: b.confidence, ...(photo && { photo }) }
+      await api(`/pets/${p.id}`, { method: 'PATCH', body })
+      navigate(`/pets/${p.id}`)
+    } catch (err) {
+      setUpdateError(err)
+      setUpdating(false)
+    }
+  }
+
   const pct = Math.round(b.confidence * 100)
   const chips = [
     result.traits.size && t(`trait.size.${result.traits.size}`),
@@ -127,9 +153,11 @@ function Result({ result, preview, photo, onAgain }: { result: Analysis; preview
         </div>
       )}
       <div className="flex flex-wrap gap-3">
-        <Button onClick={() => dialog.current?.showModal()}>{t('analyze.save')}</Button>
+        {pet && <Button busy={updating} onClick={() => update(pet)}>{t('analyze.update')} {pet.name}</Button>}
+        <Button variant={pet ? 'ghost' : 'primary'} onClick={() => dialog.current?.showModal()}>{t('analyze.save')}</Button>
         <Button variant="ghost" onClick={onAgain}>{t('analyze.again')}</Button>
       </div>
+      {updateError ? <ErrorNote error={updateError} /> : null}
       <SaveDialog dialog={dialog} result={result} photo={photo} />
     </Card>
   )
