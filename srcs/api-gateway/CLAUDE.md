@@ -88,7 +88,8 @@ GET /api/v1/users/me  (Cookie: access_token=…)
 
 Public paths (`/health`, `/docs`, `/openapi.json`, `/api/v1/auth/{login,register,refresh}`) short-circuit
 step 1 via `call_next`, so `request.state` stays empty: the outbound request carries **no** `X-User-ID` /
-`X-Request-ID`, rate limiting falls back to `rate_limit:ip:{client_ip}`, and the log line reads
+`X-Request-ID`, rate limiting falls back to `rate_limit:ip:{client_ip}` (`client_ip` = `X-Real-IP`,
+nginx's real-client header, or `request.client.host` if absent — see Gotchas), and the log line reads
 `"user_id": "anonymous"`, `"request_id": "no-request-id"`.
 
 ## Conventions & Patterns
@@ -134,6 +135,13 @@ step 1 via `call_next`, so `request.state` stays empty: the outbound request car
   `error.code = "HTTP_ERROR"` and a Python repr in `error.message`. The intended `SERVICE_UNAVAILABLE`
   code never reaches the wire. 404 is unaffected — Starlette prefers the status-code handler
   (`main.py:44`) for `HTTPException`.
+- **Anonymous rate limiting keys on `X-Real-IP`, not `request.client.host`.** The gateway sits
+  behind nginx, so the raw connection is always nginx's own container IP — keying on it would put
+  every anonymous visitor in one shared bucket. nginx sets `X-Real-IP` from `$remote_addr` and
+  overwrites any client-sent value (`srcs/nginx/conf.d/default.conf.template`, `location /api`), so
+  it is trusted here. `logging_middleware.py` uses the same header for its `client_ip` log field.
+  A caller that reaches the gateway directly (`make up-dev`'s `127.0.0.1:8001`, or the backend
+  network) can spoof the header, but that only skews the spoofer's own limit.
 - **Redis calls are synchronous inside async middleware.** `redis.from_url` (`rate_limit.py:10`) is the
   blocking client and is called 2–3 times per request on the event loop. Do not add more calls there
   without switching to `redis.asyncio`.

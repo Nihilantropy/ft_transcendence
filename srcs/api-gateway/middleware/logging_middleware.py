@@ -52,7 +52,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Get request details
         method = request.method
         path = request.url.path
-        client_ip = request.client.host if request.client else "unknown"
+        # Behind nginx this is always nginx's own IP; X-Real-IP carries the real client
+        # (see middleware/rate_limit.py for the full rationale).
+        client_ip = request.headers.get("x-real-ip") or (
+            request.client.host if request.client else "unknown")
 
         # Get request ID and user context if available
         request_id = getattr(request.state, "request_id", "no-request-id")

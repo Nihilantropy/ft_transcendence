@@ -64,6 +64,31 @@ def test_rate_limit_response_structure():
     assert "Retry-After" in response.headers
     assert response.headers["X-RateLimit-Remaining"] == "0"
 
+def test_rate_limit_uses_x_real_ip_for_anonymous_requests(mock_redis):
+    """Behind nginx, request.client.host is nginx's own IP: two anonymous clients with different
+    X-Real-IP values must land in two different Redis buckets."""
+    with patch("middleware.rate_limit.redis_client", mock_redis):
+        mock_redis.get.return_value = "10"
+
+        client.get("/health", headers={"X-Real-IP": "203.0.113.1"})
+        client.get("/health", headers={"X-Real-IP": "203.0.113.2"})
+
+    calls = [str(call) for call in mock_redis.get.call_args_list]
+    assert any("rate_limit:ip:203.0.113.1" in c for c in calls)
+    assert any("rate_limit:ip:203.0.113.2" in c for c in calls)
+
+
+def test_rate_limit_falls_back_to_connection_host_without_x_real_ip(mock_redis):
+    """Without the header (e.g. hitting the gateway directly under make up-dev), fall back to
+    the connection's own host instead of crashing or using a fixed key."""
+    with patch("middleware.rate_limit.redis_client", mock_redis):
+        mock_redis.get.return_value = "10"
+        client.get("/health")
+
+    calls = [str(call) for call in mock_redis.get.call_args_list]
+    assert any("rate_limit:ip:testclient" in c for c in calls)
+
+
 def test_rate_limit_uses_user_id_when_authenticated(mock_redis):
     """Test that rate limiting uses user_id for authenticated requests"""
     token = create_test_token("user123", "user")

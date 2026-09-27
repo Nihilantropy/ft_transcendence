@@ -389,10 +389,12 @@ Treat these as known exceptions, not as the pattern to copy.
 
 **Redis Usage:**
 - Rate limiting (**the only implemented use**): `rate_limit:user:{user_id}` when authenticated,
-  `rate_limit:ip:{client_ip}` otherwise. Fixed 60-second window (`SETEX key 60 1` then `INCR`), so a
-  caller can burst 2× the limit across a window boundary. Fails **open** if Redis errors.
-  `srcs/api-gateway/middleware/rate_limit.py:10,25,33,37,45,54,56-58` — note this is the
-  **synchronous** redis client called from async middleware.
+  `rate_limit:ip:{client_ip}` otherwise, where `client_ip` is nginx's `X-Real-IP` (the real client
+  address; `request.client.host` behind nginx is always nginx's own IP) falling back to
+  `request.client.host` only when the header is absent. Fixed 60-second window (`SETEX key 60 1`
+  then `INCR`), so a caller can burst 2× the limit across a window boundary. Fails **open** if
+  Redis errors. `srcs/api-gateway/middleware/rate_limit.py:10,25,33,37,45,54,56-58` — note this is
+  the **synchronous** redis client called from async middleware.
 - Not implemented (aspirational only): token blacklist, breed response cache.
 
 ### AI/ML Architecture
