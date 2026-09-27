@@ -367,13 +367,13 @@ browser ── (approves on the intra) ── GET /api/v1/auth/oauth/42/callback
 ```
 
 - **Account lookup:** the linked `OAuthAccount('42', <intra id>)`; else the user with the same email (case-insensitive) **only when that account has no usable password**, linked now; else a new user with the intra's names and **no usable password** (`has_password: false`). The intra never overwrites local data. Linking by email is safe only because 42 addresses are issued by the school — do not copy it for a provider with self-declared emails.
-- **No auto-link to a password account:** an email that already belongs to a local account *with* a password is refused — `/login?oauth=exists` ("an account with this email already exists — log in with your password"). Local registration never verifies email ownership, so linking a 42 identity by email to a password account would let whoever registered that address first take over the 42 user's account. Linking an existing password account to 42 from Profile is out of scope.
+- **No auto-link to a password account:** an email that already belongs to a local account *with* a password is refused — `/login?oauth=exists` ("an account with this email already exists — log in with your password"). Local registration never verifies email ownership, so linking a 42 identity by email to a password account would let whoever registered that address first take over the 42 user's account. Linking an existing password account to 42 from Profile is out of scope. **This also means a denial-of-service half is not fixed**: whoever registers a 42 user's school email address locally first permanently makes that user's "Log in with 42" end in `/login?oauth=exists`, and with no password reset and no email verification in this service, the 42 user has no way to recover that email address.
 - **2FA still applies:** a user with 2FA gets the same challenge as `POST /login`, in the URL **fragment** (never sent to a server or logged); the Log in page finishes it with `POST /login/2fa`.
 - **Single session:** like `/login`, a successful callback revokes the user's other refresh tokens.
 - **Failures** (state missing/mismatched, the user pressed Cancel, intra unreachable or 4xx/5xx, a profile without id or email, a disabled account) all end at `/login?oauth=error` with one `42 login …` warning in `make logs-auth-service` naming the exception type and HTTP status — never the code, state, secret or tokens. Intra calls use httpx with a 10 s timeout and no retries. The `oauth_state` cookie is deleted on every outcome.
 - **`?oauth=ok`** on the success redirect is for the SPA: it keeps a localStorage hint of "maybe signed in" and skips `/auth/verify` without it, which a browser logging in with 42 for the first time does not have.
 - Session cookies are `SameSite=Strict`: the `/analyze?oauth=ok` document request that ends the redirect chain from the intra does not carry them, but it is a static SPA page; the SPA's own `/auth/verify` fetch does.
-- The auth-service dev server (`runserver`) also logs the callback query string — including the single-use authorization `code` — to stdout, which Vector ships to Elasticsearch when `make elk` runs. Same caveat as the nginx access log below.
+- **The callback's `?code=…&state=…` ends up in three server logs**, all shipped to Elasticsearch by Vector when `make elk` runs: nginx's access log, the API Gateway's uvicorn access log, and the auth-service dev server's (`runserver`) stdout log of the request line. The authorization `code` is single-use, so this is low severity, but it applies equally to all three — there is no log that omits it.
 
 ### Create the 42 application and fill `.env`
 
@@ -392,6 +392,8 @@ Without credentials the app works normally and "Log in with 42" answers "not ava
 5. Check: `curl -ks -o /dev/null -w '%{redirect_url}\n' https://localhost:8443/api/v1/auth/oauth/42/start` prints an `https://api.intra.42.fr/oauth/authorize?…` URL (it prints `https://localhost:8443/login?oauth=unavailable` while the id or secret is empty).
 
 The intra shows when the application's secret expires; after that every callback ends at `/login?oauth=error` with `42 login failed: HTTPStatusError 401` in the logs — generate a new secret on the same page and repeat steps 3–4.
+
+**Start the flow from the same host as `OAUTH_42_REDIRECT_URI`.** The `oauth_state` cookie has no explicit `Domain`, so the browser scopes it to whichever host served `/start`. Clicking "Log in with 42" from `https://127.0.0.1:8443` while `OAUTH_42_REDIRECT_URI` is `https://localhost:8443/...` sends the intra's redirect back to `localhost`, which never had the cookie — the callback sees no `oauth_state` and lands on `/login?oauth=error`. Always open the app at the same host that is registered as the redirect URI.
 
 ### Manual check with real credentials (not run by the gate)
 

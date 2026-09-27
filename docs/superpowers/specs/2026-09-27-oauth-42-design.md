@@ -86,14 +86,18 @@ Other providers, unlinking a 42 account, importing the intra avatar.
 - Session cookies stay `SameSite=Strict`: the final HTML load after the intra redirect doesn't carry
   them, but the SPA's own `/auth/verify` does — no gate test can prove it, so the docs task includes a
   manual check with real credentials.
-- Known, documented (not fixed): nginx access logs keep the callback query string (the single-use
-  authorization code); a 42-only user whose 2FA challenge expires must click "Log in with 42" again;
-  42 app secrets expire and must be rotated in `.env`.
+- Known, documented (not fixed): the callback's `?code=…&state=…` ends up in three server logs —
+  nginx's access log, the API Gateway's uvicorn access log, and the auth-service dev server's
+  (`runserver`) stdout — all shipped to Elasticsearch by Vector when ELK runs; the authorization code
+  is single-use, so this is low severity but applies equally to all three. Also known, not fixed: a
+  42-only user whose 2FA challenge expires must click "Log in with 42" again; 42 app secrets expire and
+  must be rotated in `.env`.
 - **No auto-link by email to an account that has a password** (review of the callback): local
   registration does not verify email ownership, so linking a 42 identity by email to a password
   account would let whoever registered that address first take over the 42 user's account
   (pre-hijacking). The callback links by email only when the local account has no usable password;
   otherwise it redirects to `/login?oauth=exists` ("an account with this email already exists — log in
-  with your password"). Linking an existing password account to 42 from Profile is out of scope.
-- The auth-service dev server (`runserver`) also logs the callback query string to stdout, which Vector
-  ships to Elasticsearch when ELK runs — same single-use-code caveat as the nginx access log.
+  with your password"). Linking an existing password account to 42 from Profile is out of scope. The
+  same gap has a denial-of-service half: whoever registers a 42 user's school email address locally
+  first permanently makes that user's "Log in with 42" end in `/login?oauth=exists`, and with no
+  password reset and no email verification in this service, the 42 user has no way to recover it.
