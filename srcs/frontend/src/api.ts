@@ -7,6 +7,7 @@ export type Pet = {
   age: number | null
   weight: number | null
   health_conditions: string[]
+  photo: string // data URL, '' when none
 }
 
 export class ApiError extends Error {

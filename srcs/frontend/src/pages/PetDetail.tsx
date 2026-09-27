@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, type Pet } from '../api'
-import Button from '../components/Button'
+import Button, { buttonClass } from '../components/Button'
 import Card from '../components/Card'
 import ErrorNote from '../components/ErrorNote'
 import ErrorSummary from '../components/ErrorSummary'
 import Field from '../components/Field'
 import Illustration from '../components/Illustration'
 import { breedLabel, useI18n } from '../i18n'
+import { PHOTO_SIDE, toJpegDataUrl } from '../image'
 import { usePageTitle } from '../usePageTitle'
 import { useForm } from '../useForm'
 import { positiveNumber, wholeNumber } from '../validation'
@@ -75,12 +76,15 @@ export default function PetDetail() {
     <section className="flex flex-col gap-6">
       <Link to="/pets" className="text-accent underline-offset-4 hover:underline">← {t('pet.back')}</Link>
       <div className="flex items-center gap-4">
-        <Illustration name={pet.species === 'cat' ? 'cat' : 'dog'} className="h-20 w-20 shrink-0 text-accent" />
+        {pet.photo
+          ? <img src={pet.photo} alt={pet.name} className="h-20 w-20 shrink-0 rounded-full object-cover" />
+          : <Illustration name={pet.species === 'cat' ? 'cat' : 'dog'} className="h-20 w-20 shrink-0 text-accent" />}
         <div>
           <h1 className="text-2xl font-bold">{pet.name}</h1>
           <p>{pet.breed ? breedLabel(pet.breed) : t('pets.unknown_breed')}</p>
         </div>
       </div>
+      <PhotoControls pet={pet} path={`/pets/${pid}`} onChange={setPet} />
 
       <Card>
         <form onSubmit={save} onBlurCapture={form.onBlur} className="flex flex-col gap-4" noValidate>
@@ -131,5 +135,47 @@ export default function PetDetail() {
         )}
       </section>
     </section>
+  )
+}
+
+function PhotoControls({ pet, path, onChange }: { pet: Pet; path: string; onChange: (p: Pet) => void }) {
+  const { t } = useI18n()
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
+  const [error, setError] = useState<unknown>()
+
+  async function update(photo: string | Promise<string>, done: string) {
+    setBusy(true)
+    setStatus('')
+    setError(undefined)
+    try {
+      onChange(await api<Pet>(path, { method: 'PATCH', body: { photo: await photo } }))
+      setStatus(done)
+    } catch (err) {
+      setError(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className={`${buttonClass('ghost')} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent ${busy ? 'pointer-events-none opacity-50' : ''}`}>
+          {t(pet.photo ? 'pet.photo_change' : 'pet.photo_add')}
+          <input type="file" accept="image/*" className="sr-only" disabled={busy}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = '' // picking the same file again must fire onChange
+              if (f) update(toJpegDataUrl(f, PHOTO_SIDE), t('pet.photo_saved'))
+            }} />
+        </label>
+        {pet.photo && (
+          <Button variant="ghost" busy={busy} onClick={() => update('', t('pet.photo_removed'))}>{t('pet.photo_remove')}</Button>
+        )}
+        <span role="status">{status}</span>
+      </div>
+      {error ? <ErrorNote error={error} /> : null}
+    </div>
   )
 }

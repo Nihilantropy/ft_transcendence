@@ -38,3 +38,27 @@ def test_save_as_pet_then_food_then_list(page, registered, fake_vision):
 def test_unknown_pet_is_friendly(page, registered):
     page.goto("/pets/00000000-0000-0000-0000-000000000000")
     expect(page.get_by_text("I couldn't find this pet.")).to_be_visible()
+
+
+def test_pet_photo_from_analysis_then_remove_and_add(page, registered, fake_vision):
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Save as my pet").click()
+    page.get_by_role("dialog").get_by_label("Name").fill("Biscotto")
+    page.get_by_role("dialog").get_by_role("button", name="Save").click()
+
+    # The analysed photo becomes the profile photo, as a small JPEG thumbnail.
+    photo = page.get_by_role("img", name="Biscotto")
+    expect(photo).to_be_visible()
+    assert photo.get_attribute("src").startswith("data:image/jpeg;base64,")
+
+    page.get_by_role("button", name="Remove photo").click()
+    expect(page.get_by_role("status").filter(has_text="Photo removed")).to_be_visible()
+    expect(photo).to_have_count(0)
+
+    page.get_by_label("Add a photo").set_input_files("/test_data/golden_retriever_1.jpg")
+    expect(page.get_by_role("status").filter(has_text="Photo saved")).to_be_visible()
+    page.reload()
+    expect(photo).to_be_visible()
+
+    page.get_by_role("link", name="All my pets").click()
+    expect(page.get_by_role("link", name=re.compile("Biscotto")).locator("img")).to_be_visible()
