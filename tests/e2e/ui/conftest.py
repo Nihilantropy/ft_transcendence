@@ -6,7 +6,7 @@ import uuid
 import pytest
 from playwright.sync_api import expect
 
-from helpers import PASSWORD, axe_scan, describe_violations, retry_429, second_factor
+from helpers import PASSWORD, axe_scan, describe_violations, retry_429, second_factor, totp
 
 EDGE_URL = os.environ.get("EDGE_URL", "https://nginx")
 
@@ -91,6 +91,22 @@ def registered(page, ui_user):
     page.get_by_role("button", name="Create account").click()
     expect(page).to_have_url(re.compile(r"/analyze$"))
     return ui_user
+
+
+@pytest.fixture
+def two_factor(page, registered):
+    """`registered`, with 2FA turned on through the API (shared cookies, so the browser session is
+    the re-issued one). Stores `totp_secret` and `recovery_codes` on the user dict."""
+    req = page.context.request
+    setup = retry_429(lambda: req.post("/api/v1/auth/2fa/setup"))
+    assert setup.ok, setup.text()
+    secret = setup.json()["data"]["secret"]
+    body = {"current_password": registered["password"], "code": totp(secret)}
+    enable = retry_429(lambda: req.post("/api/v1/auth/2fa/enable", data=body))
+    assert enable.ok, enable.text()
+    registered["totp_secret"] = secret
+    registered["recovery_codes"] = enable.json()["data"]["recovery_codes"]
+    return registered
 
 
 @pytest.fixture
