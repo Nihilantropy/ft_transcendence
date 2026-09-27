@@ -120,15 +120,20 @@ def test_keyboard_journey(page, ui_user, fake_vision):
     tab_to(page, page.get_by_role("link", name="Create account"))
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"/register$"))
-    tab_to(page, page.get_by_label("Email"))
-    page.keyboard.type(ui_user["email"])
-    tab_to(page, page.get_by_label("Password", exact=True))
-    page.keyboard.type(ui_user["password"])
-    tab_to(page, page.get_by_label("Confirm password"))
-    page.keyboard.type(ui_user["password"])
+    # Layout moves focus to the new page's h1 in an effect after the route change; wait for it,
+    # or under CPU contention it can land after we started typing and swallow keystrokes.
+    expect(page.get_by_role("heading", level=1)).to_be_focused()
+    for label, exact, value in (("Email", False, ui_user["email"]),
+                                ("Password", True, ui_user["password"]),
+                                ("Confirm password", False, ui_user["password"])):
+        field = page.get_by_label(label, exact=exact)
+        tab_to(page, field)
+        page.keyboard.type(value)
+        expect(field).to_have_value(value)
     tab_to(page, page.get_by_role("button", name="Create account"))
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"/analyze$"))
+    expect(page.get_by_role("heading", level=1)).to_be_focused()
 
     tab_to(page, page.locator("input[type=file]"))
     with page.expect_file_chooser() as chooser:
