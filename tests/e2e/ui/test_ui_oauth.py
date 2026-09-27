@@ -80,3 +80,41 @@ def test_back_from_42_the_session_is_checked(page, registered):
     expect(page.get_by_role("heading", name="Analyze a photo")).to_be_visible()
     expect(page).to_have_url(re.compile(r"/analyze$"))
     assert page.evaluate("localStorage.getItem('session')") == "1"
+
+
+def _without_password(route):
+    """/auth/verify as it answers for an account created with 42 (no password yet)."""
+    resp = route.fetch()
+    body = resp.json()
+    body["data"]["user"]["has_password"] = False
+    route.fulfill(response=resp, json=body)
+
+
+def test_42_account_sets_a_first_password(page, registered):
+    sent = []
+
+    def change_password(route):
+        sent.append(route.request.post_data_json)
+        route.fulfill(json={"success": True, "error": None, "timestamp": "2026-09-27T00:00:00",
+                            "data": {"message": "Password changed successfully"}})
+
+    page.route("**/api/v1/auth/verify", _without_password)
+    page.route("**/api/v1/auth/change-password", change_password)
+    page.goto("/profile")
+    form = page.get_by_role("form", name="Set a password")
+    expect(form).to_be_visible()
+    expect(form.get_by_label("Current password")).to_have_count(0)
+    tfa = page.get_by_role("region", name="Two-factor authentication")
+    expect(tfa).to_contain_text("Set a password first")
+    expect(tfa.get_by_role("button", name="Turn on", exact=True)).to_have_count(0)
+    details = page.get_by_role("form", name="Your details")
+    expect(details.get_by_label("Email")).not_to_be_editable()
+    expect(details).to_contain_text("Set a password first to change your email.")
+
+    page.unroute("**/api/v1/auth/verify")  # from here on the real account answers: it has a password
+    form.get_by_label("New password", exact=True).fill("Gate-Test-Pass-456")
+    form.get_by_label("Confirm new password").fill("Gate-Test-Pass-456")
+    form.get_by_role("button", name="Set password").click()
+    expect(page.get_by_text("Password set")).to_be_visible()
+    assert sent == [{"new_password": "Gate-Test-Pass-456", "new_password_confirm": "Gate-Test-Pass-456"}]
+    expect(page.get_by_role("form", name="Change password")).to_be_visible()  # has_password flipped

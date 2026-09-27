@@ -21,6 +21,12 @@ const PASSWORD_FORM = {
   new_password_confirm: [required, sameAs('new_password')],
 }
 
+// An account created with 42 has no current password to confirm.
+const SET_PASSWORD_FORM = {
+  new_password: [required, strongPassword],
+  new_password_confirm: [required, sameAs('new_password')],
+}
+
 export default function Profile() {
   const { t } = useI18n()
   usePageTitle(t('profile.title'))
@@ -59,7 +65,7 @@ export default function Profile() {
 
       <DetailsForm user={user} />
       <TwoFactorSection />
-      <PasswordForm twoFactor={user.two_factor_enabled} />
+      <PasswordForm twoFactor={user.two_factor_enabled} hasPassword={user.has_password} />
 
       <Card className="flex flex-col gap-4">
         <h2 className="text-2xl font-bold">{t('profile.delete_title')}</h2>
@@ -137,7 +143,9 @@ function DetailsForm({ user }: { user: User }) {
           defaultValue={user.first_name} error={form.message('first_name')} />
         <Field label={labels.last_name} name="last_name" id={form.id('last_name')} autoComplete="family-name"
           defaultValue={user.last_name} error={form.message('last_name')} />
+        {/* A new email needs the current password: an account created with 42 must set one first. */}
         <Field label={labels.email} name="email" id={form.id('email')} type="email" autoComplete="email" required
+          readOnly={!user.has_password} hint={user.has_password ? undefined : t('profile.email_needs_password')}
           value={newEmail} onChange={(e) => setNewEmail(e.target.value)} error={form.message('email')} />
         {emailChanged && (
           <>
@@ -156,15 +164,17 @@ function DetailsForm({ user }: { user: User }) {
   )
 }
 
-function PasswordForm({ twoFactor }: { twoFactor: boolean }) {
+function PasswordForm({ twoFactor, hasPassword }: { twoFactor: boolean; hasPassword: boolean }) {
   const { t } = useI18n()
-  const pw = useForm(twoFactor ? { ...PASSWORD_FORM, code: CODE_RULES.any } : PASSWORD_FORM)
-  const [done, setDone] = useState(false)
+  const { refreshUser } = useAuth()
+  const base = hasPassword ? PASSWORD_FORM : SET_PASSWORD_FORM
+  const pw = useForm(twoFactor ? { ...base, code: CODE_RULES.any } : base)
+  const [done, setDone] = useState<string | null>(null) // key of the confirmation copy
 
   async function changePassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = e.currentTarget
-    setDone(false)
+    setDone(null)
     const v = pw.check(form)
     if (!v) return
     pw.setBusy(true)
@@ -172,7 +182,9 @@ function PasswordForm({ twoFactor }: { twoFactor: boolean }) {
       // The server revokes every session and re-issues this one's cookies.
       await api('/auth/change-password', { method: 'PUT', body: v })
       form.reset()
-      setDone(true)
+      setDone(hasPassword ? 'profile.password_done' : 'profile.set_password_done')
+      // A first password: has_password flips and this card becomes "Change password".
+      if (!hasPassword) await refreshUser()
     } catch (err) {
       pw.setApiError(form, err)
     } finally {
@@ -189,9 +201,15 @@ function PasswordForm({ twoFactor }: { twoFactor: boolean }) {
   return (
     <Card>
       <form onSubmit={changePassword} onBlurCapture={pw.onBlur} aria-labelledby="password-title" className="flex flex-col gap-4" noValidate>
-        <h2 id="password-title" className="text-2xl font-bold">{t('profile.password_title')}</h2>
-        <PasswordField label={labels.current_password} name="current_password" required
-          autoComplete="current-password" error={pw.message('current_password')} />
+        <h2 id="password-title" className="text-2xl font-bold">
+          {t(hasPassword ? 'profile.password_title' : 'profile.set_password_title')}
+        </h2>
+        {hasPassword ? (
+          <PasswordField label={labels.current_password} name="current_password" required
+            autoComplete="current-password" error={pw.message('current_password')} />
+        ) : (
+          <p>{t('profile.set_password_intro')}</p>
+        )}
         <PasswordField label={labels.new_password} name="new_password" required rules
           autoComplete="new-password" error={pw.message('new_password')} />
         <PasswordField label={labels.new_password_confirm} name="new_password_confirm" required
@@ -199,8 +217,10 @@ function PasswordForm({ twoFactor }: { twoFactor: boolean }) {
         {twoFactor && <CodeField kind="any" error={pw.message('code')} />}
         <ErrorSummary items={pw.summary(labels)} />
         {pw.note ? <ErrorNote error={pw.note} /> : null}
-        {done && <p role="status" className="font-bold">{t('profile.password_done')}</p>}
-        <Button busy={pw.busy} className="self-start">{t('profile.password_submit')}</Button>
+        {done && <p role="status" className="font-bold">{t(done)}</p>}
+        <Button busy={pw.busy} className="self-start">
+          {t(hasPassword ? 'profile.password_submit' : 'profile.set_password_submit')}
+        </Button>
       </form>
     </Card>
   )
