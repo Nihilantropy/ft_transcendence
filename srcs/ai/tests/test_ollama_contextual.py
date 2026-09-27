@@ -254,6 +254,12 @@ def test_contextual_prompt_language(ollama_client, sample_breed_analysis_purebre
     assert "in English" in en_prompt
 
 
+def test_contextual_prompt_spanish(ollama_client, sample_breed_analysis_purebred):
+    """Spanish is a supported report language."""
+    prompt = ollama_client._build_contextual_prompt("dog", sample_breed_analysis_purebred, None, "es")
+    assert "in Spanish" in prompt
+
+
 def test_normalize_traits():
     """Hedged or free-text trait values collapse onto the enum; unknown → None."""
     from src.services.ollama_client import _normalize_traits

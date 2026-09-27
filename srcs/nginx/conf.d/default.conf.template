@@ -45,6 +45,10 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
+    # CSP for the built SPA: no inline or eval'd script. React sets style via the CSSOM, which
+    # style-src does not restrict; fonts are self-hosted.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+
     # Error pages
     error_page 500 502 503 504 /50x.html;
     location = /50x.html {
@@ -133,31 +137,27 @@ server {
         }
     }
 
-    # Main application - Frontend placeholder (frontend not implemented yet)
-    # When frontend is ready, uncomment and update this section
-    # location / {
-    #     access_log /var/log/nginx/proxy_access.log main;
-    #     limit_req zone=general_limit burst=50 nodelay;
-    #     proxy_pass http://frontend:5173;
-    #     proxy_set_header Host $host;
-    #     proxy_set_header X-Real-IP $remote_addr;
-    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    #     proxy_set_header X-Forwarded-Proto $scheme;
-    #     proxy_http_version 1.1;
-    #     proxy_set_header Upgrade $http_upgrade;
-    #     proxy_set_header Connection $connection_upgrade;
-    #     proxy_connect_timeout 5s;
-    #     proxy_send_timeout 30s;
-    #     proxy_read_timeout 30s;
-    #     proxy_intercept_errors on;
-    #     error_page 502 503 504 /50x.html;
-    #     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: https://${HOST_DOMAIN}; frame-ancestors 'self'; base-uri 'self'; form-action 'self';" always;
-    # }
-
-    # Temporary root location - Returns API info (until frontend is implemented)
+    # SPA. Real files are served as-is; any other path gets index.html so client routes such as
+    # /pets/<id> survive a reload. NO add_header in these two locations: a location with its own
+    # add_header drops every server-level one (CSP, HSTS, nosniff…). `expires` is not add_header.
     location / {
-        default_type application/json;
-        return 200 '{"status":"ok","message":"SmartBreeds API Gateway","api_endpoint":"https://${HOST_DOMAIN}/api","documentation":"Use /api/* endpoints for backend services","note":"Frontend not yet implemented - use direct API calls"}';
+        root /usr/share/nginx/html;
+        try_files $uri /index.html;
+    }
+
+    # index.html has no content hash: it must revalidate after every redeploy, or a browser can
+    # keep serving a stale shell that references assets a new build already deleted.
+    # `expires` is not `add_header` (see the note above location /), so the server-level security
+    # headers still apply here.
+    location = /index.html {
+        root /usr/share/nginx/html;
+        expires -1;
+    }
+
+    # Vite puts a content hash in every file name under /assets: cache for a year.
+    location /assets/ {
+        root /usr/share/nginx/html;
+        expires 1y;
     }
 
     # Deny access to hidden files

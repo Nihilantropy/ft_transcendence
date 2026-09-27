@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/vision", tags=["vision"])
 class VisionAnalysisRequest(BaseModel):
     """Request for vision analysis."""
     image: str = Field(..., description="Base64-encoded image (with or without data URI prefix)")
-    language: Literal["en", "it"] = Field("en", description="Language of the free-text report fields")
+    language: Literal["en", "it", "es"] = Field("en", description="Language of the free-text report fields")
 
 
 # Service instances (injected at startup)

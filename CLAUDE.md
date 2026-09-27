@@ -7,8 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **SmartBreeds** is a luxury pet companion platform using AI-powered computer vision for breed identification and health monitoring. The system employs a microservices architecture with Docker-based deployment.
 
 **Core Technologies:**
-- Frontend: **not started**. `srcs/frontend/` holds only empty placeholder files and the compose
-  service is commented out (docker-compose.yml:156-176). Intended stack: React + Vite + Tailwind CSS
+- Frontend: React + Vite + TypeScript + Tailwind SPA in `srcs/frontend/`, built inside the
+  nginx image and served same-origin (see srcs/frontend/README.md). WCAG 2.1 AA target;
+  animations are CSS-only and pausable (`data-motion` on `<html>`)
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
 - Backend Services: Django 5.0.1 (auth-service) and Django 5.1.5 (user-service), both on `python:3.11-slim`
 - AI Services:
@@ -134,6 +135,15 @@ unit suites, recommendation-service's integration tests, then the root `tests/` 
 (`tests/integration/` via the gateway, `tests/e2e/` via nginx over verified HTTPS) in the
 `tester` service (profile `test`, networks `backend-network` + `proxy`, reads nginx's cert from
 the `nginx-ssl` volume). Paste its last lines into the PR. How to add a test: `tests/README.md`.
+UI tests: Playwright (Chromium) in `tests/e2e/ui/`, same `tester` service; fixtures `registered`
+and `fake_vision` in `tests/e2e/ui/conftest.py`. Every UI test also runs an autouse axe-core WCAG
+2.1 A/AA audit (`no_axe_violations`) and a CSP watchdog (`no_csp_violations`); `test_ui_a11y.py`
+covers keyboard navigation, reflow at 320 px and the dark theme. The whole UI suite runs from one
+container IP, and the frontend's `api.ts` retries 429s (up to 2 retries, honoring `Retry-After` or
+2 s, capped at 5 s) so nginx's per-IP limit (200 r/m, burst 20) doesn't trip it mid-suite. Anonymous
+visitors without the `session` localStorage hint (set on login, cleared on logout) also make no
+`/auth/verify` or `/auth/refresh` calls on load, so the suite's throwaway/unauthenticated pages
+don't add to that per-IP count either.
 
 **Critical Docker Workflow:**
 - Rebuild rules differ per service:
@@ -146,6 +156,9 @@ the `nginx-ssl` volume). Paste its last lines into the PR. How to add a test: `t
     only `requirements.txt` changes need a rebuild
   - **ai-service**: `src/` and `tests/` are mounted — only `requirements.txt`/Dockerfile changes
     need a rebuild
+  - **frontend**: baked into the nginx image — any `srcs/frontend` edit needs
+    `docker compose build nginx && docker compose up -d nginx`; the build also runs Vitest. For a
+    fast loop use `npm run dev` (srcs/frontend/README.md)
   - **No FastAPI service runs `--reload`** (`api-gateway/Dockerfile:21`, `ai/Dockerfile:35`,
     `recommendation-service/Dockerfile:32`), so a mounted code edit needs
     `docker compose restart SERVICE` to take effect. Only auth-service and user-service really
@@ -167,7 +180,7 @@ docker compose run --rm auth-service python -m pytest tests/ -v
 # User Service tests (89 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# AI Service tests (98 tests total)
+# AI Service tests (107 tests total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
@@ -245,7 +258,7 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 ### Microservices Communication
 
 **Network Topology:**
-- **Proxy Network**: Nginx only (the `frontend` service is commented out in docker-compose.yml:156-176)
+- **Proxy Network**: Nginx (which also serves the SPA's static files)
 - **Backend Network**: Nginx ↔ API Gateway ↔ Backend Services ↔ Databases
 - **Nginx** bridges both networks (docker-compose.yml:14-16). The API Gateway lives on
   `backend-network` only and is **not** published on the host by default. `make up-dev` layers
@@ -303,11 +316,11 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 98 passing tests]
+**AI Service (FastAPI - internal port 3003):** [Complete - 107 passing tests]
 - Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
 - LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
-- Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info)
+- Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info); `language`: en | it | es
 - Coordinates between Classification Service (HF models, optional) and the LLM
 - `CLASSIFICATION_ENABLED=false` → VLM-only pipeline (LLM does species/breed, no NSFW filter) —
   debugging only; keep it `true`, since classification-service runs in every stack
@@ -348,9 +361,9 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003, classif
 **Nginx (host ports 8000→80, 8443→443):**
 - TLS termination (`listen 443 ssl`, `default.conf.template:25`); port 80 only 301-redirects
   (`:154-163`) to `https://$host` — i.e. port 443, which is **not** published
-- **No static application files are served.** The `frontend` proxy block is commented out
-  (`:112-129`), `location /` just returns a hardcoded JSON blob (`:132-136`); the only files read
-  from disk are the internal `/50x.html` and `/429.html` error pages (`:54-63`)
+- Serves the SPA from /usr/share/nginx/html: `location /` → `try_files $uri /index.html`,
+  `/assets/` cached 1y. Neither location may declare add_header (it would drop the server-level
+  security headers and the CSP)
 - Reverse proxy of `/api` → `api-gateway:8001`, with a nested `location /api/v1/vision` that raises
   the body limit to 8 MB and the read timeout to 300 s (everything else keeps 1 MB / 30 s)
 - Self-signed certificate is generated at container start with a SAN covering `HOST_DOMAIN`,
@@ -716,7 +729,7 @@ total; do not trust them.
 - API Gateway (FastAPI) with full middleware stack - 33 passing tests
 - Auth Service (Django) with authentication endpoints - 102 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 98 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 107 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
 - Crossbreed detection with intelligent thresholding
@@ -726,10 +739,7 @@ total; do not trust them.
 - Redis integration for rate limiting (caching is not implemented — see Redis Usage above)
 - Ollama GPU setup for AI inference (qwen3-vl:8b model, `local` profile, fronted by LiteLLM)
 - Jupyter notebook for E2E pipeline testing
-
-**Not Started:**
-- Frontend — `srcs/frontend/` contains only empty placeholder files (.env, .env.example, Dockerfile,
-  README.md, all 0 bytes) and the compose service is commented out (docker-compose.yml:156-176)
+- Frontend SPA: Analyze / My pets / Profile, IT/EN/ES, Playwright UI tests in the gate
 
 **Recently Completed:**
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service

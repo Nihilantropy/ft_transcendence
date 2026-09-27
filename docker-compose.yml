@@ -6,6 +6,8 @@ services:
     build:
       context: ./srcs/nginx
       dockerfile: Dockerfile
+      additional_contexts:
+        frontend: ./srcs/frontend
     env_file:
       - ./srcs/nginx/.env
     volumes:
@@ -32,6 +34,7 @@ services:
     build:
       context: ./tests
     profiles: ["test"]
+    shm_size: "1gb"
     volumes:
       - ./tests:/tests:ro
       - ./scripts/jupyter/test_data:/test_data:ro
@@ -178,28 +181,6 @@ services:
   #   networks:
   #     - backend-network
   #   restart: unless-stopped
-### FRONTEND ###
-  # frontend:
-  #   container_name: ft_transcendence_frontend
-  #   image: ft_transcendence_frontend:local
-  #   build:
-  #     context: ./srcs/frontend
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ./srcs/frontend/.env
-  #   volumes:
-  #     # Mount source code for development hot reload
-  #     - ./srcs/frontend/src:/app/src:rw
-  #     - ./srcs/frontend/public:/app/public:rw
-  #   networks:
-  #     - proxy
-  #   restart: on-failure
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:5173"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
 ### AUTH SERVICE ###
   auth-service:
     container_name: ft_transcendence_auth_service

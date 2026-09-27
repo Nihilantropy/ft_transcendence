@@ -60,15 +60,22 @@ def test_process_image_valid_png_rgba(processor):
 def test_process_image_too_large(config):
     config.MAX_IMAGE_SIZE_MB = 0  # 0 MB → everything fails
     p = ImageProcessor(config)
-    with pytest.raises(ValueError, match="exceeds"):
+    with pytest.raises(ValueError, match="IMAGE_TOO_LARGE"):
         p.process_image(make_jpeg_uri(100, 100))
 
 
 def test_process_image_too_small(config):
     config.MIN_IMAGE_DIMENSION = 200
     p = ImageProcessor(config)
-    with pytest.raises(ValueError, match="too small"):
+    with pytest.raises(ValueError, match="IMAGE_TOO_SMALL"):
         p.process_image(make_jpeg_uri(100, 100))
+
+
+def test_process_image_undecodable_bytes(processor):
+    # Valid base64, but the decoded bytes aren't an image PIL can identify.
+    encoded = base64.b64encode(b"not an image").decode()
+    with pytest.raises(ValueError, match="INVALID_IMAGE_FORMAT"):
+        processor.process_image(f"data:image/jpeg;base64,{encoded}")
 
 
 def test_process_image_resizes_large_image(config):
@@ -79,17 +86,17 @@ def test_process_image_resizes_large_image(config):
 
 
 def test_parse_data_uri_invalid_prefix(processor):
-    with pytest.raises(ValueError, match="Invalid data URI"):
+    with pytest.raises(ValueError, match="INVALID_IMAGE_FORMAT"):
         processor._parse_data_uri("http://example.com/image.jpg")
 
 
 def test_parse_data_uri_missing_comma(processor):
-    with pytest.raises(ValueError, match="Invalid data URI"):
+    with pytest.raises(ValueError, match="INVALID_IMAGE_FORMAT"):
         processor._parse_data_uri("data:image/jpeg;base64:abc123")
 
 
 def test_parse_data_uri_unsupported_format(processor):
-    with pytest.raises(ValueError, match="Unsupported format"):
+    with pytest.raises(ValueError, match="INVALID_IMAGE_FORMAT"):
         processor._parse_data_uri("data:image/bmp;base64,abc123")
 
 

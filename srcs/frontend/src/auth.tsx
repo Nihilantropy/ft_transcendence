@@ -1,0 +1,86 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { Navigate, Outlet } from 'react-router'
+import { api, setLogoutHandler } from './api'
+
+export type User = { id: string; email: string; role: string }
+
+type Auth = {
+  user: User | null | undefined // undefined while the session check runs
+  login(email: string, password: string): Promise<void>
+  register(email: string, password: string, password_confirm: string): Promise<void>
+  logout(): Promise<void>
+  clear(): void
+}
+
+const AuthCtx = createContext<Auth>(null!)
+
+const HINT = 'session'
+
+// A UX hint, never an authorisation signal: HttpOnly cookies are invisible to JS, so remember
+// whether a session may exist to spare anonymous visitors a pointless verify + refresh on every
+// page load.
+function hasSessionHint(): boolean {
+  try {
+    return localStorage.getItem(HINT) === '1'
+  } catch {
+    return true // storage blocked → always ask the server
+  }
+}
+function setSessionHint(on: boolean) {
+  try {
+    if (on) localStorage.setItem(HINT, '1')
+    else localStorage.removeItem(HINT)
+  } catch {
+    // ponytail: not persisted; the next load simply asks the server
+  }
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUserState] = useState<User | null | undefined>()
+  const setUser = (u: User | null) => {
+    setSessionHint(u !== null)
+    setUserState(u)
+  }
+
+  useEffect(() => {
+    setLogoutHandler(() => setUser(null))
+    if (!hasSessionHint()) {
+      setUser(null)
+      return
+    }
+    // A 401 here goes through api.ts's refresh, so an expired access token is renewed silently.
+    api<{ user: User }>('/auth/verify').then((d) => setUser(d.user), () => setUser(null))
+  }, [])
+
+  const value: Auth = {
+    user,
+    async login(email, password) {
+      setUser((await api<{ user: User }>('/auth/login', { method: 'POST', body: { email, password } })).user)
+    },
+    async register(email, password, password_confirm) {
+      const body = { email, password, password_confirm }
+      setUser((await api<{ user: User }>('/auth/register', { method: 'POST', body })).user)
+    },
+    async logout() {
+      // ponytail: the server call may fail (already expired); the local session ends regardless
+      await api('/auth/logout', { method: 'POST' }).catch(() => {})
+      setUser(null)
+    },
+    clear: () => setUser(null),
+  }
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
+}
+
+export const useAuth = () => useContext(AuthCtx)
+
+export function RequireAuth() {
+  const { user } = useAuth()
+  if (user === undefined) return null
+  return user ? <Outlet /> : <Navigate to="/" replace />
+}
+
+export function PublicOnly() {
+  const { user } = useAuth()
+  if (user === undefined) return null
+  return user ? <Navigate to="/analyze" replace /> : <Outlet />
+}
