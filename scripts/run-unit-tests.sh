@@ -110,11 +110,11 @@ echo ""
 
 [ "$RUN_GATEWAY" = true ] && run_test_suite "API Gateway" \
   "docker compose run --rm api-gateway python -m pytest tests/ -v" \
-  41
+  45
 
 [ "$RUN_AUTH" = true ] && run_test_suite "Auth Service" \
   "docker compose run --rm auth-service python -m pytest tests/ -v" \
-  353
+  357
 
 [ "$RUN_USER" = true ] && run_test_suite "User Service" \
   "docker compose run --rm user-service python -m pytest tests/ -v" \

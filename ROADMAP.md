@@ -560,9 +560,9 @@ _Wrong status codes, unhandled inputs that produce a 500, silent failures, misle
 
 **Fix:** Step 1 is to confirm the exposure: `docker compose run --rm auth-service sh -c "pip install -q pip-audit && pip-audit"`. Then move to the current Django LTS line (5.2.x) and current `cryptography`, `djangorestframework` and `PyJWT`, one bump per commit, running the suite between each. Keep Python 3.11 in mind — Django 6.x requires 3.12, so an LTS bump within 5.2 is the low-risk target.
 
-**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` (353 passing) followed by `docker compose run --rm auth-service sh -c "pip install -q pip-audit && pip-audit"` reporting no known vulnerabilities.
+**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` (357 passing) followed by `docker compose run --rm auth-service sh -c "pip install -q pip-audit && pip-audit"` reporting no known vulnerabilities.
 
-**Effort:** M - **Risk:** Django 5.1/5.2 tightened `USE_TZ`, `CSRF_TRUSTED_ORIGINS` and password-hasher defaults; the Argon2 hasher config (`settings.py:97-100`) and `Custom404Middleware`'s `MiddlewareMixin` usage are the likely breakage points. `srcs/auth-service/tests/` (353 tests) is the whole safety net; `srcs/user-service` pins Django independently and should be bumped in step with it by that agent.
+**Effort:** M - **Risk:** Django 5.1/5.2 tightened `USE_TZ`, `CSRF_TRUSTED_ORIGINS` and password-hasher defaults; the Argon2 hasher config (`settings.py:97-100`) and `Custom404Middleware`'s `MiddlewareMixin` usage are the likely breakage points. `srcs/auth-service/tests/` (357 tests) is the whole safety net; `srcs/user-service` pins Django independently and should be bumped in step with it by that agent.
 
 <!-- item id=CLS-02 priority=P2 effort=S service=classification-service -->
 ### CLS-02 - NSFW probability is read by tensor position, not by label
@@ -1331,7 +1331,7 @@ _Dead code, unused dependencies, deprecated APIs, naming drift. Safe to batch._
 
 **Fix:** Either delete both pins, or actually use `freezegun` for the token-expiry tests (which currently depend on hand-built JWTs that bypass `generate_access_token`). Pick one; leaving them installed and unused is the only wrong answer.
 
-**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` still reports 353 passing, and `docker compose run --rm auth-service pip show freezegun` reflects the choice.
+**Verify:** `docker compose build auth-service && docker compose run --rm auth-service python -m pytest tests/ -v` still reports 357 passing, and `docker compose run --rm auth-service pip show freezegun` reflects the choice.
 
 **Effort:** S - **Risk:** none beyond an image rebuild; `srcs/auth-service/tests/` is unaffected either way.
 
@@ -1498,7 +1498,7 @@ _Dead code, unused dependencies, deprecated APIs, naming drift. Safe to batch._
 
 **Where:** `scripts/run-unit-tests.sh:90-104,107-129`
 
-**Problem:** `run_test_suite` takes an `expected_tests` literal (`:107-129`) and prints `✓ <service> tests passed (<n> tests)` plus a grand total built from those literals — the numbers are never read from pytest, so the summary is fiction the moment a test is added or removed. Three of the six have already drifted: api-gateway 28 (30 collected), ai-service 37 (104), recommendation-service 42 (48 in `tests/unit/`, which is all the runner invokes). The other three happen to still be right — auth-service, user-service 91, classification-service 28 — which is what makes the literals look trustworthy. (The api-gateway literal was refreshed to 41 and auth-service to 353 with the 2FA work; the mechanism is unchanged, so they drift again on the next test.) Anyone using `make test` output as a regression signal is reading a constant.
+**Problem:** `run_test_suite` takes an `expected_tests` literal (`:107-129`) and prints `✓ <service> tests passed (<n> tests)` plus a grand total built from those literals — the numbers are never read from pytest, so the summary is fiction the moment a test is added or removed. Three of the six have already drifted: api-gateway 28 (30 collected), ai-service 37 (104), recommendation-service 42 (48 in `tests/unit/`, which is all the runner invokes). The other three happen to still be right — auth-service, user-service 91, classification-service 28 — which is what makes the literals look trustworthy. (The api-gateway literal was refreshed to 45 and auth-service to 357 with the 2FA work; the mechanism is unchanged, so they drift again on the next test.) Anyone using `make test` output as a regression signal is reading a constant.
 
 **Fix:** Drop the third argument entirely. Either print only pass/fail per suite, or capture pytest's own summary line — e.g. run with `--json-report` or grep the tail of the captured output for `N passed` and sum that.
 

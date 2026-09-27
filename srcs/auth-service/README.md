@@ -527,13 +527,13 @@ Pinned dependencies: Django 5.0.1, djangorestframework 3.14.0, PyJWT 2.8.0, cryp
 
 ## Testing
 
-**353 tests**, all unit-level: no HTTP call leaves the process, so `docker compose run --rm` works even when nothing is running.
+**357 tests**, all unit-level: no HTTP call leaves the process, so `docker compose run --rm` works even when nothing is running.
 
 ```bash
-# Full suite (353 tests)
+# Full suite (357 tests)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
-# Via the repo orchestrators (expects 353)
+# Via the repo orchestrators (expects 357)
 ./scripts/run-unit-tests.sh --auth
 make test auth
 

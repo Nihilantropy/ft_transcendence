@@ -146,6 +146,11 @@ visitors without the `session` localStorage hint (set on login, cleared on logou
 `/auth/verify` or `/auth/refresh` calls on load, so the suite's throwaway/unauthenticated pages
 don't add to that per-IP count either.
 
+2FA in gate tests: `helpers.totp(secret, step=1)` (stdlib RFC 6238) gives the next valid code — the
+server never accepts the same 30 s step twice, and 2fa/enable already spent the current one. Store
+`totp_secret` / `recovery_codes` on the fixture user (UI fixture `two_factor` does it) and `pop()` a
+recovery code when you use it: the `gw_user` / `ui_user` teardowns finish a 2FA login with what is left.
+
 **Critical Docker Workflow:**
 - Rebuild rules differ per service:
   - **classification-service**: no source bind mount — ANY `src/` or `tests/` edit needs
@@ -177,7 +182,7 @@ don't add to that per-IP count either.
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (353 tests total)
+# Auth Service tests (357 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # User Service tests (89 tests total)
@@ -311,7 +316,7 @@ other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-
   are unreachable from the host)
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 353 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 357 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
 - User registration (requires email, password, password_confirm) and login endpoints
 - Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens; new password
@@ -756,8 +761,8 @@ feed a printed total; do not trust them.
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 41 passing tests
-- Auth Service (Django) with authentication endpoints, profile update and TOTP 2FA - 353 passing tests
+- API Gateway (FastAPI) with full middleware stack - 45 passing tests
+- Auth Service (Django) with authentication, profile (PATCH /auth/me) and TOTP 2FA - 357 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
 - AI Service (FastAPI) with multi-stage vision pipeline - 107 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
@@ -769,7 +774,8 @@ feed a printed total; do not trust them.
 - Redis integration for rate limiting (caching is not implemented — see Redis Usage above)
 - Ollama GPU setup for AI inference (qwen3-vl:8b model, `local` profile, fronted by LiteLLM)
 - Jupyter notebook for E2E pipeline testing
-- Frontend SPA: Analyze / My pets / Profile, IT/EN/ES, Playwright UI tests in the gate
+- Frontend SPA: Analyze / My pets / Profile (name + email, 2FA with QR and recovery codes, password),
+  2FA code step on log in, IT/EN/ES, Playwright UI tests in the gate
 
 **Recently Completed:**
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
@@ -781,6 +787,11 @@ feed a printed total; do not trust them.
 - Recommendation Service — content-based filtering with 70 passing tests (47 unit + 23 integration)
 
 ## Common Troubleshooting
+
+**`docker compose up` fails with "bind source path does not exist" (jwt-public.pem):**
+- `srcs/auth-service/keys/jwt-public.pem` is generated, not tracked by git. After pulling a branch or
+  cloning fresh, run `make keys` once (idempotent, never rotates an existing key) — `make up`,
+  `make test` and `make gate` already do this for you, but a bare `docker compose up` does not
 
 **"Connection refused" on localhost:8001:**
 - **Expected under plain `make up`** — the gateway port is no longer published. Use

@@ -9,10 +9,10 @@ Read `README.md` first for routes, payloads, error codes and config values. This
 ## Essential Commands
 
 ```bash
-# Tests (353). No cross-service calls, so `run --rm` is fine and preferred.
+# Tests (357). No cross-service calls, so `run --rm` is fine and preferred.
 docker compose run --rm auth-service python -m pytest tests/ -v
 docker compose run --rm auth-service python -m pytest tests/test_views.py::TestRefreshView -v
-./scripts/run-unit-tests.sh --auth          # orchestrator, prints 353 (a literal label, not asserted)
+./scripts/run-unit-tests.sh --auth          # orchestrator, prints 357 (a literal label, not asserted)
 
 # After a model change, rebuild the test DB (pytest.ini pins --reuse-db)
 docker compose run --rm auth-service python -m pytest tests/ --create-db -v
@@ -50,7 +50,7 @@ docker compose build auth-service
 | `apps/authentication/validators.py` | `PasswordValidator` — one letter + one digit |
 | `apps/authentication/middleware.py` | `Custom404Middleware` — HTML 404 → JSON `NOT_FOUND` |
 | `apps/authentication/migrations/` | `0001_initial` (User), `0002_refreshtoken`, `0003_two_factor` |
-| `tests/` | pytest-django. `conftest.py` holds the shared fixtures (`client`, `user_data`, `user`, `authenticated_client`, `enable_two_factor`, `frozen_time`); 9 test modules, 353 tests |
+| `tests/` | pytest-django. `conftest.py` holds the shared fixtures (`client`, `user_data`, `user`, `authenticated_client`, `enable_two_factor`, `frozen_time`); 9 test modules, 357 tests |
 | `keys/` | `generate-keys.sh` (tracked, idempotent) and the two generated, gitignored keys: `jwt-private.pem` and `jwt-public.pem` (bind-mounted read-only into api-gateway) |
 
 There is no `admin.py`, no `apps/authentication/tests.py`, no management commands, no `permissions.py`, no service layer.
@@ -129,7 +129,7 @@ Inbound is always the API Gateway, which strips `Cookie` for every prefix **exce
 
 ## Testing Notes
 
-- `docker compose run --rm auth-service python -m pytest tests/ -v` is the right command: all 353 tests are unit-level, nothing resolves another service hostname. `docker exec` is only needed when you specifically want the running container (e.g. coverage against a live process).
+- `docker compose run --rm auth-service python -m pytest tests/ -v` is the right command: all 357 tests are unit-level, nothing resolves another service hostname. `docker exec` is only needed when you specifically want the running container (e.g. coverage against a live process).
 - **No rebuild is needed for new test files or source edits.** `docker-compose.yml:188` bind-mounts the entire `./srcs/auth-service` over `/app`. Only `requirements.txt` changes require `docker compose build auth-service`. This differs from most other services in the repo.
 - **Shared fixtures live in `tests/conftest.py`**: `client` (Django `Client`), `user_data` (dict), `user` (via `User.objects.create_user`, password `testpass123`), `authenticated_client` (`access_token` cookie set), `enable_two_factor` (factory: `enable_two_factor(user) → (secret, recovery_codes)`) and `frozen_time` (freezegun pinned to the current instant; `.tick(timedelta(...))` moves the clock). `TestRefreshView` and `TestLogoutView` still define a local `user_with_refresh_token` fixture returning `(user, raw_token, record)`. Build a valid TOTP with `two_factor.totp(secret)`.
 - **Anything that mints a TOTP or checks a lock needs `frozen_time`** (or `freeze_time`), otherwise a step boundary makes the test flaky; freeze at *now*, not at a fixed past date, when tokens are involved, because PyJWT rejects an `iat` in the future.
