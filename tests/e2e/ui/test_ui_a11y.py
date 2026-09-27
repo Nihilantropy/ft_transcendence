@@ -34,3 +34,21 @@ def test_accessibility_statement_is_public(page):
     page.get_by_role("link", name="Accessibility").click()
     expect(page).to_have_url(re.compile(r"/accessibility$"))
     expect(page.get_by_role("heading", level=1, name="Accessibility statement")).to_be_visible()
+
+
+def test_result_gets_focus_and_photo_has_alt(page, registered, fake_vision):
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    expect(page.get_by_role("heading", name="Golden Retriever")).to_be_focused()
+    expect(page.get_by_alt_text("Your photo")).to_be_visible()
+
+
+def test_recommendation_reasons_are_translated(page, registered, fake_vision):
+    page.get_by_label("Language").select_option("it")
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Salva come mio animale").click()
+    page.get_by_role("dialog").get_by_label("Nome").fill("Biscotto")
+    page.get_by_role("dialog").get_by_role("button", name="Salva").click()
+    food = page.get_by_role("list", name="Cibo consigliato")
+    expect(food.get_by_role("listitem").first).to_be_visible()
+    expect(food).not_to_contain_text("Nutritionally compatible")
+    expect(food).not_to_contain_text("Targets joint health")

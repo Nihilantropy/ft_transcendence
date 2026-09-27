@@ -19,6 +19,13 @@ const HEALTH = ['sensitive_stomach', 'weight_management', 'joint_health', 'skin_
 
 type Rec = { product_id: number; name: string; brand: string; price: string | number | null; match_reasons: string[] }
 
+// The recommender emits three fixed English phrases (recommendation-service routes/recommendations.py).
+const REASONS: Record<string, string> = {
+  'Targets joint health': 'reason.joint_health',
+  'Good for sensitive stomach': 'reason.sensitive_stomach',
+  'Nutritionally compatible': 'reason.compatible',
+}
+
 export default function PetDetail() {
   const { id } = useParams()
   const pid = encodeURIComponent(id ?? '')
@@ -117,7 +124,7 @@ export default function PetDetail() {
               <li key={r.product_id} className="flex flex-col gap-1 rounded-2xl bg-card p-4 shadow-sm">
                 <p className="font-bold">{r.name}</p>
                 <p>{r.brand}{r.price != null && ` · € ${Number(r.price).toFixed(2)}`}</p>
-                {r.match_reasons.length > 0 && <p>{r.match_reasons.join(' · ')}</p>}
+                {r.match_reasons.length > 0 && <p>{r.match_reasons.map((m) => (REASONS[m] ? t(REASONS[m]) : m)).join(' · ')}</p>}
               </li>
             ))}
           </ul>

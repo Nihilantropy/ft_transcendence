@@ -70,7 +70,7 @@ function Waiting({ preview }: { preview?: string }) {
   }, [])
   return (
     <section aria-busy="true" className="flex flex-col items-center gap-4 py-8 text-center">
-      {preview && <img src={preview} alt="" className="max-h-64 rounded-3xl" />}
+      {preview && <img src={preview} alt={t('analyze.preview_alt')} className="max-h-64 rounded-3xl" />}
       <Illustration name="waiting" className="h-32 w-32 text-accent" />
       <p role="status">{t(`analyze.wait.${line}`)}</p>
     </section>
@@ -80,6 +80,8 @@ function Waiting({ preview }: { preview?: string }) {
 function Result({ result, preview, onAgain }: { result: Analysis; preview: string; onAgain: () => void }) {
   const { t } = useI18n()
   const dialog = useRef<HTMLDialogElement>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => { heading.current?.focus() }, [])
   const b = result.breed_analysis
   const pct = Math.round(b.confidence * 100)
   const chips = [
@@ -90,9 +92,9 @@ function Result({ result, preview, onAgain }: { result: Analysis; preview: strin
 
   return (
     <Card className="flex flex-col gap-4">
-      <img src={preview} alt="" className="max-h-72 w-full rounded-2xl object-contain" />
+      <img src={preview} alt={t('analyze.preview_alt')} className="max-h-72 w-full rounded-2xl object-contain" />
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-2xl font-bold">{breedLabel(b.primary_breed)}</h2>
+        <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold outline-none">{breedLabel(b.primary_breed)}</h2>
         {b.is_likely_crossbreed && (
           <span className="rounded-full bg-accent/15 px-3 py-1 font-bold">{t('analyze.crossbreed')}</span>
         )}
