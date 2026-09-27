@@ -84,3 +84,22 @@ async def test_proxy_adds_user_context_headers():
         headers = call_args.kwargs.get("headers", {})
         assert "X-User-ID" in headers
         assert "X-Request-ID" in headers
+
+
+@pytest.mark.asyncio
+async def test_proxy_forwards_delete_body():
+    """Regression: a DELETE body was dropped while its Content-Length was forwarded, so httpx
+    raised "Too little data for declared Content-Length" and the client got a 500."""
+    token = create_test_token("user123", "user")
+    mock_response = Response(200, json={"success": True})
+
+    with patch("routes.proxy.httpx_client.request", new=AsyncMock(return_value=mock_response)) as mock_request:
+        response = client.request(
+            "DELETE", "/api/v1/auth/delete",
+            cookies={"access_token": token}, json={"password": "x"}
+        )
+
+    assert response.status_code == 200
+    kwargs = mock_request.call_args.kwargs
+    assert kwargs["content"] == b'{"password":"x"}'
+    assert int(kwargs["headers"]["content-length"]) == len(kwargs["content"])
