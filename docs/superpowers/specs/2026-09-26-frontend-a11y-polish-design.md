@@ -70,6 +70,9 @@ All keyframes live in `index.css`, animate only `transform`/`opacity`, and use T
   Pausing freezes every animation in the app, not only the sky (one control, predictable).
 - Footer: a `<button aria-pressed>` "Ferma animazioni" / "Riprendi animazioni" next to the
   language select.
+- **2026-09-27 fix wave:** implemented as the ARIA toggle-button pattern instead — one label
+  ("Pause animations" / "Ferma animazioni") that never changes, with `aria-pressed` alone carrying
+  the on/off state — rather than swapping between a Pause/Resume pair of labels.
 
 ## 3. Everything translatable
 
