@@ -119,10 +119,7 @@ function CodeStep({ mfaToken, onExpired }: { mfaToken: string; onExpired(): void
   }
 
   return (
-    // No onBlurCapture here (unlike other forms): the code step is a single field, and
-    // re-validating on blur would clear its visible error the instant the user mouses down on
-    // "Verify" to fix it, shifting the button out from under the click before mouseup lands.
-    <form onSubmit={submit} aria-labelledby="mfa-title" className="flex flex-col gap-4" noValidate>
+    <form onSubmit={submit} onBlurCapture={form.onBlur} aria-labelledby="mfa-title" className="flex flex-col gap-4" noValidate>
       <h1 id="mfa-title" className="text-2xl font-bold">{t('auth.mfa_title')}</h1>
       <p>{t(kind === 'totp' ? 'auth.mfa_intro' : 'auth.mfa_recovery_intro')}</p>
       <CodeField key={kind} kind={kind} autoFocus error={form.message('code')} />

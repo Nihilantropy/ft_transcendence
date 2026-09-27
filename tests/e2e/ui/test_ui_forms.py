@@ -40,6 +40,22 @@ def test_blur_revalidates_after_first_submit(page):
     expect(page.get_by_label("Email")).to_have_attribute("aria-invalid", "false")
 
 
+def test_fixed_field_fires_direct_submit_click(page, ui_user):
+    """Blur race: mousedown on the submit button blurs the invalid field first. If onBlur
+    re-validated it, the button could shift under the click and the submit would be lost."""
+    calls = spy(page, r"/api/v1/auth/register")
+    page.goto("/register")
+    page.get_by_label("Email").fill("not-an-email")
+    page.get_by_label("Password", exact=True).fill(ui_user["password"])
+    page.get_by_label("Confirm password").fill(ui_user["password"])
+    page.get_by_role("button", name="Create account").click()
+    expect(page.get_by_label("Email")).to_have_attribute("aria-invalid", "true")
+    page.get_by_label("Email").fill(ui_user["email"])  # fixed, but not blurred yet
+    page.get_by_role("button", name="Create account").click()  # straight to submit, no Tab
+    expect(page).to_have_url(re.compile(r"/analyze$"))
+    assert len(calls) == 1
+
+
 def test_password_mismatch_caught_in_browser(page, ui_user):
     calls = spy(page, r"/api/v1/auth/register")
     page.goto("/register")

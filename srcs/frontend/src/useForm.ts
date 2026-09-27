@@ -38,9 +38,17 @@ export function useForm(schema: Record<string, Rule[]>, prefix = 'field') {
     return null
   }
 
-  /** Spec §4: re-validate on blur after the first submit, without moving focus. */
+  /** Spec §4: re-validate on blur after the first submit, without moving focus.
+   *  Skipped when focus is moving to this form's submit button: mousedown already blurred the
+   *  field, and re-validating there can drop an error, shift the layout and move the button out
+   *  from under the click before mouseup lands — the submit validates on its own regardless. */
   function onBlur(e: FocusEvent<HTMLFormElement>) {
     if (!submitted.current) return
+    const target = e.relatedTarget
+    const isSubmit =
+      (target instanceof HTMLButtonElement || target instanceof HTMLInputElement) &&
+      target.type === 'submit' && target.form === e.currentTarget
+    if (isSubmit) return
     setErrors(computeErrors(e.currentTarget))
   }
 
