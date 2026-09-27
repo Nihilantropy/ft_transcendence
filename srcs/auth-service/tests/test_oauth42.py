@@ -268,7 +268,9 @@ FAILURES = {
     'intra unreachable': ('post', httpx.ConnectTimeout('timed out')),
     '/me refused': ('get', intra_response('GET', oauth42.ME_URL, 500, json={})),
     '/me without id': ('get', intra_response('GET', oauth42.ME_URL, json={'email': 'marvin@student.42.fr'})),
+    '/me with a null id': ('get', intra_response('GET', oauth42.ME_URL, json={**PROFILE, 'id': None})),
     '/me without email': ('get', intra_response('GET', oauth42.ME_URL, json={**PROFILE, 'email': None})),
+    '/me with a non-string email': ('get', intra_response('GET', oauth42.ME_URL, json={**PROFILE, 'email': 12345})),
     '/me not an object': ('get', intra_response('GET', oauth42.ME_URL, json=[])),
 }
 
@@ -326,8 +328,28 @@ class TestCallbackLinking:
         assert response.cookies['refresh_token'].value
         assert response.cookies['oauth_state'].value == ''
 
-    def test_existing_email_is_linked_not_duplicated(self, client, intra):
+    def test_password_account_with_same_email_is_not_linked(self, client, intra):
+        """
+        No auto-link to an account that has a password: local registration never verifies email
+        ownership, so linking by email would let whoever registered that address first take over
+        the 42 user's account (pre-hijacking). The user is told to log in with their password instead.
+        """
         existing = User.objects.create_user(email='marvin@student.42.fr', password='testpass123', first_name='Mar')
+
+        response = callback(client)
+
+        assert response.status_code == 302
+        assert response['Location'] == '/login?oauth=exists'
+        assert 'access_token' not in response.cookies
+        assert 'refresh_token' not in response.cookies
+        assert response.cookies['oauth_state'].value == ''
+        assert User.objects.count() == 1
+        assert not OAuthAccount.objects.exists()
+        existing.refresh_from_db()
+        assert existing.check_password('testpass123')  # untouched
+
+    def test_passwordless_account_with_same_email_is_linked(self, client, intra):
+        existing = User.objects.create_user(email='marvin@student.42.fr', first_name='Mar')  # no password set
 
         response = callback(client)
 
@@ -335,7 +357,7 @@ class TestCallbackLinking:
         assert User.objects.count() == 1
         assert OAuthAccount.objects.get(provider_user_id='4242').user == existing
         existing.refresh_from_db()
-        assert existing.check_password('testpass123')  # untouched
+        assert existing.has_usable_password() is False
         assert existing.first_name == 'Mar'  # the intra never overwrites local data
 
     def test_linked_account_wins_over_the_email(self, client, intra):
@@ -394,6 +416,7 @@ class TestCallbackTwoFactor:
         assert payload['token_type'] == 'mfa'
         assert payload['user_id'] == str(oauth_user.id)
         assert 'access_token' not in response.cookies
+        assert 'refresh_token' not in response.cookies
         assert RefreshToken.objects.count() == sessions  # nothing issued, nothing revoked yet
         assert response.cookies['oauth_state'].value == ''
 

@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 
 import httpx
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, transaction
 from django.http import HttpResponseRedirect
 from rest_framework.views import APIView
 
@@ -36,6 +36,7 @@ STATE_MAX_AGE = 600
 SUCCESS = '/analyze?oauth=ok'  # the marker makes the SPA check the session it has no hint of yet
 FAILED = '/login?oauth=error'
 UNAVAILABLE = '/login?oauth=unavailable'
+EXISTS = '/login?oauth=exists'  # local account with this email has a password: no auto-link
 MFA = '/login?oauth=mfa#'  # + challenge token: a fragment is never sent to a server nor logged
 
 
@@ -107,16 +108,28 @@ def fetch_profile(access_token):
     return response.json()
 
 
+class EmailTaken(Exception):
+    """The intra's email belongs to a local account that already has a usable password: no auto-link."""
+
+
 def user_for_profile(profile):
     """
-    The local account for an intra profile: the linked one; else the user with the same email,
-    linked now; else a new user with no usable password and the intra's names.
+    The local account for an intra profile: the linked one; else the user with the same email
+    IF that account has no password yet, linked now; else a new user with no usable password and
+    the intra's names.
 
     Linking by email trusts the intra: 42 addresses are issued by the school. Never reuse this for a
     provider whose users pick their own unverified email — whoever registered that address there
-    would take the local account over.
+    would take the local account over. Even trusting the intra, an account that already has a
+    password was not necessarily created by the 42 user: local registration never verifies email
+    ownership, so auto-linking there would let whoever registered that address first take over the
+    42 user's account (pre-hijacking) — raise EmailTaken instead.
     """
-    provider_user_id = str(profile['id'])
+    profile_id = profile.get('id')
+    if not isinstance(profile_id, int):
+        raise ValueError('intra profile id is not an int')
+    provider_user_id = str(profile_id)
+
     account = (OAuthAccount.objects.select_related('user')
                .filter(provider=PROVIDER, provider_user_id=provider_user_id).first())
     if account:
@@ -128,6 +141,8 @@ def user_for_profile(profile):
 
     with transaction.atomic():
         user = User.objects.filter(email__iexact=email).first()
+        if user is not None and user.has_usable_password():
+            raise EmailTaken(email)
         if user is None:
             user = User.objects.create_user(  # no password: unusable until set from Profile
                 email=email,
@@ -164,7 +179,10 @@ class OAuth42CallbackView(APIView):
 
         try:
             user = user_for_profile(fetch_profile(exchange_code(code)))
-        except (httpx.HTTPError, ValueError, KeyError, TypeError, IntegrityError) as e:
+        except EmailTaken:
+            logger.warning('42 login refused: email already registered with a password')
+            return _redirect(EXISTS)
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, DatabaseError) as e:
             # Type and status only: messages can carry the email or the intra's reply
             status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else ''
             logger.warning('42 login failed: %s %s', type(e).__name__, status)
