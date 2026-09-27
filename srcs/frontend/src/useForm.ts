@@ -82,6 +82,7 @@ export function useForm(schema: Record<string, Rule[]>, prefix = 'field') {
   const note = apiError !== undefined && !Object.keys(schema).some((f) => serverFieldKey(apiError, f)) ? apiError : undefined
 
   const reset = () => {
+    submitted.current = false
     setErrors({})
     setApiErrorState(undefined)
   }
