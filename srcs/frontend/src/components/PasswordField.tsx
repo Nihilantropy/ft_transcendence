@@ -46,25 +46,25 @@ export default function PasswordField({ label, error, rules = false, onChange, .
           </svg>
         </button>
       </div>
-      {caps && <p id={`${id}-caps`} role="status" className="font-bold">{t('password.caps')}</p>}
-      {rules && (
-        <>
-          <ul id={`${id}-rules`} className="flex flex-col gap-0.5">
-            {PASSWORD_RULES.map((r) => {
-              const met = r.test(value)
-              return (
-                <li key={r.id} data-rule={r.id} data-met={met} className="flex items-center gap-2">
-                  <span aria-hidden="true">{met ? '✓' : '○'}</span>
-                  {t(r.key)}<span className="sr-only">{t(met ? 'password.rule_met' : 'password.rule_unmet')}</span>
+      <p id={`${id}-caps`} role="status" className="font-bold">{caps ? t('password.caps') : ''}</p>
+      {rules && (() => {
+        const met = new Set(PASSWORD_RULES.filter((r) => r.test(value)).map((r) => r.id))
+        return (
+          <>
+            <ul id={`${id}-rules`} className="flex flex-col gap-0.5">
+              {PASSWORD_RULES.map((r) => (
+                <li key={r.id} data-rule={r.id} data-met={met.has(r.id)} className="flex items-center gap-2">
+                  <span aria-hidden="true">{met.has(r.id) ? '✓' : '○'}</span>
+                  {t(r.key)}<span className="sr-only">{t(met.has(r.id) ? 'password.rule_met' : 'password.rule_unmet')}</span>
                 </li>
-              )
-            })}
-          </ul>
-          <p aria-live="polite" className="sr-only">
-            {t('password.rules_status').replace('{met}', String(PASSWORD_RULES.filter((r) => r.test(value)).length))}
-          </p>
-        </>
-      )}
+              ))}
+            </ul>
+            <p aria-live="polite" className="sr-only">
+              {t('password.rules_status').replace('{met}', String(met.size))}
+            </p>
+          </>
+        )
+      })()}
       {error && <p id={`${id}-err`} className="text-danger">{error}</p>}
     </div>
   )

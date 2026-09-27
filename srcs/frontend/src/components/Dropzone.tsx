@@ -17,7 +17,7 @@ export default function Dropzone({ onFile }: { onFile: (f: File) => void }) {
         const f = e.dataTransfer.files[0]
         if (f) onFile(f)
       }}
-      className={`flex cursor-pointer flex-col items-center gap-3 rounded-3xl border-2 border-dashed p-10 text-center transition focus-within:outline-2 focus-within:outline-accent ${over ? 'border-accent bg-accent/10' : 'border-line'}`}>
+      className={`flex cursor-pointer flex-col items-center gap-3 rounded-3xl border-2 border-dashed p-10 text-center transition focus-within:outline-2 focus-within:outline-accent ${over ? 'border-accent bg-accent/10' : 'border-field'}`}>
       <Illustration name="dog" className="h-24 w-24 text-accent" />
       <span className="font-bold">{t('analyze.drop')}</span>
       <span>{t('analyze.drop_hint')}</span>

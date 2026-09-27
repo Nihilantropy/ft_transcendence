@@ -11,9 +11,12 @@ export default function Layout() {
   const { user } = useAuth()
   const { paused, setPaused } = useMotion()
   const { pathname } = useLocation()
-  const firstRender = useRef(true)
+  // A ref (not a "first render?" boolean) so StrictMode's dev-only double-invoke of this effect
+  // — same pathname, same component instance — doesn't get mistaken for a real navigation.
+  const prevPathname = useRef(pathname)
   useEffect(() => {
-    if (firstRender.current) { firstRender.current = false; return } // a fresh load keeps focus at the top
+    if (prevPathname.current === pathname) return // fresh load, or a StrictMode re-run: keep focus at the top
+    prevPathname.current = pathname
     // Move focus to the new page's heading so screen readers announce it (WCAG 2.4.3); pages that
     // load data render their h1 later, so fall back to <main>.
     const h1 = document.querySelector<HTMLElement>('main h1')
