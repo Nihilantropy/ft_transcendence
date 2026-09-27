@@ -177,12 +177,12 @@ recovery code when you use it: the `gw_user` / `ui_user` teardowns finish a 2FA 
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
-**API Gateway Tests** (45 tests total):
+**API Gateway Tests** (48 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (357 tests total)
+# Auth Service tests (409 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
 # User Service tests (89 tests total)
@@ -316,7 +316,7 @@ other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-
   are unreachable from the host)
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 357 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 409 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
 - User registration (requires email, password, password_confirm) and login endpoints
 - Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens; new password
@@ -326,6 +326,12 @@ other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-
 - TOTP two-factor authentication for Aegis / Microsoft Authenticator / Google Authenticator
   (`POST /api/v1/auth/2fa/{setup,enable,disable}`, `POST /api/v1/auth/login/2fa`): secrets encrypted at rest (Fernet),
   10 single-use hashed recovery codes, replay protection, per-account lockout (5 failures → 15 min)
+- "Log in with 42" (OAuth 2.0 authorization code grant, `apps/authentication/oauth42.py`):
+  `GET /api/v1/auth/oauth/42/{start,callback}`, public at the gateway. Links by intra id, then by email,
+  else creates a user without a password (`has_password: false`; `change-password` then works without
+  `current_password`). 2FA users get the login challenge in `/login?oauth=mfa#<token>`. Empty
+  `OAUTH_42_CLIENT_ID`/`SECRET` in `srcs/auth-service/.env` → the button says "unavailable"; how to create
+  the intra app: srcs/auth-service/README.md "Create the 42 application and fill `.env`"
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
@@ -539,9 +545,10 @@ Order of execution (bottom to top):
 
 Public paths (exact match, `middleware/auth_middleware.py:22-33`): `/health`, `/docs`,
 `/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`,
-`/api/v1/auth/refresh`, `/api/v1/auth/logout` (so an idle user whose access token expired can still
-log out). `/api/v1/auth/login/2fa` is the second login step: the caller holds only the challenge
-token, in the JSON body. Everything else requires the `access_token` cookie — including `/redoc`
+`/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/oauth/42/start`, `/api/v1/auth/oauth/42/callback`
+(so an idle user whose access token expired can still log out). `/api/v1/auth/login/2fa` is the second
+login step: the caller holds only the challenge token, in the JSON body. The two OAuth paths are browser
+navigations that arrive before any session exists. Everything else requires the `access_token` cookie — including `/redoc`
 (served by FastAPI but never added to the set), `/api/v1/auth/verify`, `/api/v1/auth/delete`,
 `/api/v1/auth/change-password`, `/api/v1/auth/me` and `/api/v1/auth/2fa/{setup,enable,disable}`.
 The cookie's JWT must have `token_type == "access"` and a non-empty `user_id`
@@ -633,6 +640,9 @@ Services use environment variables from `.env` files:
   recommendation-service and user-service. **`srcs/litellm/` and `srcs/ollama/` have none** — they
   are configured entirely from the root `.env` (`LITELLM_MASTER_KEY`, `OLLAMA_BASE_URL`,
   `MISTRAL_API_KEY`) plus `srcs/litellm/config.yaml`. `srcs/frontend/.env.example` exists but is 0 bytes
+- `OAUTH_42_CLIENT_ID` / `OAUTH_42_CLIENT_SECRET` (auth-service) stay empty in `.env.example`: the gate
+  passes either way (`/start` → intra, or → `/login?oauth=unavailable`). Real values only in the gitignored
+  `srcs/auth-service/.env`, followed by `docker compose up -d --force-recreate auth-service`
 
 ## Development Workflow
 
@@ -714,7 +724,7 @@ make test [init] [flags]                              # make shortcut (no -- pre
   script's build/start/migrate phase
 
 Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 104, `:121`),
-recommendation 42 (real 48, `:129`). (gateway 45 and auth 357 were refreshed with the 2FA work.) They only
+recommendation 42 (real 48, `:129`), gateway 45 (real 48, `:113`), auth 357 (real 409, `:117`). They only
 feed a printed total; do not trust them.
 
 **Jupyter Notebook Testing (E2E Integration):**
@@ -761,8 +771,8 @@ feed a printed total; do not trust them.
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 45 passing tests
-- Auth Service (Django) with authentication, profile (PATCH /auth/me) and TOTP 2FA - 357 passing tests
+- API Gateway (FastAPI) with full middleware stack - 48 passing tests
+- Auth Service (Django) with authentication, profile (PATCH /auth/me), TOTP 2FA and Log in with 42 - 409 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
 - AI Service (FastAPI) with multi-stage vision pipeline - 107 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
@@ -774,8 +784,8 @@ feed a printed total; do not trust them.
 - Redis integration for rate limiting (caching is not implemented — see Redis Usage above)
 - Ollama GPU setup for AI inference (qwen3-vl:8b model, `local` profile, fronted by LiteLLM)
 - Jupyter notebook for E2E pipeline testing
-- Frontend SPA: Analyze / My pets / Profile (name + email, 2FA with QR and recovery codes, password),
-  2FA code step on log in, IT/EN/ES, Playwright UI tests in the gate
+- Frontend SPA: Analyze / My pets / Profile (name + email, 2FA, password or "Set a password" for 42 accounts),
+  2FA code step and "Log in with 42" on log in, IT/EN/ES, Playwright UI tests in the gate
 
 **Recently Completed:**
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service

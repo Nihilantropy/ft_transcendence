@@ -17,10 +17,11 @@ Runs on internal port **3001** on `backend-network`. It has **no host port** —
 - Password change that revokes all sessions and re-issues a fresh pair (`views.py:562-659`).
 - Profile update (`PATCH /me`): first name, last name and email. An email change re-authenticates with the current password (plus a 2FA code when 2FA is on) and re-issues the session because the access token embeds the email.
 - TOTP two-factor authentication for authenticator apps (Aegis, Microsoft Authenticator, Google Authenticator, …): setup, enable with single-use recovery codes, disable, and a two-step login. See [Two-factor authentication](#two-factor-authentication).
+- "Log in with 42" (OAuth 2.0 authorization code grant against the 42 intra): links the intra account to a local user, or creates one without a password. See [Log in with 42](#log-in-with-42-oauth-20).
 - Cascade account deletion: deletes user-service data over HTTP first, then auth rows (`utils.py:220-280`).
 - Owns the `auth_schema` PostgreSQL schema (`settings.py:73`).
 
-Explicitly **not** here: Django admin (removed), email verification (`is_verified` defaults to `True`, `models.py:54`) — including verification of a *new* address on email change, password *reset by email*, OAuth, WebAuthn/SMS factors, and a recovery-code regeneration endpoint (disable then re-enable 2FA to get a new set).
+Explicitly **not** here: Django admin (removed), email verification (`is_verified` defaults to `True`, `models.py:54`) — including verification of a *new* address on email change, password *reset by email*, WebAuthn/SMS factors, and a recovery-code regeneration endpoint (disable then re-enable 2FA to get a new set). Other OAuth providers, unlinking a 42 account and importing the intra avatar are not here either.
 
 ---
 
@@ -49,7 +50,7 @@ browser ──cookies──> nginx (8000/8443) ──> api-gateway (8001) ──
 
 **Inbound.** The API Gateway maps the `/api/v1/auth` prefix to `AUTH_SERVICE_URL` (`srcs/api-gateway/routes/proxy.py:41`) and is the only caller. It forwards cookies **only** for `/api/v1/auth/*` paths (`proxy.py:98-99`) — this service reads tokens straight from `request.COOKIES`, so that exception is load-bearing. Gateway proxy timeout for these routes is the 30 s default (`proxy.py:13`).
 
-Gateway-level public paths are `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`, `/api/v1/auth/refresh` (`srcs/api-gateway/middleware/auth_middleware.py:22-30`). Everything else on this service — including `logout` — must carry a gateway-valid `access_token` cookie or the gateway 401s before the request ever arrives. "Gateway-valid" means the JWT verifies **and** has `token_type == "access"`: the gateway rejects refresh and two-factor challenge tokens even though this service signed them.
+Gateway-level public paths are `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`, `/api/v1/auth/refresh`, `/api/v1/auth/oauth/42/start`, `/api/v1/auth/oauth/42/callback` (`srcs/api-gateway/middleware/auth_middleware.py:22-30`). Everything else on this service — including `logout` — must carry a gateway-valid `access_token` cookie or the gateway 401s before the request ever arrives. "Gateway-valid" means the JWT verifies **and** has `token_type == "access"`: the gateway rejects refresh and two-factor challenge tokens even though this service signed them.
 
 **Outbound.**
 
@@ -83,6 +84,8 @@ There are no DRF authentication or permission classes configured (`settings.py:1
 | POST | `/api/v1/auth/2fa/setup` | `access_token` cookie | Stage a TOTP secret, return the `otpauth://` URI |
 | POST | `/api/v1/auth/2fa/enable` | `access_token` cookie | Confirm the setup, return recovery codes |
 | POST | `/api/v1/auth/2fa/disable` | `access_token` cookie | Turn 2FA off |
+| GET | `/api/v1/auth/oauth/42/start` | none | "Log in with 42": redirect to the intra |
+| GET | `/api/v1/auth/oauth/42/callback` | `oauth_state` cookie | Back from the intra: sign in, link or create the account |
 | DELETE | `/api/v1/auth/delete` | `access_token` cookie | Cascade-delete the account |
 | GET | `/health` | none | Docker healthcheck |
 
@@ -103,8 +106,10 @@ The `user` object returned everywhere is `UserSerializer` (`serializers.py:18-26
 
 ```json
 { "id": "<uuid>", "email": "a@b.c", "first_name": "", "last_name": "", "role": "user", "is_verified": true,
-  "two_factor_enabled": false }
+  "two_factor_enabled": false, "has_password": true }
 ```
+
+`has_password` is `false` for an account created through 42 until the user sets a password.
 
 ### Cookies
 
@@ -227,6 +232,8 @@ Reads the `access_token` cookie. **200** → `{"user": {…}, "valid": true}`.
 
 `code` (TOTP or recovery code) is **required only when the account has 2FA enabled**. The new password must pass every validator *with the user in scope* (so `UserAttributeSimilarityValidator` really rejects passwords resembling the email or name), must differ from the current one, and may not exceed 128 characters (OWASP ASVS 2.1.2).
 
+**Set a password.** For an account with no usable password (created through 42) `current_password` does not exist: send only `new_password` + `new_password_confirm` (anything sent as `current_password` is ignored). Every other rule, the session revocation and the re-issued cookies are the same. Turning 2FA on and changing the email keep requiring the password, so such an account sets one first.
+
 Token is checked *before* the body is parsed. On success the password is written, **all** non-revoked refresh tokens for the user are revoked, and a fresh pair of cookies is issued (`views.py:646-657`).
 
 **200** → `{"message": "Password changed successfully"}` plus both cookies.
@@ -343,6 +350,61 @@ Cookies are cleared on the way out.
 **200** → `{"status": "healthy", "service": "auth-service"}`. No DB check — it answers even when PostgreSQL is down.
 
 ---
+
+## Log in with 42 (OAuth 2.0)
+
+Authorization code grant, entirely server side (`apps/authentication/oauth42.py`): the client secret never reaches the browser.
+
+```
+browser ── GET /api/v1/auth/oauth/42/start ─────────────► auth-service
+          ◄── 302 https://api.intra.42.fr/oauth/authorize?client_id&redirect_uri&response_type=code&scope=public&state
+              + Set-Cookie oauth_state=<32 random bytes> (HttpOnly, SameSite=Lax, Secure=COOKIE_SECURE,
+                Path=/api/v1/auth/oauth, Max-Age=600)
+browser ── (approves on the intra) ── GET /api/v1/auth/oauth/42/callback?code&state ──► auth-service
+          state == cookie (compare_digest)? → POST /oauth/token → GET /v2/me → find / link / create the user
+          ◄── 302 /analyze?oauth=ok + session cookies   (or /login?oauth=mfa#<challenge>,
+                                                          /login?oauth=error, /login?oauth=unavailable)
+```
+
+- **Account lookup:** the linked `OAuthAccount('42', <intra id>)`; else the user with the same email (case-insensitive) **only when that account has no usable password**, linked now; else a new user with the intra's names and **no usable password** (`has_password: false`). The intra never overwrites local data. Linking by email is safe only because 42 addresses are issued by the school — do not copy it for a provider with self-declared emails.
+- **No auto-link to a password account:** an email that already belongs to a local account *with* a password is refused — `/login?oauth=exists` ("an account with this email already exists — log in with your password"). Local registration never verifies email ownership, so linking a 42 identity by email to a password account would let whoever registered that address first take over the 42 user's account. Linking an existing password account to 42 from Profile is out of scope.
+- **2FA still applies:** a user with 2FA gets the same challenge as `POST /login`, in the URL **fragment** (never sent to a server or logged); the Log in page finishes it with `POST /login/2fa`.
+- **Single session:** like `/login`, a successful callback revokes the user's other refresh tokens.
+- **Failures** (state missing/mismatched, the user pressed Cancel, intra unreachable or 4xx/5xx, a profile without id or email, a disabled account) all end at `/login?oauth=error` with one `42 login …` warning in `make logs-auth-service` naming the exception type and HTTP status — never the code, state, secret or tokens. Intra calls use httpx with a 10 s timeout and no retries. The `oauth_state` cookie is deleted on every outcome.
+- **`?oauth=ok`** on the success redirect is for the SPA: it keeps a localStorage hint of "maybe signed in" and skips `/auth/verify` without it, which a browser logging in with 42 for the first time does not have.
+- Session cookies are `SameSite=Strict`: the `/analyze?oauth=ok` document request that ends the redirect chain from the intra does not carry them, but it is a static SPA page; the SPA's own `/auth/verify` fetch does.
+- The auth-service dev server (`runserver`) also logs the callback query string — including the single-use authorization `code` — to stdout, which Vector ships to Elasticsearch when `make elk` runs. Same caveat as the nginx access log below.
+
+### Create the 42 application and fill `.env`
+
+Without credentials the app works normally and "Log in with 42" answers "not available right now". To enable it:
+
+1. Log in to the intra and open **Settings → API** (`https://profile.intra.42.fr/oauth/applications`), then **Register a new app**.
+2. **Name:** anything (e.g. `SmartBreeds`). **Redirect URI:** `https://localhost:8443/api/v1/auth/oauth/42/callback` — it must equal `OAUTH_42_REDIRECT_URI` character for character. Serving on another host (`HOST_DOMAIN` in the root `.env`)? Register `https://<that host>:8443/api/v1/auth/oauth/42/callback` and set `OAUTH_42_REDIRECT_URI` to the same value. **Scopes:** `public` only.
+3. Submit, then copy **UID** and **SECRET** into `srcs/auth-service/.env` (the gitignored one — never `.env.example`):
+   ```bash
+   OAUTH_42_CLIENT_ID=<UID>
+   OAUTH_42_CLIENT_SECRET=<SECRET>
+   OAUTH_42_REDIRECT_URI=https://localhost:8443/api/v1/auth/oauth/42/callback
+   ```
+4. Recreate the container (env files are read at creation, not on autoreload):
+   `docker compose up -d --force-recreate auth-service`
+5. Check: `curl -ks -o /dev/null -w '%{redirect_url}\n' https://localhost:8443/api/v1/auth/oauth/42/start` prints an `https://api.intra.42.fr/oauth/authorize?…` URL (it prints `https://localhost:8443/login?oauth=unavailable` while the id or secret is empty).
+
+The intra shows when the application's secret expires; after that every callback ends at `/login?oauth=error` with `42 login failed: HTTPStatusError 401` in the logs — generate a new secret on the same page and repeat steps 3–4.
+
+### Manual check with real credentials (not run by the gate)
+
+The gate never contacts the real intra (see global constraints). With real `OAUTH_42_CLIENT_ID`/`SECRET` in `srcs/auth-service/.env`, verify by hand in a browser:
+
+- [ ] `docker compose up -d --force-recreate auth-service`, then `curl -ks -o /dev/null -w '%{redirect_url}\n' https://localhost:8443/api/v1/auth/oauth/42/start` prints an `https://api.intra.42.fr/oauth/authorize?…` URL.
+- [ ] Open `https://localhost:8443/login`, click "Log in with 42", approve on the intra with an account whose email is new to SmartBreeds → redirected to `/analyze`, signed in.
+- [ ] Profile shows "Set a password" (no current-password field) and email is read-only with a hint.
+- [ ] Log out, log in with 42 again with the same intra account → same local user (linked by intra id, not re-created).
+- [ ] Set a password from Profile, log out, log in with email + that password → works.
+- [ ] Try "Log in with 42" with an intra account whose email already belongs to a *different* local account that has a password → lands on `/login?oauth=exists`.
+- [ ] Turn on 2FA for a 42-linked account, log out, "Log in with 42" again → the code step appears (fragment token), completes with the TOTP code.
+- [ ] Click "Log in with 42" and press **Cancel** on the intra's consent screen → lands on `/login?oauth=error`.
 
 ## Two-factor authentication
 
@@ -527,13 +589,13 @@ Pinned dependencies: Django 5.0.1, djangorestframework 3.14.0, PyJWT 2.8.0, cryp
 
 ## Testing
 
-**357 tests**, all unit-level: no HTTP call leaves the process, so `docker compose run --rm` works even when nothing is running.
+**409 tests**, all unit-level: no HTTP call leaves the process, so `docker compose run --rm` works even when nothing is running.
 
 ```bash
-# Full suite (357 tests)
+# Full suite (409 tests)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
-# Via the repo orchestrators (expects 357)
+# Via the repo orchestrators (stale label, still says 357 — see CLAUDE.md's note on run-unit-tests.sh)
 ./scripts/run-unit-tests.sh --auth
 make test auth
 
@@ -552,11 +614,12 @@ docker exec ft_transcendence_auth_service python -m pytest tests/ --cov=apps --c
 | `tests/test_views_two_factor.py` | 67 | `2fa/setup` 8, `2fa/enable` 14, login password step 6, `login/2fa` 26, `2fa/disable` 12, one full register→enable→2-step login→disable lifecycle |
 | `tests/test_views_me.py` | 43 | `PATCH /me`: names 9, email 12, email + 2FA 5, input handling / mass assignment / wrong types 17 |
 | `tests/test_two_factor.py` | 66 | RFC 4226/6238 vectors, drift window, malformed codes, `otpauth://` URI, Fernet, recovery codes, replay, lockout (frozen clock) |
-| `tests/test_serializers.py` | 60 | User/Register/Login, `ChangePasswordSerializer` 16, `UpdateProfileSerializer` 20, `TwoFactorConfirm`/`TwoFactorLogin` |
+| `tests/test_serializers.py` | 62 | User/Register/Login, `ChangePasswordSerializer` (incl. set-a-password with no `current_password`), `UpdateProfileSerializer`, `TwoFactorConfirm`/`TwoFactorLogin` |
 | `tests/test_utils.py` | 16 | `get_authenticated_user` (401/403 matrix incl. refresh and mfa tokens refused), `parse_json_body` |
 | `tests/test_models.py` | 16 | User, RefreshToken, `TwoFactorAuth` / `RecoveryCode` (defaults, uniqueness, cascade, `two_factor_enabled`) |
 | `tests/test_jwt_utils.py` | 11 | Access/refresh/mfa generation and decoding, hashing |
 | `tests/test_validators.py` | 5 | `PasswordValidator` letter/number rules and help text |
+| `tests/test_oauth42.py` | 50 | `/oauth/42/start` (configured/unconfigured, state cookie), `/oauth/42/callback`: state checks, token/`/me` failures, linking (new user, existing email without a password, existing link, refused for a password account → `oauth=exists`), 2FA challenge, logging without secrets |
 
 `GET /api/v1/auth/verify` and `DELETE /api/v1/auth/delete` have **no view tests**.
 
