@@ -208,6 +208,12 @@ for rate limiting (`middleware/rate_limit.py:33,37,45`):
 | `rate_limit:user:{user_id}` | integer request count in the current window | 60 s (`:25,45`) |
 | `rate_limit:ip:{client_ip}` | same, for requests with no resolved user | 60 s |
 
+`client_ip` is `X-Real-IP` when present, else `request.client.host`. Behind nginx that header
+always carries the real caller (nginx sets it from `$remote_addr` and overwrites any client-sent
+value), so this is the one place a client-sent header is trusted — `request.client.host` would
+otherwise always be nginx's own container IP, putting every anonymous visitor in one shared
+bucket (`middleware/rate_limit.py`).
+
 It is a **fixed** window, not a sliding one: the first request of a window does `SETEX key 60 1`, later
 requests `INCR`, and the key simply expires.
 

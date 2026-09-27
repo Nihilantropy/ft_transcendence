@@ -1,4 +1,6 @@
 """The gateway owns identity: client-sent identity headers and non-access tokens must not work."""
+import httpx
+
 from conftest import GATEWAY_URL
 from helpers import Client, ok
 
@@ -35,3 +37,18 @@ def test_anonymous_refresh_does_not_get_another_users_session(gw_user):
     with Client(base_url=GATEWAY_URL, timeout=30) as anonymous:
         resp = anonymous.post("/api/v1/auth/refresh")
     assert resp.status_code == 401, resp.text
+
+
+def test_anonymous_limit_is_per_client_ip():
+    """One noisy anonymous client must not lock everybody else out (was keyed on nginx's IP).
+
+    Raw httpx throughout: the helper Client retries 429s by sleeping, which would both hide the
+    429 we need to observe and turn the 70-call burst into a multi-minute sleep loop.
+    """
+    login = {"email": "x@example.com", "password": "nope"}
+    for _ in range(70):
+        httpx.post(f"{GATEWAY_URL}/api/v1/auth/login", json=login,
+                   headers={"X-Real-IP": "203.0.113.10"}, timeout=10)
+    quiet = httpx.post(f"{GATEWAY_URL}/api/v1/auth/login", json=login,
+                        headers={"X-Real-IP": "203.0.113.11"}, timeout=10)
+    assert quiet.status_code != 429, quiet.text
