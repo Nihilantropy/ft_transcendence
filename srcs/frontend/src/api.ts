@@ -25,6 +25,11 @@ type Opts = { method?: string; body?: unknown; timeoutMs?: number }
 // Paths whose 401 means "wrong credentials / no session", never "access token expired".
 const NO_REFRESH = ['/auth/login', '/auth/login/2fa', '/auth/register', '/auth/refresh', '/auth/logout']
 
+// A 429 here is auth-service's 2FA lockout, not nginx/gateway rate limiting — retrying just delays
+// showing the lockout copy (up to 10s at the 5s-capped retry delay) for no benefit, since the lock
+// outlasts any retry window by minutes.
+const NO_RETRY_429 = ['/auth/login/2fa', '/auth/2fa/enable', '/auth/2fa/disable', '/auth/change-password', '/auth/me']
+
 // nginx answers these itself with an HTML page, not the JSON envelope.
 const STATUS_CODES: Record<number, string> = {
   413: 'IMAGE_TOO_LARGE',
@@ -74,7 +79,7 @@ export async function api<T = unknown>(path: string, opts: Opts = {}, retried = 
       const timeout = e instanceof DOMException && e.name === 'TimeoutError'
       throw new ApiError(timeout ? 'TIMEOUT' : 'NETWORK_ERROR', String(e), 0)
     }
-    if (res.status !== 429 || attempt >= 2) break
+    if (res.status !== 429 || attempt >= 2 || NO_RETRY_429.includes(path)) break
     await new Promise((r) => setTimeout(r, retryDelayMs(res)))
   }
 

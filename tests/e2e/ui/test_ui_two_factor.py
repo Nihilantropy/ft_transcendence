@@ -51,7 +51,8 @@ def test_wrong_code_is_shown_on_the_field(page, two_factor):
     code.fill("000000")
     page.get_by_role("button", name="Verify").click()
     expect(code).to_have_attribute("aria-invalid", "true")
-    expect(page.get_by_text("That code isn't right. Check your app and try again.")).to_be_visible()
+    expect(page.get_by_text(
+        "That code isn't right. Check your app and try again, or wait for the next code.")).to_be_visible()
     # Ends mid-login on purpose: ui_user's teardown must finish the second step itself.
 
 
@@ -86,8 +87,8 @@ def test_lockout_has_its_own_message(page):
     code = _password_step(page, "someone@example.com", "Whatever-123")
     code.fill("123456")
     page.get_by_role("button", name="Verify").click()
-    # api.ts retries a 429 twice (Retry-After: 1 s each) before giving up
-    expect(page.get_by_text("Too many wrong codes. Wait 15 minutes and try again.")).to_be_visible(timeout=15_000)
+    # /auth/login/2fa is on api.ts's no-429-retry list: the lockout copy shows immediately.
+    expect(page.get_by_text("Too many wrong codes. Wait 15 minutes and try again.")).to_be_visible()
     expect(code).to_have_attribute("aria-invalid", "true")
 
 
@@ -201,6 +202,20 @@ def test_turn_on_shows_the_recovery_codes_once(page, registered):
     expect(page.get_by_role("region", name="Two-factor authentication")).to_contain_text("Status: on")
     expect(page.get_by_role("form", name="Change password")
            .get_by_label("Authentication or recovery code", exact=True)).to_be_visible()
+
+
+def test_escape_does_not_lose_the_recovery_codes(page, registered):
+    # Chromium's CloseWatcher makes the 2nd Escape (no fresh user activation) non-cancelable, so
+    # onCancel's preventDefault only stops the 1st — onClose must catch the 2nd and reopen.
+    codes = _turn_on_from_profile(page, registered)
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(codes).to_be_visible()
+    expect(codes.get_by_role("listitem")).to_have_count(10)
+    codes.get_by_label("I've saved my recovery codes").check()
+    codes.get_by_role("button", name="Done").click()
+    expect(codes).to_be_hidden()
+    expect(page.get_by_role("region", name="Two-factor authentication")).to_contain_text("Status: on")
 
 
 def test_two_factor_round_trip_from_the_ui(page, registered):

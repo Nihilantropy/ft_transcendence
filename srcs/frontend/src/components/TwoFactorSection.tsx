@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { api } from '../api'
+import { ApiError, api } from '../api'
 import { useAuth } from '../auth'
 import { useI18n } from '../i18n'
 import { downloadText, groupSecret, qrDataUri } from '../totp'
@@ -29,6 +29,7 @@ export default function TwoFactorSection() {
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
   const [startError, setStartError] = useState<unknown>()
+  const [starting, setStarting] = useState(false)
   const form = useForm(step === 'off' ? DISABLE : ENABLE, 'tfa')
   const kind: CodeKind = step === 'off' ? 'any' : 'totp'
 
@@ -44,6 +45,12 @@ export default function TwoFactorSection() {
   }
 
   function closed() {
+    // Chromium's CloseWatcher makes a 2nd Escape non-cancelable: onCancel's preventDefault (below)
+    // only stops the 1st. Catch it here instead of losing the codes the user hasn't saved yet.
+    if (step === 'codes' && !saved) {
+      dialog.current?.showModal()
+      return
+    }
     setStep(null)
     setSetup(undefined)
     setCodes([])
@@ -53,12 +60,17 @@ export default function TwoFactorSection() {
 
   async function start() {
     setStartError(undefined)
+    setStarting(true)
     try {
       const d = await api<{ secret: string; otpauth_uri: string }>('/auth/2fa/setup', { method: 'POST' })
       setSetup({ secret: d.secret, qr: await qrDataUri(d.otpauth_uri) })
       go('scan')
     } catch (err) {
+      // Status line said "off" from a stale fetch; a concurrent tab already turned it on.
+      if (err instanceof ApiError && err.code === 'TWO_FACTOR_ALREADY_ENABLED') void refreshUser()
       setStartError(err)
+    } finally {
+      setStarting(false)
     }
   }
 
@@ -83,6 +95,8 @@ export default function TwoFactorSection() {
         go('codes')
       }
     } catch (err) {
+      // Status line said "on" from a stale fetch; a concurrent tab already turned it off.
+      if (step === 'off' && err instanceof ApiError && err.code === 'TWO_FACTOR_NOT_ENABLED') void refreshUser()
       form.setApiError(formEl, err)
     } finally {
       form.setBusy(false)
@@ -99,7 +113,8 @@ export default function TwoFactorSection() {
         <p className="font-bold">{t(on ? 'tfa.status_on' : 'tfa.status_off')}</p>
         <p>{t(on ? 'tfa.intro_on' : 'tfa.intro_off')}</p>
         {startError ? <ErrorNote error={startError} /> : null}
-        <Button variant={on ? 'ghost' : 'primary'} className="self-start" onClick={on ? () => go('off') : start}>
+        <Button variant={on ? 'ghost' : 'primary'} className="self-start" busy={starting}
+          onClick={on ? () => go('off') : start}>
           {t(on ? 'tfa.turn_off' : 'tfa.turn_on')}
         </Button>
       </section>

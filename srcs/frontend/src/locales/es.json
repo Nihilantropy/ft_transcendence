@@ -46,7 +46,7 @@
   "validation.totp": "Introduce los 6 dígitos que muestra tu app.",
   "validation.recovery": "Introduce un código de recuperación como ABCD-EFGH-JKMN.",
   "validation.second_factor": "Introduce el código de 6 dígitos o un código de recuperación.",
-  "validation.code_wrong": "Ese código no es correcto. Revisa tu app y vuelve a intentarlo.",
+  "validation.code_wrong": "Ese código no es correcto. Revisa tu app y vuelve a intentarlo, o espera al siguiente código.",
   "validation.code_locked": "Demasiados códigos incorrectos. Espera 15 minutos y vuelve a intentarlo.",
   "code.totp_label": "Código de autenticación",
   "code.totp_hint": "6 dígitos, p. ej. 123456.",

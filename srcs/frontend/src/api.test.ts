@@ -170,6 +170,13 @@ describe('api', () => {
     }
   })
 
+  test('429 on a 2FA path is not retried (shows the lockout copy immediately)', async () => {
+    const calls = mockFetch({ '/api/v1/auth/login/2fa': [fail(429, 'RATE_LIMIT_EXCEEDED')] })
+    await expect(api('/auth/login/2fa', { method: 'POST', body: {} }))
+      .rejects.toMatchObject({ code: 'RATE_LIMIT_EXCEEDED', status: 429 })
+    expect(calls).toEqual(['/api/v1/auth/login/2fa'])
+  })
+
   test('caps Retry-After at 5s even when the header asks for longer', async () => {
     vi.useFakeTimers()
     try {
