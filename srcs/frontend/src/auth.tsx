@@ -14,11 +14,40 @@ type Auth = {
 
 const AuthCtx = createContext<Auth>(null!)
 
+const HINT = 'session'
+
+// A UX hint, never an authorisation signal: HttpOnly cookies are invisible to JS, so remember
+// whether a session may exist to spare anonymous visitors a pointless verify + refresh on every
+// page load.
+function hasSessionHint(): boolean {
+  try {
+    return localStorage.getItem(HINT) === '1'
+  } catch {
+    return true // storage blocked → always ask the server
+  }
+}
+function setSessionHint(on: boolean) {
+  try {
+    if (on) localStorage.setItem(HINT, '1')
+    else localStorage.removeItem(HINT)
+  } catch {
+    // ponytail: not persisted; the next load simply asks the server
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null | undefined>()
+  const [user, setUserState] = useState<User | null | undefined>()
+  const setUser = (u: User | null) => {
+    setSessionHint(u !== null)
+    setUserState(u)
+  }
 
   useEffect(() => {
     setLogoutHandler(() => setUser(null))
+    if (!hasSessionHint()) {
+      setUser(null)
+      return
+    }
     // A 401 here goes through api.ts's refresh, so an expired access token is renewed silently.
     api<{ user: User }>('/auth/verify').then((d) => setUser(d.user), () => setUser(null))
   }, [])

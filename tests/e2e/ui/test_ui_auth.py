@@ -57,3 +57,27 @@ def test_expired_access_token_is_refreshed(page, registered):
     assert refresh_info.value.ok
     expect(page).to_have_url(re.compile(r"/analyze$"))
     expect(page.get_by_role("heading", name="Analyze a photo")).to_be_visible()
+
+
+def test_anonymous_visit_makes_no_session_calls(page):
+    """A visitor who never logged in must not hit /auth/verify or /auth/refresh on every page."""
+    calls = []
+    page.on("request", lambda r: calls.append(r.url) if "/api/v1/auth/" in r.url else None)
+    page.goto("/")
+    expect(page.get_by_role("heading", level=1)).to_be_visible()
+    page.goto("/privacy")
+    expect(page.get_by_role("heading", level=1)).to_be_visible()
+    assert calls == [], calls
+
+
+def test_session_survives_reload_with_hint(page, registered):
+    page.reload()
+    expect(page).to_have_url(re.compile(r"/analyze$"))
+    assert page.evaluate("localStorage.getItem('session')") == "1"
+
+
+def test_logout_clears_hint(page, registered):
+    page.goto("/profile")
+    page.get_by_role("button", name="Log out").click()
+    expect(page).to_have_url(re.compile(r"/$"))
+    assert page.evaluate("localStorage.getItem('session')") is None
