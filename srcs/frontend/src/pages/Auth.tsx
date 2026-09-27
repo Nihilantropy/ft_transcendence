@@ -36,7 +36,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       if (register_) await register(v.email, v.password, v.password_confirm)
       else await login(v.email, v.password)
     } catch (err) {
-      form.setApiError(err)
+      form.setApiError(e.currentTarget, err)
       form.setBusy(false)
     }
   }
@@ -44,7 +44,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const labels = { email: t('auth.email'), password: t('auth.password'), password_confirm: t('auth.password_confirm') }
   return (
     <Card className="mx-auto max-w-md">
-      <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+      <form onSubmit={submit} onBlurCapture={form.onBlur} className="flex flex-col gap-4" noValidate>
         <h1 className="text-2xl font-bold">{t(register_ ? 'auth.register_title' : 'auth.login_title')}</h1>
         <Field label={labels.email} name="email" type="email" autoComplete="email" required error={form.message('email')} />
         <PasswordField label={labels.password} name="password" required rules={register_}

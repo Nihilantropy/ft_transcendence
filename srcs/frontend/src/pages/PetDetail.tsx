@@ -63,7 +63,7 @@ export default function PetDetail() {
       setSaved(true)
       loadRecs()
     } catch (err) {
-      form.setApiError(err)
+      form.setApiError(e.currentTarget, err)
     } finally {
       form.setBusy(false)
     }
@@ -83,7 +83,7 @@ export default function PetDetail() {
       </div>
 
       <Card>
-        <form onSubmit={save} className="flex flex-col gap-4" noValidate>
+        <form onSubmit={save} onBlurCapture={form.onBlur} className="flex flex-col gap-4" noValidate>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t('pet.age')} name="age" type="number" min={0} step={1} inputMode="numeric"
               defaultValue={pet.age ?? ''} error={form.message('age')} />

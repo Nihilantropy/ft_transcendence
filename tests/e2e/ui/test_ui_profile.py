@@ -38,6 +38,9 @@ def test_wrong_current_password_shows_field_error(page, registered):
     page.get_by_label("Confirm new password").fill(NEW_PASSWORD)
     page.get_by_role("button", name="Change password").click()
     expect(page.get_by_label("Current password")).to_have_attribute("aria-invalid", "true")
+    summary = page.get_by_role("alert").filter(has_text="Please fix these fields")
+    expect(summary).to_contain_text("Your current password isn't correct.")
+    expect(page.get_by_label("Current password")).to_be_focused()
 
 
 def test_delete_account_needs_double_confirmation(page, registered):

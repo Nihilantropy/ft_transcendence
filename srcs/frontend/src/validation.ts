@@ -9,8 +9,8 @@ export const required: Rule = (v) => (v.trim() ? null : 'validation.required')
 export const email: Rule = (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? null : 'validation.email')
 
 // Mirrors auth-service: MinimumLengthValidator(8) + PasswordValidator (a letter and a digit).
-// Similarity to the email stays server-side (serverFieldKey) — auth-service has no
-// common-password check.
+// validation.password_server (serverFieldKey) is generic: validate_password runs with user=None,
+// so the backend never actually runs the email-similarity check.
 export const PASSWORD_RULES = [
   { id: 'length', key: 'password.rule.length', test: (v: string) => v.length >= 8 },
   { id: 'letter', key: 'password.rule.letter', test: (v: string) => /[A-Za-z]/.test(v) },
@@ -22,7 +22,7 @@ export const sameAs = (field: string): Rule => (v, all) => (v === (all[field] ??
 export const max100: Rule = (v) => (v.length <= 100 ? null : 'validation.max_100')
 // Empty = "unknown", which the backend accepts for age and weight.
 export const wholeNumber: Rule = (v) => (v === '' || /^\d+$/.test(v) ? null : 'validation.whole_number')
-export const positiveNumber: Rule = (v) => (v === '' || Number(v) > 0 ? null : 'validation.positive')
+export const positiveNumber: Rule = (v) => (v === '' || (Number.isFinite(Number(v)) && Number(v) > 0) ? null : 'validation.positive')
 
 export function validate(values: Values, schema: Record<string, Rule[]>): Errors {
   const errors: Errors = {}
@@ -57,7 +57,13 @@ const SERVER_FIELD_KEYS: Record<string, string> = {
   weight: 'validation.positive',
 }
 
+// Also used for a browser-rejected <input type="number"> value (validity.badInput) — same field,
+// same message, whether the value never left the browser or came back invalid from the server.
+export function invalidKeyFor(field: string): string {
+  return SERVER_FIELD_KEYS[field] ?? 'validation.invalid'
+}
+
 export function serverFieldKey(e: unknown, field: string): string | undefined {
   if (!(e instanceof ApiError) || e.code !== 'VALIDATION_ERROR' || !(field in e.details)) return undefined
-  return SERVER_FIELD_KEYS[field] ?? 'validation.invalid'
+  return invalidKeyFor(field)
 }

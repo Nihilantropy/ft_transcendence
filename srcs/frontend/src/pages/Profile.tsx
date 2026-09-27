@@ -25,6 +25,9 @@ export default function Profile() {
   const navigate = useNavigate()
   const pw = useForm(PASSWORD_FORM)
   const [pwDone, setPwDone] = useState(false)
+  // Bumped on every successful change: remounts the PasswordFields so their internal
+  // value/reveal/caps state resets along with the (already-reset) form.
+  const [pwGen, setPwGen] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const [understood, setUnderstood] = useState(false)
   const [delError, setDelError] = useState<unknown>()
@@ -41,8 +44,9 @@ export default function Profile() {
       await api('/auth/change-password', { method: 'PUT', body: v })
       form.reset()
       setPwDone(true)
+      setPwGen((g) => g + 1)
     } catch (err) {
-      pw.setApiError(err)
+      pw.setApiError(form, err)
     } finally {
       pw.setBusy(false)
     }
@@ -78,13 +82,13 @@ export default function Profile() {
       </div>
 
       <Card>
-        <form onSubmit={changePassword} className="flex flex-col gap-4" noValidate>
+        <form onSubmit={changePassword} onBlurCapture={pw.onBlur} className="flex flex-col gap-4" noValidate>
           <h2 className="text-2xl font-bold">{t('profile.password_title')}</h2>
-          <PasswordField label={labels.current_password} name="current_password" required
+          <PasswordField key={`current-${pwGen}`} label={labels.current_password} name="current_password" required
             autoComplete="current-password" error={pw.message('current_password')} />
-          <PasswordField label={labels.new_password} name="new_password" required rules
+          <PasswordField key={`new-${pwGen}`} label={labels.new_password} name="new_password" required rules
             autoComplete="new-password" error={pw.message('new_password')} />
-          <PasswordField label={labels.new_password_confirm} name="new_password_confirm" required
+          <PasswordField key={`confirm-${pwGen}`} label={labels.new_password_confirm} name="new_password_confirm" required
             autoComplete="new-password" error={pw.message('new_password_confirm')} />
           <ErrorSummary items={pw.summary(labels)} />
           {pw.apiError && !(pw.apiError instanceof ApiError && pw.apiError.code === 'VALIDATION_ERROR')

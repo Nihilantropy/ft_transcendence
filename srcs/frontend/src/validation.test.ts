@@ -42,7 +42,7 @@ describe('rules', () => {
   })
   test('positiveNumber allows empty (unknown) and > 0', () => {
     for (const ok of ['', '0.5', '31.5']) expect(positiveNumber(ok, none), ok).toBeNull()
-    for (const bad of ['0', '-2', 'abc']) expect(positiveNumber(bad, none), bad).toBe('validation.positive')
+    for (const bad of ['0', '-2', 'abc', '1e400']) expect(positiveNumber(bad, none), bad).toBe('validation.positive')
   })
 })
 

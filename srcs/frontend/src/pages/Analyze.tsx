@@ -152,14 +152,14 @@ function SaveDialog({ dialog, result }: { dialog: RefObject<HTMLDialogElement | 
       await api(`/pets/${pet.id}`, { method: 'PATCH', body: { breed_confidence: b.confidence } }).catch(() => {})
       navigate(`/pets/${pet.id}`)
     } catch (err) {
-      form.setApiError(err)
+      form.setApiError(e.currentTarget, err)
       form.setBusy(false)
     }
   }
 
   return (
     <dialog ref={dialog} className="m-auto w-[min(28rem,calc(100%-2rem))] rounded-3xl bg-card p-6 text-fg backdrop:bg-black/40">
-      <form onSubmit={save} className="flex flex-col gap-4" noValidate>
+      <form onSubmit={save} onBlurCapture={form.onBlur} className="flex flex-col gap-4" noValidate>
         <h2 className="text-2xl font-bold">{t('save.title')}</h2>
         <Field label={t('save.name')} name="name" required autoFocus error={form.message('name')} />
         <ErrorSummary items={form.summary({ name: t('save.name') })} />
