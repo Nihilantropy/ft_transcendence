@@ -6,7 +6,7 @@ import uuid
 import pytest
 from playwright.sync_api import expect
 
-from helpers import PASSWORD, axe_scan, describe_violations, retry_429
+from helpers import PASSWORD, axe_scan, describe_violations, retry_429, second_factor
 
 EDGE_URL = os.environ.get("EDGE_URL", "https://nginx")
 
@@ -108,5 +108,10 @@ def ui_user(page):
             "/api/v1/auth/login", data={"email": user["email"], "password": user["password"]}))
         if login.status in (401, 422):  # never registered, or the test deleted the account
             return
+        data = login.json()["data"]
+        if data.get("mfa_required"):  # the test left 2FA on and ended mid-login
+            body = {"mfa_token": data["mfa_token"], "code": second_factor(user)}
+            second = retry_429(lambda: req.post("/api/v1/auth/login/2fa", data=body))
+            assert second.ok, f"teardown 2FA login -> {second.status}: {second.text()[:300]}"
         resp = retry_429(lambda: req.delete("/api/v1/auth/delete"))
     assert resp.ok, f"teardown delete -> {resp.status}: {resp.text()[:300]}"
