@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import { ApiError } from './api'
 import {
-  PASSWORD_RULES, email, max100, positiveNumber, required, sameAs, serverFieldKey, strongPassword,
-  validate, wholeNumber,
+  CODE_RULES, PASSWORD_RULES, email, max100, max150, positiveNumber, recoveryCode, required, sameAs,
+  secondFactor, serverFieldKey, strongPassword, totpCode, validate, wholeNumber,
 } from './validation'
 
 const none = {}
@@ -66,5 +66,44 @@ describe('serverFieldKey', () => {
   test('only VALIDATION_ERROR carries field errors', () => {
     expect(serverFieldKey(new ApiError('INVALID_CREDENTIALS', 'x', 401, { email: ['x'] }), 'email')).toBeUndefined()
     expect(serverFieldKey(new Error('x'), 'email')).toBeUndefined()
+  })
+})
+
+describe('2FA codes', () => {
+  test('totpCode: 6 digits, spaces and dashes tolerated', () => {
+    for (const ok of ['123456', '123 456', '123-456', ' 123456 ']) expect(totpCode(ok, none), ok).toBeNull()
+    for (const bad of ['12345', '1234567', '12345a', '']) expect(totpCode(bad, none), bad).toBe('validation.totp')
+  })
+  test('recoveryCode: 12 chars of the unambiguous alphabet, dashes/case/spaces ignored', () => {
+    for (const ok of ['ABCD-EFGH-JKMN', 'abcd efgh jkmn', 'ABCDEFGHJKMN', '2345-6789-ABCD'])
+      expect(recoveryCode(ok, none), ok).toBeNull()
+    for (const bad of ['ABCD-EFGH-JKM', 'ABCD-EFGH-JKMO', 'ABCD-EFGH-JKM1', '123456'])
+      expect(recoveryCode(bad, none), bad).toBe('validation.recovery')
+  })
+  test('secondFactor accepts either kind', () => {
+    expect(secondFactor('123 456', none)).toBeNull()
+    expect(secondFactor('abcd-efgh-jkmn', none)).toBeNull()
+    expect(secondFactor('12345', none)).toBe('validation.second_factor')
+  })
+  test('CODE_RULES start with required', () => {
+    expect(validate({ code: '' }, { code: CODE_RULES.any })).toEqual({ code: 'validation.required' })
+  })
+  test('max150', () => {
+    expect(max150('a'.repeat(150), none)).toBeNull()
+    expect(max150('a'.repeat(151), none)).toBe('validation.max_150')
+  })
+})
+
+describe('serverFieldKey on the code field', () => {
+  test('a wrong code and the lockout belong to the code field', () => {
+    expect(serverFieldKey(new ApiError('INVALID_2FA_CODE', 'x', 401), 'code')).toBe('validation.code_wrong')
+    expect(serverFieldKey(new ApiError('RATE_LIMIT_EXCEEDED', 'x', 429), 'code')).toBe('validation.code_locked')
+  })
+  test('only on the code field', () => {
+    expect(serverFieldKey(new ApiError('INVALID_2FA_CODE', 'x', 422), 'current_password')).toBeUndefined()
+    expect(serverFieldKey(new ApiError('RATE_LIMIT_EXCEEDED', 'x', 429), 'email')).toBeUndefined()
+  })
+  test('a missing code (VALIDATION_ERROR) reads as required', () => {
+    expect(serverFieldKey(new ApiError('VALIDATION_ERROR', 'x', 422, { code: ['required'] }), 'code')).toBe('validation.required')
   })
 })

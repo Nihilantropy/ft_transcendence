@@ -5,7 +5,7 @@ import uuid
 import httpx
 import pytest
 
-from helpers import PASSWORD, Client, ok
+from helpers import PASSWORD, Client, ok, second_factor
 
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://api-gateway:8001")
 EDGE_URL = os.environ.get("EDGE_URL", "https://nginx")
@@ -52,6 +52,10 @@ def _throwaway_user(client):
                             json={"email": user["email"], "password": user["password"]})
         if login.status_code == 401:  # the test already deleted the account
             return
+        data = ok(login)["data"]
+        if data.get("mfa_required"):  # the test left 2FA on: finish the second step
+            ok(client.post("/api/v1/auth/login/2fa",
+                           json={"mfa_token": data["mfa_token"], "code": second_factor(user)}))
         resp = client.delete("/api/v1/auth/delete")
     ok(resp)
 

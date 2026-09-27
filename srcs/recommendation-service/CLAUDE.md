@@ -193,7 +193,7 @@ routes.
 - **Rebuild rules:** existing files are picked up from the `/app` bind mount, so editing a test
   needs nothing. A *new* file is also visible through the mount for `docker exec`; only
   `requirements.txt` changes require `docker compose build recommendation-service`.
-- `scripts/run-unit-tests.sh:129` records an expected count of `42` for this suite — stale, the
+- `scripts/run-unit-tests.sh:133` records an expected count of `42` for this suite — stale, the
   real count is 48.
 
 ## Config & Thresholds

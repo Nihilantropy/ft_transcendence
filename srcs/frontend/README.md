@@ -22,3 +22,17 @@ Strings live in `src/locales/{it,en,es}.json` — every file must have the same 
   `useMotion` reflects the user's choice (or `prefers-reduced-motion`) as `data-motion` on `<html>`,
   which pauses every `ill-*` animation and the flying-cats sky.
   The line art is Tabler Icons (MIT); the notice lives at the top of `Illustration.tsx`.
+
+## Two-factor authentication
+
+- Log in has a second step when the account has 2FA on (`auth.tsx` `login()` returns `{ mfaToken }`;
+  `loginWithCode()` finishes). `TOKEN_EXPIRED`/`INVALID_TOKEN` there send the user back to the password step.
+- Profile → Two-factor authentication (`components/TwoFactorSection.tsx`): the QR is rendered in the
+  browser by the `qrcode` package (MIT) into an SVG `data:` URI (CSP `img-src data:`); the key is also
+  shown in groups of four with a Copy button. Recovery codes are shown once, with Copy, Download .txt
+  (Blob, no server call) and a required "I've saved them" checkbox.
+- Every 2FA input is `components/CodeField.tsx` (`kind`: `totp` | `recovery` | `any`), validated by
+  `CODE_RULES` in `validation.ts`. A wrong code or the lockout is shown on the code field
+  (`serverFieldKey`).
+- Two forms with the same field names on one page: pass an id prefix, `useForm(schema, 'details')`,
+  and `id={form.id('field')}` on each input (ids must stay unique for axe and for the error summary links).

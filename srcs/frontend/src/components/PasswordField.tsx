@@ -24,7 +24,7 @@ export default function PasswordField({ label, error, rules = false, onChange, .
   const [visible, setVisible] = useState(false)
   const [caps, setCaps] = useState(false)
   const [value, setValue] = useState('')
-  const id = `field-${props.name}`
+  const id = props.id ?? `field-${props.name}`
   const described = [error && `${id}-err`, rules && `${id}-rules`, caps && `${id}-caps`].filter(Boolean).join(' ')
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => setCaps(e.getModifierState('CapsLock'))
 

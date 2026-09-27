@@ -2,13 +2,24 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { Navigate, Outlet } from 'react-router'
 import { api, setLogoutHandler } from './api'
 
-export type User = { id: string; email: string; role: string }
+export type User = {
+  id: string
+  email: string
+  role: string
+  first_name: string
+  last_name: string
+  two_factor_enabled: boolean
+}
 
 type Auth = {
   user: User | null | undefined // undefined while the session check runs
-  login(email: string, password: string): Promise<void>
+  /** Resolves with the 2FA challenge when the account has 2FA on; the user is set only after the code. */
+  login(email: string, password: string): Promise<{ mfaToken: string } | void>
+  loginWithCode(mfaToken: string, code: string): Promise<void>
   register(email: string, password: string, password_confirm: string): Promise<void>
   logout(): Promise<void>
+  /** Re-read the signed-in user, after a profile or 2FA change. */
+  refreshUser(): Promise<void>
   clear(): void
 }
 
@@ -55,7 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: Auth = {
     user,
     async login(email, password) {
-      setUser((await api<{ user: User }>('/auth/login', { method: 'POST', body: { email, password } })).user)
+      const d = await api<{ user?: User; mfa_required?: boolean; mfa_token?: string }>(
+        '/auth/login', { method: 'POST', body: { email, password } })
+      // 2FA on: no cookies were set, so no user and no session hint until the code is accepted.
+      if (d.mfa_required && d.mfa_token) return { mfaToken: d.mfa_token }
+      setUser(d.user!)
+    },
+    async loginWithCode(mfaToken, code) {
+      const body = { mfa_token: mfaToken, code }
+      setUser((await api<{ user: User }>('/auth/login/2fa', { method: 'POST', body })).user)
     },
     async register(email, password, password_confirm) {
       const body = { email, password, password_confirm }
@@ -65,6 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ponytail: the server call may fail (already expired); the local session ends regardless
       await api('/auth/logout', { method: 'POST' }).catch(() => {})
       setUser(null)
+    },
+    async refreshUser() {
+      // ponytail: a failed re-read keeps the current user; a dead session is api.ts's job (refresh, then logout)
+      await api<{ user: User }>('/auth/verify').then((d) => setUser(d.user), () => {})
     },
     clear: () => setUser(null),
   }

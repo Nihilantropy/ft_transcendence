@@ -1,7 +1,7 @@
 import { useI18n } from '../i18n'
 
 /** WCAG 3.3.1: one announced list of what to fix, each item linking to its field. */
-export default function ErrorSummary({ items }: { items: { field: string; text: string }[] }) {
+export default function ErrorSummary({ items }: { items: { id: string; text: string }[] }) {
   const { t } = useI18n()
   if (items.length === 0) return null
   return (
@@ -9,7 +9,7 @@ export default function ErrorSummary({ items }: { items: { field: string; text: 
       <p className="font-bold">{t('validation.summary')}</p>
       <ul className="list-disc pl-5">
         {items.map((i) => (
-          <li key={i.field}><a href={`#field-${i.field}`} className="underline">{i.text}</a></li>
+          <li key={i.id}><a href={`#${i.id}`} className="underline">{i.text}</a></li>
         ))}
       </ul>
     </div>

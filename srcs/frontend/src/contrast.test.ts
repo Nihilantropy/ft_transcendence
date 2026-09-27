@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-// @ts-expect-error node types not available
 import { readFileSync } from 'node:fs'
-// @ts-expect-error node types not available
 import { fileURLToPath } from 'node:url'
-// @ts-expect-error node types not available
 import { dirname, join } from 'node:path'
 
 const __filename = fileURLToPath(import.meta.url)
