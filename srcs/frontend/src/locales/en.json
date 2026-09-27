@@ -31,6 +31,7 @@
   "auth.mfa_submit": "Verify",
   "auth.mfa_use_recovery": "Use a recovery code instead",
   "auth.mfa_use_app": "Use the authenticator app instead",
+  "auth.oauth_42": "Log in with 42",
   "validation.summary": "Please fix these fields:",
   "validation.required": "This field is required.",
   "validation.email": "Enter a valid email address.",
@@ -194,5 +195,8 @@
   "error.TWO_FACTOR_SETUP_REQUIRED": "The setup expired. Close this window and start again.",
   "error.TWO_FACTOR_NOT_ENABLED": "Two-factor authentication is already off.",
   "error.TOKEN_EXPIRED": "The code request expired — log in again.",
+  "error.OAUTH_FAILED": "Logging in with 42 didn't work. Try again, or use your email and password.",
+  "error.OAUTH_UNAVAILABLE": "Logging in with 42 isn't available right now. Use your email and password.",
+  "error.OAUTH_EXISTS": "An account with this email already exists. Log in with your password.",
   "error.UNKNOWN": "Something went wrong, try again."
 }

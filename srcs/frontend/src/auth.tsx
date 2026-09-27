@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Navigate, Outlet } from 'react-router'
 import { api, setLogoutHandler } from './api'
+import { cameBackFromOAuth } from './oauth'
 
 export type User = {
   id: string
@@ -9,6 +10,7 @@ export type User = {
   first_name: string
   last_name: string
   two_factor_enabled: boolean
+  has_password: boolean // false for an account created with 42 until a password is set on Profile
 }
 
 type Auth = {
@@ -53,9 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserState(u)
   }
 
+  // Back from "Log in with 42": the callback set the cookies in a redirect this tab never saw, so
+  // there is no hint yet — ask the server anyway. Read once: StrictMode runs the effect twice.
+  const [fromOAuth] = useState(() => cameBackFromOAuth(window.location.search))
+
   useEffect(() => {
     setLogoutHandler(() => setUser(null))
-    if (!hasSessionHint()) {
+    if (fromOAuth) window.history.replaceState(window.history.state, '', window.location.pathname)
+    if (!hasSessionHint() && !fromOAuth) {
       setUser(null)
       return
     }

@@ -31,6 +31,7 @@
   "auth.mfa_submit": "Verifica",
   "auth.mfa_use_recovery": "Usa invece un codice di recupero",
   "auth.mfa_use_app": "Usa invece l'app di autenticazione",
+  "auth.oauth_42": "Accedi con 42",
   "validation.summary": "Correggi questi campi:",
   "validation.required": "Questo campo è obbligatorio.",
   "validation.email": "Inserisci un indirizzo email valido.",
@@ -194,5 +195,8 @@
   "error.TWO_FACTOR_SETUP_REQUIRED": "La configurazione è scaduta. Chiudi questa finestra e ricomincia.",
   "error.TWO_FACTOR_NOT_ENABLED": "L'autenticazione a due fattori è già disattivata.",
   "error.TOKEN_EXPIRED": "La richiesta del codice è scaduta: accedi di nuovo.",
+  "error.OAUTH_FAILED": "L'accesso con 42 non è riuscito. Riprova, oppure usa email e password.",
+  "error.OAUTH_UNAVAILABLE": "L'accesso con 42 non è disponibile al momento. Usa email e password.",
+  "error.OAUTH_EXISTS": "Esiste già un account con questa email. Accedi con la tua password.",
   "error.UNKNOWN": "Qualcosa è andato storto, riprova."
 }

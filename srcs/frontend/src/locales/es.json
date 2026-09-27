@@ -31,6 +31,7 @@
   "auth.mfa_submit": "Verificar",
   "auth.mfa_use_recovery": "Usar un código de recuperación",
   "auth.mfa_use_app": "Usar la app de autenticación",
+  "auth.oauth_42": "Inicia sesión con 42",
   "validation.summary": "Corrige estos campos:",
   "validation.required": "Este campo es obligatorio.",
   "validation.email": "Introduce un correo electrónico válido.",
@@ -194,5 +195,8 @@
   "error.TWO_FACTOR_SETUP_REQUIRED": "La configuración ha caducado. Cierra esta ventana y vuelve a empezar.",
   "error.TWO_FACTOR_NOT_ENABLED": "La autenticación en dos factores ya está desactivada.",
   "error.TOKEN_EXPIRED": "La solicitud del código ha caducado: inicia sesión de nuevo.",
+  "error.OAUTH_FAILED": "El inicio de sesión con 42 no ha funcionado. Inténtalo de nuevo o usa tu email y contraseña.",
+  "error.OAUTH_UNAVAILABLE": "El inicio de sesión con 42 no está disponible ahora. Usa tu email y contraseña.",
+  "error.OAUTH_EXISTS": "Ya existe una cuenta con este correo. Inicia sesión con tu contraseña.",
   "error.UNKNOWN": "Algo ha salido mal, inténtalo de nuevo."
 }
