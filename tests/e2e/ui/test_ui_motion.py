@@ -1,5 +1,4 @@
 """Line-art animations: they run, and a paused page still shows complete drawings."""
-import pytest
 from playwright.sync_api import expect
 
 

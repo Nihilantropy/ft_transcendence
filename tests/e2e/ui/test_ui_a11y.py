@@ -59,27 +59,57 @@ def test_recommendation_reasons_are_translated(page, registered, fake_vision):
     expect(food).not_to_contain_text("Targets joint health")
 
 
-def test_dark_theme_passes_axe(page, registered):
+def assert_axe_dark(page):
+    """Scan whatever the page is currently showing, in dark mode."""
     page.emulate_media(color_scheme="dark")
+    page.wait_for_load_state("networkidle")
+    violations = axe_scan(page)
+    assert not violations, f"{page.url}\n{describe_violations(violations)}"
+
+
+def test_dark_theme_passes_axe(page, registered):
     for path in ["/analyze", "/pets", "/profile"]:
         page.goto(path)
-        page.wait_for_load_state("networkidle")
-        violations = axe_scan(page)
-        assert not violations, f"{path}\n{describe_violations(violations)}"
+        assert_axe_dark(page)
 
 
 def test_dark_theme_public_pages_pass_axe(page):
-    page.emulate_media(color_scheme="dark")
+    for path in PUBLIC:
+        page.goto(path)
+        assert_axe_dark(page)
+
+
+def test_dark_theme_analyze_result_passes_axe(page, registered, fake_vision):
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    expect(page.get_by_role("heading", name="Golden Retriever")).to_be_visible()
+    assert_axe_dark(page)
+
+
+def test_dark_theme_pet_detail_passes_axe(page, registered, fake_vision):
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Save as my pet").click()
+    page.get_by_role("dialog").get_by_label("Name").fill("Biscotto")
+    page.get_by_role("dialog").get_by_role("button", name="Save").click()
+    expect(page).to_have_url(re.compile(r"/pets/[0-9a-f-]{36}$"))
+    assert_axe_dark(page)
+
+
+def test_reflow_at_320px_public(page):
+    page.set_viewport_size({"width": 320, "height": 640})
     for path in PUBLIC:
         page.goto(path)
         page.wait_for_load_state("networkidle")
-        violations = axe_scan(page)
-        assert not violations, f"{path}\n{describe_violations(violations)}"
+        assert page.evaluate("document.documentElement.scrollWidth") <= 320, path
 
 
-def test_reflow_at_320px(page, registered):
+def test_reflow_at_320px_private(page, registered, fake_vision):
     page.set_viewport_size({"width": 320, "height": 640})
-    for path in PRIVATE + ["/privacy", "/accessibility"]:
+    page.set_input_files("input[type=file]", "/test_data/golden_retriever_1.jpg")
+    page.get_by_role("button", name="Save as my pet").click()
+    page.get_by_role("dialog").get_by_label("Name").fill("Biscotto")
+    page.get_by_role("dialog").get_by_role("button", name="Save").click()
+    expect(page).to_have_url(re.compile(r"/pets/[0-9a-f-]{36}$"))
+    for path in [page.url] + PRIVATE:
         page.goto(path)
         page.wait_for_load_state("networkidle")
         assert page.evaluate("document.documentElement.scrollWidth") <= 320, path
