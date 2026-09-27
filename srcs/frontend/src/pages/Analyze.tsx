@@ -9,7 +9,7 @@ import ErrorSummary from '../components/ErrorSummary'
 import Field from '../components/Field'
 import Illustration from '../components/Illustration'
 import { breedLabel, useI18n } from '../i18n'
-import { toJpegDataUrl } from '../image'
+import { PHOTO_SIDE, toJpegDataUrl } from '../image'
 import { usePageTitle } from '../usePageTitle'
 import { useForm } from '../useForm'
 import { max100, required } from '../validation'
@@ -28,6 +28,7 @@ export default function Analyze() {
   const { t, lang } = useI18n()
   usePageTitle(t('analyze.title'))
   const [preview, setPreview] = useState<string>()
+  const [photo, setPhoto] = useState('')
   const [result, setResult] = useState<Analysis>()
   const [error, setError] = useState<unknown>()
   const [busy, setBusy] = useState(false)
@@ -40,6 +41,8 @@ export default function Analyze() {
     try {
       const image = await toJpegDataUrl(file)
       setPreview(image)
+      // ponytail: a failed thumbnail only means a pet saved without a photo
+      setPhoto(await toJpegDataUrl(file, PHOTO_SIDE).catch(() => ''))
       const body = { image, language: lang }
       setResult(await api<Analysis>('/vision/analyze', { method: 'POST', body, timeoutMs: 300_000 }))
     } catch (e) {
@@ -55,7 +58,7 @@ export default function Analyze() {
       <h1 className="text-2xl font-bold">{t('analyze.title')}</h1>
       {error ? <ErrorNote error={error} /> : null}
       {result && preview
-        ? <Result result={result} preview={preview} onAgain={() => { setResult(undefined); setPreview(undefined) }} />
+        ? <Result result={result} preview={preview} photo={photo} onAgain={() => { setResult(undefined); setPreview(undefined) }} />
         : <Dropzone onFile={analyze} />}
     </section>
   )
@@ -77,7 +80,7 @@ function Waiting({ preview }: { preview?: string }) {
   )
 }
 
-function Result({ result, preview, onAgain }: { result: Analysis; preview: string; onAgain: () => void }) {
+function Result({ result, preview, photo, onAgain }: { result: Analysis; preview: string; photo: string; onAgain: () => void }) {
   const { t } = useI18n()
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -127,12 +130,12 @@ function Result({ result, preview, onAgain }: { result: Analysis; preview: strin
         <Button onClick={() => dialog.current?.showModal()}>{t('analyze.save')}</Button>
         <Button variant="ghost" onClick={onAgain}>{t('analyze.again')}</Button>
       </div>
-      <SaveDialog dialog={dialog} result={result} />
+      <SaveDialog dialog={dialog} result={result} photo={photo} />
     </Card>
   )
 }
 
-function SaveDialog({ dialog, result }: { dialog: RefObject<HTMLDialogElement | null>; result: Analysis }) {
+function SaveDialog({ dialog, result, photo }: { dialog: RefObject<HTMLDialogElement | null>; result: Analysis; photo: string }) {
   const { t } = useI18n()
   const navigate = useNavigate()
   const form = useForm(SAVE_FORM)
@@ -146,7 +149,7 @@ function SaveDialog({ dialog, result }: { dialog: RefObject<HTMLDialogElement | 
     try {
       const b = result.breed_analysis
       // breed = the classifier id (max_length 100), never a composed crossbreed string.
-      const pet = await api<Pet>('/pets', { method: 'POST', body: { name, species: result.species, breed: b.primary_breed } })
+      const pet = await api<Pet>('/pets', { method: 'POST', body: { name, species: result.species, breed: b.primary_breed, photo } })
       // breed_confidence is ignored on create by design. ponytail: a failed PATCH only loses the
       // confidence, so carry on rather than invite a retry that would create a duplicate pet.
       await api(`/pets/${pet.id}`, { method: 'PATCH', body: { breed_confidence: b.confidence } }).catch(() => {})

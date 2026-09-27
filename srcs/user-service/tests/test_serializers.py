@@ -175,3 +175,29 @@ class TestPetAnalysisSerializer:
         }
         serializer = PetAnalysisCreateSerializer(data=data)
         assert serializer.is_valid()
+
+
+# 1x1 PNG
+PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+
+class TestPetPhoto:
+    def test_create_accepts_data_url(self):
+        serializer = PetCreateSerializer(data={'name': 'Buddy', 'species': 'dog', 'photo': PNG})
+        assert serializer.is_valid(), serializer.errors
+        assert serializer.validated_data['photo'] == PNG
+
+    def test_blank_clears_photo(self):
+        serializer = PetSerializer(data={'name': 'Buddy', 'species': 'dog', 'photo': ''})
+        assert serializer.is_valid(), serializer.errors
+
+    @pytest.mark.parametrize('value', [
+        'https://example.com/cat.jpg',                          # not a data URL: no remote fetches
+        'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',           # SVG can carry script
+        'data:image/png;base64,not base64!',
+        'data:image/jpeg;base64,' + 'A' * 280_000,              # over the size cap
+    ])
+    def test_rejects(self, value):
+        serializer = PetSerializer(data={'name': 'Buddy', 'species': 'dog', 'photo': value})
+        assert not serializer.is_valid()
+        assert 'photo' in serializer.errors

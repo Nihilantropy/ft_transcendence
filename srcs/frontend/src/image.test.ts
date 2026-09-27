@@ -13,3 +13,6 @@ test('small images are never upscaled', () => {
 test('exactly at the limit is untouched', () => {
   expect(fitWithin(1600, 900)).toEqual([1600, 900])
 })
+test('pet photo thumbnails fit in 256 px', () => {
+  expect(fitWithin(4032, 3024, 256)).toEqual([256, 192])
+})

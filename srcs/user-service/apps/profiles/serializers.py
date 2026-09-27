@@ -1,3 +1,7 @@
+import base64
+import binascii
+import re
+
 from rest_framework import serializers
 from apps.profiles.models import UserProfile, Pet, PetAnalysis
 
@@ -33,6 +37,25 @@ def validate_weight(value):
     """Weight must be positive if provided"""
     if value is not None and value <= 0:
         raise serializers.ValidationError("Weight must be positive")
+    return value
+
+
+PHOTO_MAX_CHARS = 200_000
+PHOTO_RE = re.compile(r'data:image/(jpeg|png);base64,([A-Za-z0-9+/]+={0,2})')
+
+
+def validate_photo(value):
+    """Blank clears the photo; otherwise a base64 JPEG/PNG data URL of at most 200 KB.
+    No URLs (no remote fetches) and no SVG (it can carry script)."""
+    if not value:
+        return ''
+    match = PHOTO_RE.fullmatch(value)
+    if len(value) > PHOTO_MAX_CHARS or not match:
+        raise serializers.ValidationError("Photo must be a JPEG or PNG data URL of at most 200 KB")
+    try:
+        base64.b64decode(match.group(2), validate=True)
+    except binascii.Error:
+        raise serializers.ValidationError("Photo is not valid base64")
     return value
 
 
@@ -76,7 +99,7 @@ class PetSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user_id', 'name', 'breed', 'breed_confidence',
             'species', 'age', 'weight', 'health_conditions',
-            'image_url', 'created_at', 'updated_at'
+            'image_url', 'photo', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'user_id', 'created_at', 'updated_at']
 
@@ -85,6 +108,9 @@ class PetSerializer(serializers.ModelSerializer):
 
     def validate_weight(self, value):
         return validate_weight(value)
+
+    def validate_photo(self, value):
+        return validate_photo(value)
 
     def validate_breed_confidence(self, value):
         """Confidence must be between 0 and 1"""
@@ -98,14 +124,15 @@ class PetCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Pet
-        fields = ['name', 'species', 'breed', 'age', 'weight', 'health_conditions', 'image_url']
+        fields = ['name', 'species', 'breed', 'age', 'weight', 'health_conditions', 'image_url', 'photo']
         extra_kwargs = {
             'species': {'required': True},
             'breed': {'required': False, 'allow_blank': True},
             'age': {'required': False},
             'weight': {'required': False},
             'health_conditions': {'required': False},
-            'image_url': {'required': False}
+            'image_url': {'required': False},
+            'photo': {'required': False},
         }
     
     def validate_age(self, value):
@@ -113,6 +140,9 @@ class PetCreateSerializer(serializers.ModelSerializer):
 
     def validate_weight(self, value):
         return validate_weight(value)
+
+    def validate_photo(self, value):
+        return validate_photo(value)
 
 
 class PetAnalysisSerializer(serializers.ModelSerializer):
