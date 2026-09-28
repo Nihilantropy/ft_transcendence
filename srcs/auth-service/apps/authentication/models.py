@@ -81,6 +81,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Return first name or email"""
         return self.first_name or self.email
 
+    @property
+    def two_factor_enabled(self):
+        """True once a TOTP secret has been confirmed; a pending setup does not count"""
+        return TwoFactorAuth.objects.filter(user=self, is_enabled=True).exists()
+
 
 class RefreshToken(models.Model):
     """Refresh token for JWT authentication"""
@@ -105,11 +110,73 @@ class RefreshToken(models.Model):
     def __str__(self):
         return f"RefreshToken for {self.user.email}"
 
-    def is_valid(self):
-        """Check if token is valid (not revoked and not expired)"""
-        return not self.is_revoked and self.expires_at > timezone.now()
 
-    def revoke(self):
-        """Revoke this token"""
-        self.is_revoked = True
-        self.save(update_fields=['is_revoked'])
+class TwoFactorAuth(models.Model):
+    """
+    TOTP second factor (RFC 6238) for a user.
+
+    A row with is_enabled=False is a pending setup: the secret has been handed out but not yet
+    confirmed with a valid code, so it never gates a login.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='two_factor')
+    secret_encrypted = models.TextField()  # Fernet ciphertext, never the raw base32 secret
+    is_enabled = models.BooleanField(default=False)
+
+    last_used_step = models.BigIntegerField(default=0)  # newest accepted time step (replay guard)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    enabled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'two_factor_auth'
+
+    def __str__(self):
+        return f"TwoFactorAuth for {self.user.email}"
+
+
+class RecoveryCode(models.Model):
+    """Single-use backup code for a user who lost their authenticator; only its hash is stored"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recovery_codes')
+    code_hash = models.CharField(max_length=64, unique=True)  # SHA256 hash
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'recovery_codes'
+        indexes = [
+            models.Index(fields=['user', 'used_at']),
+        ]
+
+    def __str__(self):
+        return f"RecoveryCode for {self.user.email}"
+
+
+class OAuthAccount(models.Model):
+    """
+    A remote identity (today only the 42 intra, provider '42') linked to a local user.
+
+    provider_user_id is the provider's own stable id (the intra's numeric user id, as text), never
+    the email: an email can change on either side, the id cannot.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    provider = models.CharField(max_length=20)
+    provider_user_id = models.CharField(max_length=64)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='oauth_accounts')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'oauth_accounts'
+        constraints = [
+            models.UniqueConstraint(fields=['provider', 'provider_user_id'], name='oauth_account_provider_uid'),
+        ]
+
+    def __str__(self):
+        return f"{self.provider} account {self.provider_user_id} of {self.user.email}"

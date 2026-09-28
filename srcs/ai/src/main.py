@@ -53,8 +53,9 @@ async def lifespan(app: FastAPI):
     rag.rag_service = rag_service
     rag.document_processor = document_processor
 
-    logger.info(f"Ollama URL: {settings.OLLAMA_BASE_URL}")
-    logger.info(f"Model: {settings.OLLAMA_MODEL}")
+    logger.info(f"LLM proxy URL: {settings.LLM_BASE_URL}")
+    logger.info(f"Vision model: {settings.LLM_VISION_MODEL} | Text model: {settings.LLM_TEXT_MODEL}")
+    logger.info(f"Classification enabled: {settings.CLASSIFICATION_ENABLED}")
     logger.info(f"RAG Collection: {settings.CHROMA_COLLECTION_NAME}")
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 
@@ -87,8 +88,10 @@ async def health_check():
     return {
         "status": "healthy",
         "service": settings.SERVICE_NAME,
-        "ollama_url": settings.OLLAMA_BASE_URL,
-        "model": settings.OLLAMA_MODEL
+        "llm_url": settings.LLM_BASE_URL,
+        "vision_model": settings.LLM_VISION_MODEL,
+        "text_model": settings.LLM_TEXT_MODEL,
+        "classification_enabled": settings.CLASSIFICATION_ENABLED
     }
 
 # Include routers

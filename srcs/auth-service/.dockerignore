@@ -1,0 +1,3 @@
+# The JWT keys are generated per machine and bind-mounted at run time; a build must not copy them
+# into an image layer (the private key in particular).
+keys/*.pem

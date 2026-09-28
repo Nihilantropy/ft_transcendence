@@ -28,10 +28,6 @@ server {
     # Connection limits
     limit_conn addr 10;  # Max 10 connections per IP
 
-    # Log all HTTPS requests for debugging
-    access_log /var/log/nginx/https_access.log main;
-    error_log /var/log/nginx/https_error.log warn;
-
     # SSL configuration - Production ready
     ssl_certificate /etc/nginx/ssl/selfsigned.crt;
     ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
@@ -48,6 +44,10 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # CSP for the built SPA: no inline or eval'd script. React sets style via the CSSOM, which
+    # style-src does not restrict; fonts are self-hosted.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
 
     # Error pages
     error_page 500 502 503 504 /50x.html;
@@ -71,8 +71,6 @@ server {
 
     # ✅ API Gateway proxy (Microservices entry point)
     location /api {
-        access_log /var/log/nginx/api_access.log main;
-
         # Rate limiting for API
         limit_req zone=general_limit burst=20 nodelay;
         limit_req_status 429;
@@ -105,34 +103,61 @@ server {
             add_header 'Content-Length' 0;
             return 204;
         }
+
+        # Vision analysis is the one endpoint that is both LARGE and SLOW, and the
+        # /api defaults above break it on both counts — which matters because the
+        # frontend reaches the backend through here, not through the gateway port:
+        #   - Body size: nginx defaults client_max_body_size to 1m. The AI service
+        #     accepts images up to MAX_IMAGE_SIZE_MB=5, and base64 inside a JSON
+        #     body inflates that to ~6.7 MB, so any photo above ~750 KB — i.e.
+        #     nearly every phone photo — was rejected here with a 413.
+        #   - Duration: the 30s read timeout above cut every vision call short,
+        #     while the gateway (SERVICE_TIMEOUTS) and the AI service (LLM_TIMEOUT)
+        #     both allow 300s. A hosted free-tier LLM routinely needs more than 30s.
+        # Nested so it inherits the proxy headers, CORS add_headers and rate limit
+        # from /api. Two things do NOT inherit and are therefore repeated here:
+        # proxy_pass, and the preflight `if` (an if-block belongs to the location
+        # it is written in, so without this copy preflights to this path would be
+        # proxied to the gateway instead of answered with a 204).
+        location /api/v1/vision {
+            client_max_body_size 8m;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 300s;
+            proxy_pass http://api-gateway:8001;
+
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' 'https://${HOST_DOMAIN}';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS';
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain; charset=utf-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+        }
     }
 
-    # Main application - Frontend placeholder (frontend not implemented yet)
-    # When frontend is ready, uncomment and update this section
-    # location / {
-    #     access_log /var/log/nginx/proxy_access.log main;
-    #     limit_req zone=general_limit burst=50 nodelay;
-    #     proxy_pass http://frontend:5173;
-    #     proxy_set_header Host $host;
-    #     proxy_set_header X-Real-IP $remote_addr;
-    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    #     proxy_set_header X-Forwarded-Proto $scheme;
-    #     proxy_http_version 1.1;
-    #     proxy_set_header Upgrade $http_upgrade;
-    #     proxy_set_header Connection $connection_upgrade;
-    #     proxy_connect_timeout 5s;
-    #     proxy_send_timeout 30s;
-    #     proxy_read_timeout 30s;
-    #     proxy_intercept_errors on;
-    #     error_page 502 503 504 /50x.html;
-    #     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: https://${HOST_DOMAIN}; frame-ancestors 'self'; base-uri 'self'; form-action 'self';" always;
-    # }
-
-    # Temporary root location - Returns API info (until frontend is implemented)
+    # SPA. Real files are served as-is; any other path gets index.html so client routes such as
+    # /pets/<id> survive a reload. NO add_header in these two locations: a location with its own
+    # add_header drops every server-level one (CSP, HSTS, nosniff…). `expires` is not add_header.
     location / {
-        access_log /var/log/nginx/root_access.log main;
-        default_type application/json;
-        return 200 '{"status":"ok","message":"SmartBreeds API Gateway","api_endpoint":"https://${HOST_DOMAIN}/api","documentation":"Use /api/* endpoints for backend services","note":"Frontend not yet implemented - use direct API calls"}';
+        root /usr/share/nginx/html;
+        try_files $uri /index.html;
+    }
+
+    # index.html has no content hash: it must revalidate after every redeploy, or a browser can
+    # keep serving a stale shell that references assets a new build already deleted.
+    # `expires` is not `add_header` (see the note above location /), so the server-level security
+    # headers still apply here.
+    location = /index.html {
+        root /usr/share/nginx/html;
+        expires -1;
+    }
+
+    # Vite puts a content hash in every file name under /assets: cache for a year.
+    location /assets/ {
+        root /usr/share/nginx/html;
+        expires 1y;
     }
 
     # Deny access to hidden files
@@ -154,9 +179,6 @@ server {
 server {
     listen 80;
     server_name ${HOST_DOMAIN};
-
-    # Log all HTTP requests for debugging
-    access_log /var/log/nginx/http_access.log main;
 
     # Redirect all HTTP traffic to HTTPS on standard port 443
     return 301 https://$host$request_uri;

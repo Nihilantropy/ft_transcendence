@@ -1,0 +1,18 @@
+# Development-only overrides, layered on top of docker-compose.yml by `make up-dev`.
+#
+# NEVER part of the default stack. `make up` — what a peer evaluator runs — does
+# not read this file, so the evaluated application exposes no plaintext port.
+#
+# Why this exists: the subject requires every connection to the backend to use
+# HTTPS, so the API gateway is no longer published by the base file. The Jupyter
+# notebooks in scripts/jupyter/ and the curl recipes in the docs still talk to
+# http://localhost:8001 directly, which is convenient for debugging a single
+# service without going through nginx. This republishes that port for them.
+#
+# Bound to 127.0.0.1, not 0.0.0.0: the base file used to publish it on every
+# interface, which made the plaintext gateway reachable from the whole LAN.
+
+services:
+  api-gateway:
+    ports:
+      - "127.0.0.1:8001:8001"

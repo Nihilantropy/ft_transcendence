@@ -29,14 +29,19 @@ def decode_jwt(token: str, key: str, algorithm: str = "RS256") -> Dict[str, Any]
             key,
             algorithms=[algorithm]
         )
-        return payload
-
     except ExpiredSignatureError:
         raise JWTValidationError("Token has expired")
 
     except JWTError as e:
         # Covers invalid signature, malformed tokens, etc.
         raise JWTValidationError(f"Invalid token: {str(e)}")
+
+    # Refresh (7-day) tokens are signed with the same key: only access tokens authenticate (GW-01)
+    if payload.get("token_type") != "access":
+        raise JWTValidationError("Invalid token type")
+    if not payload.get("user_id"):
+        raise JWTValidationError("Token has no user_id")
+    return payload
 
 def extract_user_context(payload: Dict[str, Any]) -> Dict[str, str]:
     """

@@ -92,7 +92,7 @@ class RAGService:
         return RAGResponse(
             answer=answer,
             sources=sources,
-            model=self.config.OLLAMA_MODEL
+            model=self.config.LLM_TEXT_MODEL
         )
 
     def _build_sources(self, results: Dict) -> List[Source]:
@@ -199,46 +199,6 @@ Answer concisely and cite sources by number when applicable."""
         return {
             "collection_name": self.config.CHROMA_COLLECTION_NAME,
             "document_count": self._collection.count()
-        }
-
-    async def enrich_breed(self, breed: str) -> Dict[str, Any]:
-        """Get enriched information for a specific breed.
-
-        Args:
-            breed: Breed name (e.g., "Golden Retriever")
-
-        Returns:
-            Dict with description, care_summary, and sources
-        """
-        # Normalize breed name for filter
-        breed_key = breed.lower().replace(" ", "_")
-
-        # Query for breed-specific information
-        response = await self.query(
-            question=f"Summarize key facts, temperament, and care requirements for {breed}",
-            filters={"breed": breed_key},
-            top_k=3
-        )
-
-        # Handle no results
-        if not response.sources:
-            return {
-                "description": "No detailed information available for this breed.",
-                "care_summary": "Consult a veterinarian for breed-specific care advice.",
-                "sources": []
-            }
-
-        # Extract care-related query
-        care_response = await self.query(
-            question=f"What are the care requirements and health considerations for {breed}?",
-            filters={"breed": breed_key},
-            top_k=2
-        )
-
-        return {
-            "description": response.answer,
-            "care_summary": care_response.answer,
-            "sources": list(set(s.source_file for s in response.sources + care_response.sources))
         }
 
     async def get_breed_context(self, breed: str) -> Dict[str, Any]:

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from uuid import UUID
 
 from src.schemas.recommendations import RecommendationsResponse, RecommendationItem, NutritionalHighlights
 from src.services.user_service_client import UserServiceClient
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/api/v1/recommendations", tags=["recommendations"])
 
 @router.get("/food")
 async def get_food_recommendations(
-    pet_id: str = Query(..., description="Pet ID to get recommendations for (UUID)"),
+    pet_id: UUID = Query(..., description="Pet ID to get recommendations for"),
     limit: int = Query(DEFAULT_RECOMMENDATION_LIMIT, ge=1, le=MAX_RECOMMENDATION_LIMIT),
     min_score: float = Query(0.0, ge=0.0, le=1.0, description="Minimum similarity score threshold"),
     x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
@@ -35,6 +36,8 @@ async def get_food_recommendations(
     Returns:
         RecommendationsResponse with ranked product recommendations
     """
+    pet_id = str(pet_id)  # validated above; the rest of the handler works with strings
+
     # Validate user ID
     if not x_user_id:
         return error_response(

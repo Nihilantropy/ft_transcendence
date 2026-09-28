@@ -1,5 +1,6 @@
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import base64
+import binascii
 import io
 from typing import Tuple
 import logging
@@ -36,23 +37,34 @@ class ImageProcessor:
         format_str, base64_data = self._parse_data_uri(data_uri)
 
         # Decode base64
-        image_bytes = base64.b64decode(base64_data)
+        try:
+            image_bytes = base64.b64decode(base64_data, validate=True)
+        except (binascii.Error, ValueError) as e:
+            logger.warning(f"Could not base64-decode image data: {e}")
+            raise ValueError("INVALID_IMAGE_FORMAT")
 
         # Validate size
         if len(image_bytes) > self.max_size_bytes:
-            raise ValueError(
+            logger.warning(
                 f"Image exceeds {self.max_size_bytes / (1024*1024):.0f}MB limit"
             )
+            raise ValueError("IMAGE_TOO_LARGE")
 
         # Open image
-        image = Image.open(io.BytesIO(image_bytes))
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            image.load()  # force full decode now, not lazily on first use
+        except (UnidentifiedImageError, OSError) as e:
+            logger.warning(f"Could not decode image bytes: {e}")
+            raise ValueError("INVALID_IMAGE_FORMAT")
 
         # Validate dimensions
         width, height = image.size
         if width < self.min_dimension or height < self.min_dimension:
-            raise ValueError(
-                f"Image too small (min {self.min_dimension}x{self.min_dimension})"
+            logger.warning(
+                f"Image too small (min {self.min_dimension}x{self.min_dimension}): got {width}x{height}"
             )
+            raise ValueError("IMAGE_TOO_SMALL")
 
         # Resize if needed
         if width > self.max_dimension or height > self.max_dimension:
@@ -79,17 +91,20 @@ class ImageProcessor:
             ValueError: If data URI is invalid or format unsupported
         """
         if not data_uri.startswith('data:image/'):
-            raise ValueError("Invalid data URI format")
+            logger.warning("Invalid data URI: missing 'data:image/' prefix")
+            raise ValueError("INVALID_IMAGE_FORMAT")
 
         parts = data_uri.split(',', 1)
         if len(parts) != 2:
-            raise ValueError("Invalid data URI format")
+            logger.warning("Invalid data URI: no comma separating header and data")
+            raise ValueError("INVALID_IMAGE_FORMAT")
 
         header = parts[0]
         format_str = header.split('/')[1].split(';')[0].lower()
 
         if format_str not in self.supported_formats:
-            raise ValueError(f"Unsupported format: {format_str}")
+            logger.warning(f"Unsupported image format: {format_str}")
+            raise ValueError("INVALID_IMAGE_FORMAT")
 
         return format_str, parts[1]
 

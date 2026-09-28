@@ -1,4 +1,19 @@
 # ---------------------------------------------------------------------------- #
+#                                  FRONTEND                                    #
+# ---------------------------------------------------------------------------- #
+# `frontend` is a named build context (docker-compose.yml: additional_contexts).
+# Files are copied explicitly: a host node_modules must never reach the image.
+FROM node:22-slim AS web
+WORKDIR /web
+COPY --from=frontend package.json package-lock.json ./
+RUN npm ci
+COPY --from=frontend index.html tsconfig.json vite.config.ts ./
+COPY --from=frontend public ./public
+COPY --from=frontend src ./src
+# Unit tests gate the build: `make gate` builds this image, so it runs them.
+RUN npm test && npm run build
+
+# ---------------------------------------------------------------------------- #
 #                                  RUNNER                                      #
 # ---------------------------------------------------------------------------- #
 
@@ -22,6 +37,7 @@ RUN mkdir -p /etc/nginx/conf.d \
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY conf.d/default.conf.template /etc/nginx/conf.d/default.conf.template
 COPY error_pages/ /usr/share/nginx/html/error_pages/
+COPY --from=web /web/dist/ /usr/share/nginx/html/
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh

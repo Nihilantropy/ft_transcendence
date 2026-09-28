@@ -11,6 +11,7 @@ def create_test_token(user_id: str, role: str = "user", exp_minutes: int = 30):
     """Helper to create test JWT tokens signed with RS256"""
     payload = {
         "user_id": user_id,
+        "token_type": "access",
         "email": "test@example.com",
         "role": role,
         "iat": datetime.utcnow(),
@@ -66,3 +67,17 @@ def test_decode_malformed_token_raises_error():
 
     with pytest.raises(JWTValidationError):
         decode_jwt(malformed_token, TEST_PUBLIC_KEY_PEM, TEST_ALGORITHM)
+
+
+def test_decode_refresh_token_raises_error():
+    """A refresh token is signed with the same key but must not authenticate requests (GW-01)"""
+    payload = {
+        "user_id": "123",
+        "token_type": "refresh",
+        "token_id": "abc",
+        "exp": datetime.utcnow() + timedelta(days=7)
+    }
+    token = jwt.encode(payload, TEST_PRIVATE_KEY_PEM, algorithm="RS256")
+
+    with pytest.raises(JWTValidationError, match="Invalid token type"):
+        decode_jwt(token, TEST_PUBLIC_KEY_PEM)

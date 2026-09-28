@@ -19,7 +19,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 COPY tests/ ./tests/
-COPY scripts/ ./scripts/
 COPY pytest.ini .
 
 # Create data directories for ChromaDB and knowledge base

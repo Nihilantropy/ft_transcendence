@@ -15,13 +15,3 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         # Owner can access their own resources
         user_id = getattr(request, 'user_id', None)
         return str(obj.user_id) == str(user_id)
-
-
-class IsOwner(permissions.BasePermission):
-    """
-    Permission: User can only access their own resources (no admin override).
-    """
-
-    def has_object_permission(self, request, view, obj):
-        user_id = getattr(request, 'user_id', None)
-        return str(obj.user_id) == str(user_id)

@@ -1,109 +1,115 @@
 import httpx
 import json
 import logging
+import re
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Report languages the contextual prompt can target (keys match the API's `language` field)
+LANGUAGE_NAMES = {"en": "English", "it": "Italian", "es": "Spanish"}
+
+# Allowed trait values, in the order a hedged answer ("small/medium") is resolved
+TRAIT_VALUES = {"size": ("small", "medium", "large"), "energy_level": ("low", "medium", "high")}
+
+
+def _normalize_traits(traits: Any) -> Dict[str, Any]:
+    """Coerce LLM trait values onto TRAIT_VALUES: first allowed word wins, none → None.
+
+    Models answer "small/medium" or "Medium-High" despite the prompt; the API
+    contract is a closed enum, so the frontend never sees free text here.
+    """
+    traits = traits if isinstance(traits, dict) else {}
+    normalized = {"temperament": str(traits.get("temperament") or "")}
+    for key, allowed in TRAIT_VALUES.items():
+        match = re.search(rf"\b({'|'.join(allowed)})\b", str(traits.get(key) or "").lower())
+        normalized[key] = match.group(1) if match else None
+    return normalized
+
 class OllamaVisionClient:
-    """Client for Ollama vision analysis using native HTTP API.
-    
-    Supports both simple breed detection and multi-breed/crossbreed detection.
+    """Vision/text LLM client speaking the OpenAI chat-completions format.
+
+    Targets a LiteLLM proxy (LLM_BASE_URL), which routes to a local model
+    (Ollama) or a hosted provider (Mistral, ...) transparently. Supports both
+    simple breed detection and multi-breed/crossbreed detection.
     """
 
     def __init__(self, config):
-        """Initialize Ollama client with configuration.
+        """Initialize LLM client with configuration.
 
         Args:
-            config: Settings instance with Ollama configuration
+            config: Settings instance with LLM_* configuration
         """
-        self.base_url = config.OLLAMA_BASE_URL
-        self.model = config.OLLAMA_MODEL
-        self.timeout = config.OLLAMA_TIMEOUT
-        self.temperature = config.OLLAMA_TEMPERATURE
-        self.low_confidence_threshold = config.LOW_CONFIDENCE_THRESHOLD
-        
+        self.base_url = config.LLM_BASE_URL.rstrip("/")
+        self.api_key = config.LLM_API_KEY
+        self.vision_model = config.LLM_VISION_MODEL
+        self.text_model = config.LLM_TEXT_MODEL
+        self.timeout = config.LLM_TIMEOUT
+        self.temperature = config.LLM_TEMPERATURE
+
         # Crossbreed detection thresholds
         self.crossbreed_probability_threshold = 0.35
         self.purebred_confidence_threshold = 0.75
         self.purebred_gap_threshold = 0.30
-        
-        logger.info(f"Initialized Ollama client: {self.base_url}, model: {self.model}")
+
+        logger.info(f"Initialized LLM client: {self.base_url}, vision={self.vision_model}, text={self.text_model}")
+
+    @staticmethod
+    def _image_content(prompt: str, image_base64: str) -> List[Dict[str, Any]]:
+        """Build OpenAI multimodal message content (text + image data URI)."""
+        raw = image_base64.split(",", 1)[1] if "," in image_base64 else image_base64
+        return [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{raw}"}},
+        ]
+
+    async def _chat(self, messages: List[Dict[str, Any]], model: str) -> str:
+        """POST an OpenAI chat-completions request to the proxy; return the text content."""
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": False,
+        }
+        timeout = httpx.Timeout(self.timeout, connect=self.timeout)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions", json=payload, headers=headers
+            )
+            response.raise_for_status()
+            response_data = response.json()
+        return response_data["choices"][0]["message"]["content"]
 
     async def analyze_breed(
         self,
         image_base64: str,
-        detect_crossbreed: bool = True,
         top_n_breeds: int = 2
     ) -> Dict[str, Any]:
-        """Analyze pet breed from base64 image.
+        """Analyze pet breed from base64 image, with crossbreed detection.
 
         Args:
             image_base64: Base64-encoded image data URI
-            detect_crossbreed: If True, return multi-breed probabilities and crossbreed detection
-            top_n_breeds: Number of breed probabilities to return (only if detect_crossbreed=True)
+            top_n_breeds: Number of breed probabilities to return
 
         Returns:
-            Dict with breed, confidence, traits, health_considerations
-            If detect_crossbreed=True, includes breed_analysis with probabilities
+            Dict with breed_analysis (primary_breed, confidence, is_likely_crossbreed, ...)
 
         Raises:
             ValueError: If response cannot be parsed
             ConnectionError: If Ollama is unreachable
         """
         try:
-            # Extract just the base64 part (remove data URI prefix)
-            if "," in image_base64:
-                image_base64 = image_base64.split(",")[1]
+            prompt = self._build_crossbreed_prompt(top_n_breeds)
 
-            # Build structured prompt
-            if detect_crossbreed:
-                prompt = self._build_crossbreed_prompt(top_n_breeds)
-            else:
-                prompt = self._build_analysis_prompt()
+            logger.info("Sending image to LLM for crossbreed analysis")
 
-            logger.info(f"Sending image to Ollama for {'crossbreed' if detect_crossbreed else 'standard'} analysis")
-
-            # Call Ollama HTTP API with explicit timeout
-            timeout = httpx.Timeout(self.timeout, connect=self.timeout)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/chat",
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": prompt,
-                                "images": [image_base64]
-                            }
-                        ],
-                        "stream": False,
-                        "options": {
-                            "temperature": self.temperature
-                        }
-                    }
-                )
-
-                response.raise_for_status()
-                response_data = response.json()
-
-            # Extract content from response
-            content = response_data.get("message", {}).get("content", "")
+            messages = [{"role": "user", "content": self._image_content(prompt, image_base64)}]
+            content = await self._chat(messages, self.vision_model)
 
             # Parse JSON response
             result = self._parse_response(content)
-
-            # Process crossbreed detection if requested
-            if detect_crossbreed:
-                result = self._process_crossbreed_result(result)
-            else:
-                # Add note if low confidence
-                if result["confidence"] < self.low_confidence_threshold:
-                    result["note"] = "Low confidence - manual verification recommended"
-                    logger.warning(f"Low confidence result: {result['confidence']}")
-                else:
-                    logger.info(f"Breed identified: {result['breed']} (confidence: {result['confidence']})")
+            result = self._process_crossbreed_result(result)
 
             return result
 
@@ -113,25 +119,6 @@ class OllamaVisionClient:
         except Exception as e:
             logger.error(f"Ollama analysis failed: {str(e)}")
             raise
-
-    def _build_analysis_prompt(self) -> str:
-        """Build structured prompt for breed analysis.
-
-        Returns:
-            Prompt string for Ollama
-        """
-        return """Analyze this pet image and identify the breed.
-Return ONLY valid JSON in this exact format:
-{
-  "breed": "breed name or Unknown",
-  "confidence": 0.0-1.0,
-  "traits": {
-    "size": "small/medium/large",
-    "energy_level": "low/medium/high",
-    "temperament": "brief description"
-  },
-  "health_considerations": ["condition1", "condition2"]
-}"""
 
     def _build_crossbreed_prompt(self, top_n: int = 3) -> str:
         """Build enhanced prompt for crossbreed detection.
@@ -153,6 +140,7 @@ Consider if this is a PUREBRED or CROSS-BREED (mixed breed). Look for:
 Return ONLY valid JSON with the TOP {top_n} most likely breeds:
 
 {{
+  "species": "dog or cat",
   "breed_probabilities": [
     {{"breed": "breed_name", "probability": 0.0-1.0}},
     {{"breed": "breed_name", "probability": 0.0-1.0}}
@@ -168,31 +156,48 @@ Return ONLY valid JSON with the TOP {top_n} most likely breeds:
 Probabilities should sum to approximately 1.0."""
 
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse JSON from model response.
+        """Parse the JSON object out of a model response.
+
+        Candidates are tried in order: the whole text, then a fenced
+        ```json / ``` block, then the outermost {...} span — covering the
+        three shapes models actually return (bare, fenced, wrapped in prose).
+
+        Parsed with strict=False. Models, and the small hosted ones in
+        particular, routinely put literal newlines or tabs inside JSON string
+        values. The default strict parser rejects those ("Invalid control
+        character"), even though the intent is unambiguous; that exact error
+        took down every vision request once the cloud models were switched to
+        ministral.
 
         Args:
-            response_text: Raw response text from Ollama
+            response_text: Raw response text from the model
 
         Returns:
             Parsed JSON dict
 
         Raises:
-            RuntimeError: If JSON cannot be parsed (service error, not user input error)
+            RuntimeError: If no candidate parses. Every failure path raises this
+                and never json.JSONDecodeError: that is a ValueError, and
+                routes/vision.py maps ValueError to 422 — which would blame the
+                user's image for a malformed model response. This is a service
+                fault, and must surface as one.
         """
-        try:
-            # Try direct JSON parse
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            # Extract JSON from markdown code blocks if present
-            if "```json" in response_text:
-                start = response_text.find("```json") + 7
-                end = response_text.find("```", start)
-                if end > start:
-                    json_str = response_text[start:end].strip()
-                    return json.loads(json_str)
+        candidates = [response_text]
+        fence = re.search(r"```(?:json)?\s*(.*?)```", response_text, re.DOTALL)
+        if fence:
+            candidates.append(fence.group(1))
+        start, end = response_text.find("{"), response_text.rfind("}")
+        if 0 <= start < end:
+            candidates.append(response_text[start:end + 1])
 
-            logger.error(f"Failed to parse response: {response_text[:200]}")
-            raise RuntimeError("Failed to parse JSON from response")
+        for candidate in candidates:
+            try:
+                return json.loads(candidate.strip(), strict=False)
+            except json.JSONDecodeError:
+                continue
+
+        logger.error(f"Failed to parse response: {response_text[:200]}")
+        raise RuntimeError("Failed to parse JSON from response")
 
     def _process_crossbreed_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """Process crossbreed detection result and add breed_analysis.
@@ -211,6 +216,7 @@ Probabilities should sum to approximately 1.0."""
         if not breed_probs_sorted:
             # Fallback if no probabilities
             return {
+                "species": result.get("species", "dog"),
                 "breed_analysis": {
                     "primary_breed": "Unknown",
                     "confidence": 0.0,
@@ -294,6 +300,7 @@ Probabilities should sum to approximately 1.0."""
         }
         
         final_result = {
+            "species": result.get("species", "dog"),
             "breed_analysis": breed_analysis,
             "traits": result.get("traits", {}),
             "health_considerations": result.get("health_considerations", [])
@@ -358,25 +365,11 @@ Probabilities should sum to approximately 1.0."""
             ConnectionError: If Ollama is unreachable
         """
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/chat",
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {"role": "user", "content": prompt}
-                        ],
-                        "stream": False,
-                        "options": {"temperature": self.temperature}
-                    }
-                )
-                response.raise_for_status()
-                response_data = response.json()
-
-            return response_data.get("message", {}).get("content", "")
+            messages = [{"role": "user", "content": prompt}]
+            return await self._chat(messages, self.text_model)
 
         except httpx.HTTPError as e:
-            logger.error(f"Ollama generation failed: {str(e)}")
+            logger.error(f"LLM generation failed: {str(e)}")
             raise ConnectionError(f"Failed to connect to Ollama: {str(e)}")
 
     async def analyze_with_context(
@@ -384,7 +377,8 @@ Probabilities should sum to approximately 1.0."""
         image_base64: str,
         species: str,
         breed_analysis: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]]
+        rag_context: Optional[Dict[str, Any]],
+        language: str = "en"
     ) -> Dict[str, Any]:
         """Analyze pet image with pre-classified context.
 
@@ -393,6 +387,7 @@ Probabilities should sum to approximately 1.0."""
             species: Pre-classified species (dog/cat)
             breed_analysis: Complete breed classification result
             rag_context: RAG-enriched breed knowledge (can be None)
+            language: Report language code ("en", "it" or "es")
 
         Returns:
             Dict with visual description, traits, health observations
@@ -401,45 +396,24 @@ Probabilities should sum to approximately 1.0."""
             ConnectionError: If Ollama unreachable
             RuntimeError: If response parsing fails
         """
-        # Extract base64 part if data URI
-        if "," in image_base64:
-            image_base64 = image_base64.split(",")[1]
-
         # Build contextual prompt
-        prompt = self._build_contextual_prompt(species, breed_analysis, rag_context)
+        prompt = self._build_contextual_prompt(species, breed_analysis, rag_context, language)
 
-        # Call Ollama HTTP API
+        # Call LLM via proxy (OpenAI format)
         try:
-            timeout = httpx.Timeout(self.timeout, connect=self.timeout)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/chat",
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": prompt,
-                                "images": [image_base64]
-                            }
-                        ],
-                        "stream": False,
-                        "options": {"temperature": self.temperature}
-                    }
-                )
-                response.raise_for_status()
-                response_data = response.json()
+            messages = [{"role": "user", "content": self._image_content(prompt, image_base64)}]
+            content = await self._chat(messages, self.vision_model)
 
         except httpx.ConnectError as e:
-            logger.error(f"Ollama connection failed: {e}")
+            logger.error(f"LLM connection failed: {e}")
             raise ConnectionError("Ollama service unavailable")
         except httpx.TimeoutException as e:
-            logger.error(f"Ollama timeout: {e}")
+            logger.error(f"LLM timeout: {e}")
             raise ConnectionError("Ollama service timeout")
 
         # Parse JSON response
-        content = response_data.get("message", {}).get("content", "")
         result = self._parse_response(content)
+        result["traits"] = _normalize_traits(result.get("traits"))
 
         logger.info(f"Visual analysis complete for {breed_analysis['primary_breed']}")
         return result
@@ -448,7 +422,8 @@ Probabilities should sum to approximately 1.0."""
         self,
         species: str,
         breed_analysis: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]]
+        rag_context: Optional[Dict[str, Any]],
+        language: str = "en"
     ) -> str:
         """Build focused prompt with classification context."""
 
@@ -498,4 +473,6 @@ Return ONLY valid JSON:
   "health_observations": ["visible observation 1", "visible observation 2"]
 }}
 
-Focus on describing what you SEE, not general breed knowledge."""
+Focus on describing what you SEE, not general breed knowledge.
+
+LANGUAGE: Write "description", "temperament" and every "health_observations" entry in {LANGUAGE_NAMES[language]}. Keep the JSON keys, the "size" and "energy_level" values, and breed names exactly as specified above, in English."""

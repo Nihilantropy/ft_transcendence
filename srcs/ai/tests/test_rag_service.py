@@ -277,37 +277,3 @@ def test_get_stats_returns_collection_info(rag_service):
     stats = rag_service.get_stats()
     assert stats["document_count"] == 42
     assert "collection_name" in stats
-
-
-# --- enrich_breed ---
-
-@pytest.mark.asyncio
-async def test_enrich_breed_with_results(rag_service, mock_embedder, mock_ollama):
-    mock_embedder.embed = Mock(return_value=[0.1] * 384)
-    mock_ollama.generate = AsyncMock(return_value="Detailed breed info.")
-    rag_service._collection.query = Mock(return_value={
-        "ids": [["chunk_1"]],
-        "documents": [["Golden Retriever info"]],
-        "metadatas": [[{"source_file": "golden.md"}]],
-        "distances": [[0.2]]
-    })
-
-    result = await rag_service.enrich_breed("Golden Retriever")
-
-    assert "description" in result
-    assert "care_summary" in result
-    assert "sources" in result
-
-
-@pytest.mark.asyncio
-async def test_enrich_breed_no_results_returns_defaults(rag_service, mock_embedder, mock_ollama):
-    mock_embedder.embed = Mock(return_value=[0.1] * 384)
-    mock_ollama.generate = AsyncMock(return_value="")
-    rag_service._collection.query = Mock(return_value={
-        "ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]
-    })
-
-    result = await rag_service.enrich_breed("Unknown Breed")
-
-    assert "No detailed information available" in result["description"]
-    assert result["sources"] == []

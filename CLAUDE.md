@@ -7,43 +7,120 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **SmartBreeds** is a luxury pet companion platform using AI-powered computer vision for breed identification and health monitoring. The system employs a microservices architecture with Docker-based deployment.
 
 **Core Technologies:**
-- Frontend: React 19.2 + Vite + Tailwind CSS
+- Frontend: React + Vite + TypeScript + Tailwind SPA in `srcs/frontend/`, built inside the
+  nginx image and served same-origin (see srcs/frontend/README.md). WCAG 2.1 AA target;
+  animations are CSS-only and pausable (`data-motion` on `<html>`)
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
-- Backend Services: Django 6.0.1 (auth-service, user-service)
+- Backend Services: Django 5.0.1 (auth-service) and Django 5.1.5 (user-service), both on `python:3.11-slim`
 - AI Services:
-  - FastAPI + Ollama HTTP API (qwen3-vl:8b model) for multimodal vision
+  - FastAPI vision orchestrator talking to an LLM via the **LiteLLM proxy**
+    (OpenAI-compatible) — routes to local Ollama (qwen3-vl:8b) or hosted Mistral
   - RAG (ChromaDB + sentence-transformers) for breed knowledge enrichment
-  - HuggingFace Transformers for classification (species, breed, NSFW)
+  - HuggingFace Transformers for classification (species, breed, NSFW) — CPU by default in every
+    stack; GPU opt-in via `docker-compose.gpu.yml`
+- Inference gateway: LiteLLM (single OpenAI-compatible endpoint for all LLM calls)
 - Database: PostgreSQL 15+
-- Cache: Redis 7
+- Cache: Redis 8 (`redis:8.4.0-alpine3.22`, docker-compose.yml:228)
 - Infrastructure: Docker Compose, Nginx reverse proxy
 
 ## Essential Commands
 
 ### Docker Management (via Makefile)
 ```bash
-make all           # Build and start all services
+make all           # build + up + show + logs (Makefile:25) — ends tailing logs in the foreground
 make build         # Build Docker images (bakes in requirements)
-make up            # Start services in detached mode
+make up            # Generate the JWT keys if missing (make keys), then start — HTTPS only, via nginx on 8443
+make up-dev        # Same, plus the gateway on http://127.0.0.1:8001 (notebooks / curl debugging)
+make keys          # Generate the JWT RS256 key pair if missing — idempotent, never rotates an existing key
 make down          # Stop and remove containers
 make downv         # Stop and remove containers + volumes
 make restart       # Restart all services
 make logs          # Follow all logs
 make logs-SERVICE  # View specific service logs (e.g., make logs-api-gateway)
-make clean         # Remove containers and networks
-make fclean        # Full cleanup (containers + volumes + images)
-make re            # Soft rebuild (clean + all)
-make ref           # Full rebuild (fclean + all)
+make purge         # `down -v` then remove containers/images/volumes/networks (Makefile:135)
+make re            # Soft rebuild — literally `down all` (Makefile:161)
+make ref           # Full rebuild — literally `purge all` (Makefile:164)
 make show          # Show system status (containers, networks, volumes)
-make migration     # Run database migrations
+make migration     # Run database migrations (scripts/run-migrations.sh)
+make seed          # Seed the product catalog (scripts/seed-db.sh)
+make superuser     # Create test_admin@example.com / Password123! (scripts/create-superuser.sh)
+make init          # build + up + migration + seed + superuser + rag (Makefile:28)
 make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
+make test-integration  # recommendation-service tests/integration via docker exec
+make gate          # Merge gate: unit + integration + e2e on the live stack — required before merging
 make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
+make elk           # Start the ELK log management stack (generates credentials on first run)
+make elk-creds     # Reprint the ELK stack credentials without redeploying
 ```
+
+⚠️ **`make clean` and `make fclean` do not exist.** Both names appear in `.PHONY` (`Makefile:22`) but
+no rule defines them, so make just prints `Nothing to be done for 'clean'` and does nothing. Use
+`make down` / `make downv` / `make purge`.
+
+### Compose Profiles (local vs cloud)
+
+Two LLM backends, selected via `COMPOSE_PROFILES`. **`Makefile:9` sets
+`COMPOSE_PROFILES ?= cloud` and `export`s it, which overrides the root `.env`**
+(`.env.example` ships `cloud` too). Always pass the profile explicitly rather than relying
+on the default:
+
+| Profile | LLM backend | classification-service | AI pipeline |
+|---------|-------------|------------------------|-------------|
+| `cloud` (default) | Mistral via LiteLLM (needs `MISTRAL_API_KEY`) | runs, on **CPU** | full (NSFW + HF species/breed + RAG + LLM) |
+| `local` | Ollama `qwen3-vl:8b` via LiteLLM (needs a GPU) | runs; CPU unless the GPU override is layered on | full |
+
+classification-service belongs to **no** profile — it runs in every stack. It used to be
+`local`-only with `runtime: nvidia`, so on any machine without a GPU (the evaluation machine
+included) it never started, and the pipeline silently fell back to VLM-only with **no NSFW
+filter** — losing the image-recognition and content-moderation modules. The code never needed
+the GPU: `DEVICE=auto` resolves to `cpu` when CUDA is absent.
+
+```bash
+make up COMPOSE_PROFILES=cloud         # default: hosted LLM, classifiers on CPU, no GPU needed
+make up COMPOSE_PROFILES=local         # adds Ollama as the LLM backend; needs a GPU
+# GPU acceleration for classification-service (needs the NVIDIA Container Toolkit):
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml build classification-service
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
+
+The `litellm` proxy runs in BOTH profiles. Switching LLM backends is config-only: set the
+model alias in `srcs/ai/.env` (`LLM_VISION_MODEL`/`LLM_TEXT_MODEL` → `*-cloud` for Mistral,
+which is now the default). Keep `CLASSIFICATION_ENABLED=true` in both profiles. Root config
+lives in `.env` (see `.env.example`).
+
+**Mistral free tier — the model choice is dictated by it, and was measured against the live
+API.** Several models listed by `GET /v1/models` (`mistral-medium`, `mistral-small`,
+`magistral-*`) answer 429 immediately with `x-ratelimit-limit-req-minute: 0` — a limit of
+**zero**, not an exhausted quota, so no retry can outlast it. `srcs/litellm/config.yaml`
+therefore uses `ministral-14b-latest` (30 req/min) as primary and `ministral-8b-latest`
+(188 req/min) as fallback, both vision-capable, ~1-3 s per call. Limits are per model, so the
+fallback is a genuine escape from a 429. **Before switching to another model, check its
+`x-ratelimit-limit-req-minute` header** — appearing in the model list proves nothing.
+
+### Log Management (ELK)
+
+`make elk` starts Elasticsearch + Logstash + Kibana + Vector under a dedicated `elk` compose
+profile — `make up` never touches it, so the default dev loop stays light. It is fully
+zero-config: a one-shot `elk-setup` container generates TLS certs, per-component credentials
+(random, printed to the terminal and stored in the gitignored root `.env`), an ILM retention
+policy, an SLM archiving policy and a Kibana data view on first run. Vector ships every
+container's stdout/stderr automatically — no per-service wiring needed. It reads them over
+the Docker API rather than from `/var/lib/docker/containers`, which is empty under Docker
+Desktop; the json-file driver stays in place, so `docker logs` and `make logs` keep working. Kibana is at
+`https://localhost:5601` (self-signed cert, same trust model as nginx). `make all` includes it;
+`make down`/`downv`/`purge` tear it down regardless of which profile is active. Full detail,
+including two non-obvious ordering bugs this stack will re-trigger if provisioning is ever
+reordered, is in `srcs/elk/README.md`.
 
 ### Development
 ```bash
-# Access container shell
-make exec-SERVICE  # e.g., make exec-api-gateway
+# Access container shell — exec-% takes the CONTAINER-name suffix (underscores),
+# logs-% takes the COMPOSE-service name (hyphens). They are NOT interchangeable.
+make exec-api_gateway      # NOT exec-api-gateway
+make exec-auth_service     # also: exec-user_service, exec-ai_service
+make exec-classification_service   # also: exec-recommendation_service
+make logs-api-gateway      # hyphens here
+# `make exec-ollama` does not work: that container is named `ollama`, not `ft_transcendence_ollama`
 
 # Direct Docker commands
 docker compose up SERVICE -d    # Start specific service
@@ -53,31 +130,71 @@ docker exec -it CONTAINER sh    # Shell into container
 
 ### Testing
 
+**Merge gate — no merge without a green `make gate`.** Unit tests and notebooks alone do not
+count. `make gate` starts the stack (`up --wait`), migrates/seeds/creates the superuser, runs the
+unit suites, recommendation-service's integration tests, then the root `tests/` suite
+(`tests/integration/` via the gateway, `tests/e2e/` via nginx over verified HTTPS) in the
+`tester` service (profile `test`, networks `backend-network` + `proxy`, reads nginx's cert from
+the `nginx-ssl` volume). Paste its last lines into the PR. How to add a test: `tests/README.md`.
+UI tests: Playwright (Chromium) in `tests/e2e/ui/`, same `tester` service; fixtures `registered`
+and `fake_vision` in `tests/e2e/ui/conftest.py`. Every UI test also runs an autouse axe-core WCAG
+2.1 A/AA audit (`no_axe_violations`) and a CSP watchdog (`no_csp_violations`); `test_ui_a11y.py`
+covers keyboard navigation, reflow at 320 px and the dark theme. The whole UI suite runs from one
+container IP, and the frontend's `api.ts` retries 429s (up to 2 retries, honoring `Retry-After` or
+2 s, capped at 5 s) so nginx's per-IP limit (200 r/m, burst 20) doesn't trip it mid-suite. Anonymous
+visitors without the `session` localStorage hint (set on login, cleared on logout) also make no
+`/auth/verify` or `/auth/refresh` calls on load, so the suite's throwaway/unauthenticated pages
+don't add to that per-IP count either.
+
+2FA in gate tests: `helpers.totp(secret, step=1)` (stdlib RFC 6238) gives the next valid code — the
+server never accepts the same 30 s step twice, and 2fa/enable already spent the current one. Store
+`totp_secret` / `recovery_codes` on the fixture user (UI fixture `two_factor` does it) and `pop()` a
+recovery code when you use it: the `gw_user` / `ui_user` teardowns finish a 2FA login with what is left.
+
 **Critical Docker Workflow:**
-- Code changes require rebuild: `make build` or `docker compose build SERVICE`
-- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls)
+- Rebuild rules differ per service:
+  - **classification-service**: no source bind mount — ANY `src/` or `tests/` edit needs
+    `docker compose build classification-service`
+  - **api-gateway**: only `src/`, `routes/`, `tests/` are mounted (docker-compose.yml:305-308) —
+    editing `main.py`, `config.py`, `middleware/`, `auth/`, `utils/` needs a rebuild; mounted
+    changes still need a restart (uvicorn runs without `--reload`)
+  - **auth-service, user-service, recommendation-service**: whole service dir is mounted rw —
+    only `requirements.txt` changes need a rebuild
+  - **ai-service**: `src/` and `tests/` are mounted — only `requirements.txt`/Dockerfile changes
+    need a rebuild
+  - **frontend**: baked into the nginx image — any `srcs/frontend` edit needs
+    `docker compose build nginx && docker compose up -d nginx`; the build also runs Vitest. For a
+    fast loop use `npm run dev` (srcs/frontend/README.md)
+  - **No FastAPI service runs `--reload`** (`api-gateway/Dockerfile:21`, `ai/Dockerfile:35`,
+    `recommendation-service/Dockerfile:32`), so a mounted code edit needs
+    `docker compose restart SERVICE` to take effect. Only auth-service and user-service really
+    hot-reload — they run `manage.py runserver`, which has Django's autoreloader. The
+    "hot reload" comments on the compose volume blocks are aspirational
+- Unit tests: `docker compose run --rm SERVICE pytest` works (no cross-service calls). auth-service tests sign real JWTs
+  and the api-gateway container bind-mounts the public key, so on a fresh clone run `make keys` once first
+  (`make test`, `make up` and the scripts do it for you)
 - Integration tests: MUST use `docker exec` on a running container — `run --rm` cannot
   resolve other service hostnames (e.g. `api-gateway`) even on the same network
 - Direct exec only works when container running: `docker exec CONTAINER pytest`
 
-**API Gateway Tests** (30 tests total):
+**API Gateway Tests** (48 tests total):
 ```bash
 # Run all tests - use `run --rm` (works even if container not running)
 docker compose run --rm api-gateway python -m pytest tests/ -v
 
-# Auth Service tests (102 tests total)
+# Auth Service tests (409 tests total)
 docker compose run --rm auth-service python -m pytest tests/ -v
 
-# User Service tests (73 tests total)
+# User Service tests (89 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# AI Service tests (47 tests total)
+# AI Service tests (107 tests total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
 docker compose run --rm classification-service python -m pytest tests/ -v
 
-# Recommendation Service tests (53 tests total: 30 unit + 23 integration)
+# Recommendation Service tests (70 tests total: 47 unit + 23 integration)
 # Unit tests via run --rm:
 docker compose run --rm recommendation-service python -m pytest tests/unit/ -v
 # Integration tests MUST use exec (need api-gateway hostname):
@@ -92,11 +209,14 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middle
 # Single test function
 docker exec ft_transcendence_api_gateway python -m pytest tests/test_auth_middleware.py::test_function_name -v
 
-# With coverage
+# With coverage — pytest-cov is NOT in api-gateway's image, install it first or this fails
+docker exec ft_transcendence_api_gateway pip install pytest-cov
 docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-report=html
 
-# Coverage per service (pytest-cov pre-installed only in auth-service + recommendation-service)
-# Install on-the-fly for others: docker exec CONTAINER pip install pytest-cov
+# Coverage per service (pytest-cov pre-installed in ai-service, classification-service and
+# recommendation-service via requirements.txt, and in auth-service via requirements-dev.txt —
+# MISSING in api-gateway and user-service)
+# Install on-the-fly for those two: docker exec CONTAINER pip install pytest-cov
 # --cov target: api-gateway/auth-service/user-service → --cov=.
 #               ai-service/classification-service/recommendation-service → --cov=src
 # Note: recommendation-service unit coverage appears ~51% overall — routes/schemas/main.py/
@@ -107,7 +227,19 @@ docker exec ft_transcendence_api_gateway python -m pytest tests/ --cov=. --cov-r
 ### IMPORTANT!
 All services use a single database `smartbreeds`. Django services (auth, user) have pytest-django
 auto-create an isolated test DB at runtime — no separate test database is provisioned or managed.
-Services must only contain unit tests that are not dependent on other services.
+
+⚠️ **Both Django services run with `--reuse-db` (`pytest.ini:addopts`), so that test DB survives
+between runs and can go stale.** A run killed partway — a `docker compose run --rm` interrupted, or
+the daemon restarting under it — can leave committed rows behind, and the next run then fails a
+test that asserts on row counts. `TestRefreshView` is the one that shows it first, and the failure
+reads exactly like a code regression: it is reproducible, it passes when the test is run alone, and
+a *different* test in the class fails depending on what ran before. Re-run with `--create-db` before
+investigating anything else; if that comes back green, the code was never the problem.
+Services should keep `tests/` unit-level. The one deliberate exception is recommendation-service,
+which also ships `tests/integration/` (23 tests) that hardcode `http://api-gateway:8001` and mutate
+the live `smartbreeds` database — those MUST run via `docker exec`, never `docker compose run --rm`,
+and they require `make up`, `make migration` and `make superuser` (which creates the
+`test_admin@example.com` / `Password123!` account the fixtures hardcode).
 Integration tests: Jupyter notebook (`scripts/jupyter/test_ai_service.ipynb`) for AI pipeline;
 pytest-based for recommendation-service (`tests/integration/`). Integration tests that call
 other services by hostname MUST run via `docker exec`, not `docker compose run --rm`.
@@ -127,23 +259,33 @@ jupyter notebook scripts/jupyter/test_ai_service.ipynb
 ```
 
 **⚠️ Backend Services (DO NOT ACCESS DIRECTLY):**
-Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **NOT exposed to localhost**. All requests must go through API Gateway or Nginx to ensure authentication, rate limiting, and security boundaries are enforced.
+Backend services (auth-service:3001, user-service:3002, ai-service:3003, classification-service:3004, recommendation-service:3005) are **NOT exposed to localhost**. All requests go through Nginx (`https://localhost:8443`, self-signed → `curl -k`) to ensure authentication, rate limiting, and security boundaries are enforced. **The gateway's port 8001 is not published by default**: the subject requires HTTPS for every connection to the backend. `make up-dev` republishes it on `127.0.0.1:8001` for the Jupyter notebooks and curl debugging. **`http://localhost:8000` cannot serve API traffic**: the port-80 server block only does `return 301 https://$host$request_uri` (`srcs/nginx/conf.d/default.conf.template:154-163`) and `$host` drops the port, so it redirects to `https://localhost/` — port 443, which is not published.
 
 ## Architecture Key Concepts
 
 ### Microservices Communication
 
 **Network Topology:**
-- **Proxy Network**: Nginx ↔ Frontend ↔ API Gateway (public-facing)
-- **Backend Network**: API Gateway ↔ Backend Services ↔ Databases (internal only, isolated)
-- API Gateway bridges both networks as the sole entry point
+- **Proxy Network**: Nginx (which also serves the SPA's static files)
+- **Backend Network**: Nginx ↔ API Gateway ↔ Backend Services ↔ Databases
+- **Nginx** bridges both networks (docker-compose.yml:14-16). The API Gateway lives on
+  `backend-network` only and is **not** published on the host by default. `make up-dev` layers
+  `docker-compose.dev.yml`, which republishes it on `127.0.0.1:8001` — dev/test tooling only,
+  never used by the application
 
 **Authentication Flow:**
-1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (24h access + 7d refresh)
+1. User logs in → Auth Service signs JWT with RS256 private key, issues HTTP-only cookies (15 min access + 7 day refresh; `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` / `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, srcs/auth-service/config/settings.py:131-132). The `refresh_token` cookie is path-scoped to `/api/v1/auth/refresh` (srcs/auth-service/apps/authentication/utils.py:61)
 2. Browser automatically sends cookies with each request
-3. API Gateway validates JWT using RS256 public key, extracts user context (user_id, role)
+3. API Gateway validates JWT using RS256 public key, requires `token_type == "access"`, extracts user context (user_id, role); client-sent `X-User-*` headers are dropped
 4. Gateway forwards to backend services with headers: `X-User-ID`, `X-User-Role`, `X-Request-ID`
 5. Backend services trust API Gateway validation (network isolation ensures security)
+
+**Two-factor login (accounts with TOTP 2FA enabled):** `POST /api/v1/auth/login` with a correct password returns
+`{"mfa_required": true, "mfa_token": …}` — no cookies, existing sessions untouched. The client then calls the
+gateway-public `POST /api/v1/auth/login/2fa` with `mfa_token` + a 6-digit code (or a recovery code), which issues the
+cookies and revokes previous sessions. The `mfa_token` is a JWT signed with the same key as access tokens but with
+`token_type: "mfa"`; it is only harmless because the gateway and every auth-service view reject any `token_type`
+other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-factor authentication*.
 
 **Why RS256 Asymmetric Keys:** Auth Service signs tokens with private key (never leaves auth-service). API Gateway verifies with public key only (cannot forge tokens). More secure than HS256 symmetric secrets.
 
@@ -151,9 +293,13 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 
 **Backend Service Isolation:**
 - ⚠️ **Backend services are NOT exposed to localhost** (no direct port access)
-- Auth Service (3001), User Service (3002), AI Service (3003) are **internal only**
-- All requests MUST go through API Gateway (8001) or Nginx (80/443)
+- Auth Service (3001), User Service (3002), AI Service (3003), Classification Service (3004)
+  and Recommendation Service (3005) are **internal only**
+- All requests MUST go through Nginx (`https://localhost:8443`; `http://localhost:8000`
+  only 301-redirects to the unpublished `https://localhost/`). The gateway on `127.0.0.1:8001`
+  exists only under `make up-dev`
 - This enforces security boundaries and ensures authentication/rate limiting are applied
+- Exception: `ollama` publishes its unauthenticated API on host port 11434 (docker-compose.yml:68-69)
 
 ### Service Responsibilities
 
@@ -163,30 +309,48 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Rate limiting: 60 req/min per user (Redis-backed)
 - Request routing to backend services
 - Adds user context headers (`X-User-ID`, `X-User-Role`)
-- Zero-touch routing: automatically proxies `/api/*` to backend services
+- Prefix routing via the explicit `SERVICE_ROUTES` map (`routes/proxy.py:40-48`): `/api/v1/auth`,
+  `/api/v1/users`, `/api/v1/pets`, `/api/v1/vision`, `/api/v1/recommendations`,
+  `/api/v1/admin/products`. Matching is plain `startswith` over dict insertion order; any `/api/*`
+  prefix not in the map returns 404 NOT_FOUND (this is why `/api/v1/analyses*` and `/api/v1/rag*`
+  are unreachable from the host)
 - Location: `srcs/api-gateway/`
 
-**Auth Service (Django - port 3001):** [Complete - 102 passing tests]
+**Auth Service (Django - port 3001):** [Complete - 409 passing tests]
 - User model, RefreshToken model, JWT utilities, validators, serializers
 - User registration (requires email, password, password_confirm) and login endpoints
-- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens
+- Password change endpoint (PUT /api/v1/auth/change-password) - revokes all sessions, re-issues tokens; new password
+  must differ from the current one, pass the validators *with the user in scope*, and be ≤128 chars
+- Profile update (PATCH /api/v1/auth/me): first_name, last_name, email. An email change needs the current password
+  (and a 2FA code when 2FA is on) and re-issues the session because the access token embeds the email
+- TOTP two-factor authentication for Aegis / Microsoft Authenticator / Google Authenticator
+  (`POST /api/v1/auth/2fa/{setup,enable,disable}`, `POST /api/v1/auth/login/2fa`): secrets encrypted at rest (Fernet),
+  10 single-use hashed recovery codes, replay protection, per-account lockout (5 failures → 15 min)
+- "Log in with 42" (OAuth 2.0 authorization code grant, `apps/authentication/oauth42.py`):
+  `GET /api/v1/auth/oauth/42/{start,callback}`, public at the gateway. Links by intra id, then by email,
+  else creates a user without a password (`has_password: false`; `change-password` then works without
+  `current_password`). 2FA users get the login challenge in `/login?oauth=mfa#<token>`. Empty
+  `OAUTH_42_CLIENT_ID`/`SECRET` in `srcs/auth-service/.env` → the button says "unavailable"; how to create
+  the intra app: srcs/auth-service/README.md "Create the 42 application and fill `.env`"
 - JWT token issuance and refresh
 - Password hashing (argon2)
 - Location: `srcs/auth-service/`
 
-**User Service (Django - port 3002):** [Complete - 73 passing tests]
+**User Service (Django - internal port 3002):** [Complete - 89 passing tests]
 - User profile management (GET/PUT/PATCH /users/me)
 - Pet profiles CRUD (name, breed, species, age, weight, health conditions)
 - Pet analysis history (breed detection results from AI service)
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 104 passing tests]
-- Multi-stage vision pipeline via VisionOrchestrator
-- Ollama HTTP API integration (qwen3-vl:8b model) for contextual analysis
+**AI Service (FastAPI - internal port 3003):** [Complete - 107 passing tests]
+- Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
+- LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
-- Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info)
-- Coordinates between Classification Service (HuggingFace models) and Ollama (LLM)
+- Endpoint: POST /api/v1/vision/analyze (base64 image → enriched breed info); `language`: en | it | es
+- Coordinates between Classification Service (HF models, optional) and the LLM
+- `CLASSIFICATION_ENABLED=false` → VLM-only pipeline (LLM does species/breed, no NSFW filter) —
+  debugging only; keep it `true`, since classification-service runs in every stack
 - Location: `srcs/ai/`
 
 **Classification Service (FastAPI - internal port 3004):** [Complete - 28 passing tests]
@@ -195,77 +359,133 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 - Species classification (dog/cat/other)
 - Breed classification (120 dog breeds, 70 cat breeds)
 - Crossbreed detection with intelligent thresholding
-- **GPU Support:** RTX 5060 Ti (Blackwell) via PyTorch nightly (2.11.0.dev20260128+cu128)
+- **Runs on CPU by default, in every stack** (no compose profile). ~74 s to load the four models
+  with a warm `huggingface-cache`; a first boot also downloads ~1.3 GB of weights, hence the
+  300 s healthcheck `start_period`. Image is ~2.2 GB on CPU against ~14 GB with the CUDA wheels
+- **GPU optional:** `docker-compose.gpu.yml` builds against CUDA 12.8 (`cu128`) and requests the
+  NVIDIA runtime — RTX 5060 Ti (Blackwell) and Ada supported
 - Location: `srcs/classification-service/`
 
-**Recommendation Service (FastAPI - internal port 3005):** [Complete - 84 passing tests (61 unit + 23 integration)]
+**Recommendation Service (FastAPI - internal port 3005):** [Complete - 70 passing tests (47 unit + 23 integration)]
 - Content-based product recommendations using 15-dimensional feature vectors
 - Weighted cosine similarity matching pet profiles to products
 - Product CRUD administration endpoints
 - Direct integration with User Service for pet profile retrieval
 - Location: `srcs/recommendation-service/`
 
-**Ollama (port 11434):**
+**LiteLLM (internal port 4000 — no host port; `backend-network` only):**
+- OpenAI-compatible inference gateway — the single LLM endpoint the AI Service calls
+- Routes model aliases to local Ollama or hosted Mistral (see `srcs/litellm/config.yaml`)
+- Auth via `LITELLM_MASTER_KEY` (must match AI Service `LLM_API_KEY`)
+- Runs in both `local` and `cloud` profiles
+- Location: `srcs/litellm/`
+
+**Ollama (port 11434):** [`local` profile only]
 - Self-hosted LLM server (GPU-accelerated, NVIDIA runtime)
-- Hosts qwen3-vl:8b model for vision and text generation
+- Hosts qwen3-vl:8b model for vision and text generation, fronted by LiteLLM
 - Location: `srcs/ollama/`
 
-**Nginx (ports 80, 443):**
-- TLS termination
-- Static file serving
-- Reverse proxy to API Gateway
-- Rate limiting: 200 req/min (NGINX layer)
+**Nginx (host ports 8000→80, 8443→443):**
+- TLS termination (`listen 443 ssl`, `default.conf.template:25`); port 80 only 301-redirects
+  (`:154-163`) to `https://$host` — i.e. port 443, which is **not** published
+- Serves the SPA from /usr/share/nginx/html: `location /` → `try_files $uri /index.html`,
+  `/assets/` cached 1y. Neither location may declare add_header (it would drop the server-level
+  security headers and the CSP)
+- Reverse proxy of `/api` → `api-gateway:8001`, with a nested `location /api/v1/vision` that raises
+  the body limit to 8 MB and the read timeout to 300 s (everything else keeps 1 MB / 30 s)
+- Self-signed certificate is generated at container start with a SAN covering `HOST_DOMAIN`,
+  `localhost` and `127.0.0.1` — without it Chrome reports `NET::ERR_CERT_COMMON_NAME_INVALID`
+- Rate limiting: `general_limit` = 200 r/m per client IP, `burst=20 nodelay` (`:18,77`). The
+  `api_limit` (100 r/m) and `auth_limit` (5 r/m) zones are declared at `:16-17` but never applied
 - Location: `srcs/nginx/`
 
 ### Database Architecture
 
-**Shared PostgreSQL with Logical Separation:**
+**Shared PostgreSQL with Logical Separation** (single database `smartbreeds`, compose service `db`,
+schemas created by `srcs/db/init-scripts/01-init-schemas.sql`):
 - `auth_schema`: users, refresh_tokens (owned by auth-service)
 - `user_schema`: user_profiles, pets, pet_analyses (owned by user-service)
-- `recommendation_schema`: products (owned by recommendation-service)
+- `recommendation_schema`: products (live), plus `recommendations` and `user_feedback` — migrated
+  but **never written**, and they type `user_id`/`pet_id` as INT while the platform uses UUID
+- `ai_schema`: created and granted by the init script (`:13`) but **unused** — no service reads or writes it
 
-**Rule:** Services NEVER directly access other services' schemas. Cross-service data access MUST go through REST APIs via API Gateway.
+**Rule:** Services NEVER directly access other services' schemas — cross-service data access goes
+through REST APIs.
+
+**Reality check:** two services call user-service *directly* on the backend network rather than
+through the gateway, and both inject `X-User-ID` themselves: auth-service
+`DELETE /api/v1/users/delete` (`apps/authentication/utils.py:181`, 10 s httpx timeout, no retry)
+and recommendation-service `GET /api/v1/pets/{id}` (`src/services/user_service_client.py:34`).
+Treat these as known exceptions, not as the pattern to copy.
 
 **Note:** AI Service (vision pipeline) is stateless - uses ChromaDB for vector storage, no PostgreSQL tables yet.
 
 **Redis Usage:**
-- Token blacklist: `blacklist:token:{hash}` (TTL: token lifetime)
-- Rate limiting: `rate_limit:user:{user_id}:{endpoint}` (TTL: 1 min)
-- API response cache: `cache:breed:{name}` (TTL: 7 days)
+- Rate limiting (**the only implemented use**): `rate_limit:user:{user_id}` when authenticated,
+  `rate_limit:ip:{client_ip}` otherwise, where `client_ip` is nginx's `X-Real-IP` (the real client
+  address; `request.client.host` behind nginx is always nginx's own IP) falling back to
+  `request.client.host` only when the header is absent. Fixed 60-second window (`SETEX key 60 1`
+  then `INCR`), so a caller can burst 2× the limit across a window boundary. Fails **open** if
+  Redis errors. `srcs/api-gateway/middleware/rate_limit.py:10,25,33,37,45,54,56-58` — note this is
+  the **synchronous** redis client called from async middleware.
+- Not implemented (aspirational only): token blacklist, breed response cache.
 
 ### AI/ML Architecture
 
-**Multi-Stage Vision Pipeline (VisionOrchestrator):**
-1. Classification Service analyzes image (species + breed identification via HuggingFace)
-2. RAG Service retrieves relevant breed knowledge from ChromaDB
-3. Ollama generates contextual analysis combining classification + RAG context
+**Multi-Stage Vision Pipeline (VisionOrchestrator) — full path (`CLASSIFICATION_ENABLED=true`):**
+1. Classification Service analyzes image (NSFW → species → breed via HuggingFace)
+2. RAG Service retrieves relevant breed knowledge from ChromaDB (best-effort; any failure degrades to `None`)
+3. The vision LLM (via the LiteLLM proxy → Ollama locally, or Mistral in `cloud`) generates contextual analysis
 4. Returns enriched breed information with health insights and recommendations
+
+**VLM-only path (`CLASSIFICATION_ENABLED=false` — debugging only):** `vision_orchestrator.py:57`
+branches to `_analyze_vlm_only` (`:134`), which calls `analyze_breed(detect_crossbreed=True,
+top_n_breeds=2)` and then the same RAG + `analyze_with_context` steps. **There is no NSFW filter and
+no species allow-list on this path.**
 
 **Classification Models (HuggingFace Transformers):**
 - NSFW Detector: Content safety filter (pre-classification step)
 - Species Classifier: Dog/Cat/Other identification
 - Breed Classifiers: 120 dog breeds, 70 cat breeds
 - Crossbreed Detection: Multi-rule heuristic (confidence thresholds, probability gaps)
-- Device: GPU-accelerated (RTX 5060 Ti Blackwell via PyTorch 2.11 nightly + CUDA 12.8)
+- Device: GPU-accelerated (RTX 5060 Ti Blackwell via stable PyTorch 2.11.0 + CUDA 12.8)
 
 **ChromaDB Vector Store:**
 - Embeddings: 384-dimensional (sentence-transformers/all-MiniLM-L6-v2)
 - Collection: `pet_knowledge` (species info, breed standards, health conditions)
 - Knowledge Base: Markdown documents in `srcs/ai/data/knowledge_base/`
-  - `spiecies/`: General species info (dogs.md, cats.md)
-  - Directory structure: `spiecies/{species}/{purebreeds,crossbreeds,health}/*.md`
-  - Future: breed-specific files for detailed breed standards
+  - Layout: `spiecies/{dogs,cats}/{purebreeds,crossbreeds,health}/*.md` — **34 files total**,
+    per species 10 purebreeds + 3 crossbreeds + 4 health. There are no top-level `dogs.md` / `cats.md`
+  - The directory is spelled `spiecies` (sic). Do not rename it — `KNOWLEDGE_BASE_DIR` and the
+    read-only mount at docker-compose.yml:91 depend on the misspelling
 - ChromaDB starts empty - use `make rag` to bulk ingest (calls `scripts/init-rag-kb.sh` which hits the localhost-only endpoint)
 - Initialization: `make rag` (preferred) or directly: `docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize`
 - Workflow: Document → chunk → embed → store → semantic search
-- RAG retrieval enriches Ollama context with factual breed knowledge
+- RAG retrieval enriches the LLM context with factual breed knowledge
 - Volume mount: `/app/data/chroma` (persisted in `ai-chroma-data` volume)
 
-**Ollama Integration:**
-- Model: qwen3-vl:8b (multimodal - vision + text)
-- Direct HTTP API (NOT LlamaIndex - doesn't support Ollama multimodal)
-- Generates contextual breed descriptions, health insights, recommendations
+**LLM Integration (via LiteLLM — the AI Service never calls Ollama directly):**
+- Single call shape: `POST {LLM_BASE_URL}/chat/completions` with `Authorization: Bearer {LLM_API_KEY}`,
+  payload `{model, messages, temperature, stream:false}`, response read as
+  `choices[0].message.content` (`srcs/ai/src/services/ollama_client.py:22,48-62`). Default
+  `LLM_BASE_URL=http://litellm:4000/v1` (`src/config.py:13`)
+- Images are OpenAI multimodal content parts:
+  `{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,…"}}` (`ollama_client.py:37-44`) —
+  always relabelled `image/jpeg` regardless of the real format
+- Model aliases resolve in `srcs/litellm/config.yaml`: `vision-model`/`text-model` →
+  `ollama_chat/qwen3-vl:8b` (local profile), `vision-model-cloud` / `text-model-cloud` →
+  `mistral/ministral-14b-latest`, each backed by a `*-fallback` alias on `mistral/ministral-8b-latest`
+  (see the free-tier note under Compose Profiles). `text-model-cloud` feeds the RAG answers, so a
+  dead text model breaks the RAG module too
+- **The response parser is deliberately lenient** (`_parse_response`): it tries the whole text, a
+  ```json or plain ``` fence, then the outermost `{...}`, all with `json.loads(strict=False)`.
+  Small hosted models put literal newlines inside JSON strings; strict parsing turned every vision
+  call into a 422. Every failure raises `RuntimeError` (-> 500), never a `ValueError` — the route
+  maps `ValueError` to 422, which would blame the user's image for the model's output
 - Uses RAG-retrieved context for factually grounded responses
+- **Naming drift:** the file, class and tests are still `ollama_client.py` / `OllamaVisionClient` /
+  `test_ollama_*.py`, and error strings still say "Ollama" (`ollama_client.py:115,372,406,409`).
+  Tests assert on those strings — renaming requires touching the tests
 
 **Model Performance Characteristics:**
 - Dog breed classifier trained ONLY on purebreds (Stanford Dogs, 120 classes) → crossbreeds naturally have low confidence (5-10%)
@@ -290,23 +510,30 @@ Backend services (auth-service:3001, user-service:3002, ai-service:3003) are **N
 ### Dockerfile Structure
 
 All services use **custom Dockerfiles that bake in requirements** during build:
-- Base image (e.g., `python:3.11-slim`)
+- Base image (`python:3.11-slim` for api-gateway/auth-service/user-service; `python:3.12.10-slim`
+  for ai-service and classification-service; `python:3.12-slim` for recommendation-service)
 - Install system dependencies
-- Copy and install `requirements.txt` (dependencies frozen in image)
+- Copy and install `requirements.txt` (dependencies frozen in image). auth-service is the only
+  service with a second file — it also installs `requirements-dev.txt` (pytest, pytest-django,
+  pytest-cov, factory-boy, freezegun) at `Dockerfile:18,23`, which is why it has no test deps in
+  `requirements.txt` yet still runs pytest
 - Copy application code
-- Create non-root user
-- Define healthcheck
+- Create non-root user (uid 1000)
 - Expose port and set CMD
+
+**No Dockerfile declares a HEALTHCHECK** — every healthcheck lives in `docker-compose.yml`.
 
 **Implication:** Changes to `requirements.txt` require `make build` to rebuild images.
 
 **Django Version:** Django 6.x requires Python >=3.12. Use Django 5.1.x for Python 3.11 compatibility.
 
-**Classification Service PyTorch:** Uses nightly builds for RTX 5060 Ti Blackwell support:
-- PyTorch: 2.11.0.dev20260128+cu128
-- Torchvision: 0.25.0.dev20260128+cu128
-- Installed via: `pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128`
-- Pin specific nightly build in requirements.txt to avoid breaking changes
+**Classification Service PyTorch:** pinned pair, index chosen at build time:
+- torch 2.11.0 / torchvision 0.26.0, installed in the Dockerfile (NOT requirements.txt) from
+  `https://download.pytorch.org/whl/${TORCH_INDEX}`
+- `ARG TORCH_INDEX=cpu` by default. `docker-compose.gpu.yml` sets it to `cu128` (CUDA 12.8,
+  RTX 5060 Ti Blackwell + Ada). The same pinned pair exists on both indexes — only the index changes
+- Keep the pair version-matched (torch 2.11 ↔ torchvision 0.26). This replaced the earlier
+  unpinned nightly, which broke when the nightlies drifted out of sync on the ephemeral index.
 
 ### Middleware Stack (API Gateway)
 
@@ -316,11 +543,21 @@ Order of execution (bottom to top):
 3. **Rate Limiting Middleware**: Redis-backed, per-user or per-IP
 4. **Authentication Middleware**: JWT validation, extracts user context
 
-Public paths (no auth): `/health`, `/api/v1/auth/*`
+Public paths (exact match, `middleware/auth_middleware.py:22-33`): `/health`, `/docs`,
+`/openapi.json`, `/api/v1/auth/login`, `/api/v1/auth/login/2fa`, `/api/v1/auth/register`,
+`/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/oauth/42/start`, `/api/v1/auth/oauth/42/callback`
+(so an idle user whose access token expired can still log out). `/api/v1/auth/login/2fa` is the second
+login step: the caller holds only the challenge token, in the JSON body. The two OAuth paths are browser
+navigations that arrive before any session exists. Everything else requires the `access_token` cookie — including `/redoc`
+(served by FastAPI but never added to the set), `/api/v1/auth/verify`, `/api/v1/auth/delete`,
+`/api/v1/auth/change-password`, `/api/v1/auth/me` and `/api/v1/auth/2fa/{setup,enable,disable}`.
+The cookie's JWT must have `token_type == "access"` and a non-empty `user_id`
+(`auth/jwt_utils.py::decode_jwt`, `:39-44`): refresh and 2FA-challenge (`"mfa"`) tokens are signed with
+the same key and are rejected with 401.
 
 ### Standardized Error Responses
 
-All services return consistent JSON format:
+Most services return this consistent JSON format:
 ```json
 {
   "success": false,
@@ -338,6 +575,12 @@ Common codes: `UNAUTHORIZED` (401), `RATE_LIMIT_EXCEEDED` (429), `NOT_FOUND` (40
 
 Location: `srcs/api-gateway/utils/responses.py`
 
+**Exception — classification-service** returns bare dicts on success and
+`{"detail": {"code", "message"}}` on error (`src/routes/classify.py:60-71`). It is internal-only and
+`srcs/ai/src/services/classification_client.py` depends on that shape — do not "fix" it without
+updating the client. user-service also falls back to DRF's bare `{"detail": ...}` for malformed
+request JSON.
+
 ### Vision Pipeline Flow
 
 **End-to-End Request Flow for Image Analysis:**
@@ -351,7 +594,8 @@ Location: `srcs/api-gateway/utils/responses.py`
    - **Stage 2:** RAG Service retrieves breed context from ChromaDB
      - Query: species name + breed name(s)
      - Returns: health info, breed standards, care guidelines
-   - **Stage 3:** Ollama generates contextual analysis
+   - **Stage 3:** The vision LLM generates contextual analysis via the LiteLLM proxy
+     (`POST http://litellm:4000/v1/chat/completions`)
      - Input: image + classification results + RAG context
      - Output: Natural language breed description, health insights, recommendations
 4. AI Service returns enriched response to API Gateway
@@ -359,14 +603,18 @@ Location: `srcs/api-gateway/utils/responses.py`
 
 **Key Design Decisions:**
 - Classification Service uses HuggingFace for structured predictions (species, breed, confidence scores)
-- Ollama uses multimodal LLM for contextual, conversational analysis
-- RAG bridges the two: provides factual breed knowledge to ground Ollama responses
+- The vision LLM (LiteLLM → Ollama or Mistral) provides contextual, conversational analysis
+- RAG bridges the two: provides factual breed knowledge to ground the vision LLM's (LiteLLM → Ollama
+  or Mistral) responses
 - Pipeline fails fast: rejects low-confidence species/breed early to avoid hallucinations
 
 **Rejection Thresholds (VisionOrchestrator):**
-- Species confidence: < 0.1 (vision_orchestrator.py:63)
-- Breed confidence: < 0.1 (vision_orchestrator.py:75)
-- Note: Test comments may reference outdated thresholds (0.60/0.40) - trust the code
+- Species confidence: < `SPECIES_MIN_CONFIDENCE` = **0.10** — `vision_orchestrator.py:73` (`srcs/ai/src/config.py:34`)
+- Breed confidence: < `BREED_MIN_CONFIDENCE` = **0.05** — `vision_orchestrator.py:85`, and again on
+  the VLM-only path at `:154` (`srcs/ai/src/config.py:35`)
+- Note: test comments may reference outdated 0.60/0.40 values — those were dead, identically-named
+  fields in `srcs/classification-service/src/config.py`, deleted because nothing in that service
+  read them. A stale `.env` may still list them; that service's `Settings` ignores unknown keys
 
 ### Crossbreed Detection Thresholds
 
@@ -384,9 +632,17 @@ Services use environment variables from `.env` files:
 - JWT Key Pair (RS256):
   - Auth Service: Private key at `srcs/auth-service/keys/jwt-private.pem` (signs tokens)
   - API Gateway: Public key mounted read-only from auth-service keys directory (verifies tokens)
-  - Generated once, never regenerate in production (invalidates all tokens)
+  - **Neither key is tracked by git.** `make keys` (run by `make up`, `make test` and the test scripts) creates the
+    pair when the private key is missing; when it exists it only rewrites a public key that does not match it.
+    `srcs/auth-service/keys/generate-keys.sh --force` rotates and invalidates every issued token — never in production
 - Service URLs use Docker Compose service names (e.g., `http://auth-service:3001`)
-- `.env.example` files provided in each service directory
+- `.env.example` files exist for ai, api-gateway, auth-service, classification-service, db, nginx,
+  recommendation-service and user-service. **`srcs/litellm/` and `srcs/ollama/` have none** — they
+  are configured entirely from the root `.env` (`LITELLM_MASTER_KEY`, `OLLAMA_BASE_URL`,
+  `MISTRAL_API_KEY`) plus `srcs/litellm/config.yaml`. `srcs/frontend/.env.example` exists but is 0 bytes
+- `OAUTH_42_CLIENT_ID` / `OAUTH_42_CLIENT_SECRET` (auth-service) stay empty in `.env.example`: the gate
+  passes either way (`/start` → intra, or → `/login?oauth=unavailable`). Real values only in the gitignored
+  `srcs/auth-service/.env`, followed by `docker compose up -d --force-recreate auth-service`
 
 ## Development Workflow
 
@@ -396,14 +652,24 @@ Services use environment variables from `.env` files:
 2. Add `Dockerfile` that bakes in requirements
 3. Create `.env.example` with required environment variables
 4. Add service to `docker-compose.yml` (assign to `backend-network`)
-5. Add service URL to `srcs/api-gateway/.env`: `NEW_SERVICE_URL=http://new-service:PORT`
-6. Update `srcs/api-gateway/config.py` to include new URL
-7. API Gateway will automatically proxy `/api/*` requests
-8. Copy `.env.example` to `.env` and configure before first run
+5. Add service URL to `srcs/api-gateway/.env` and `.env.example`: `NEW_SERVICE_URL=http://new-service:PORT`
+6. Add `NEW_SERVICE_URL: str` (no default — a missing value must fail fast at startup) to
+   `srcs/api-gateway/config.py`
+7. Add a `"/api/v1/newthing": settings.NEW_SERVICE_URL` entry to `SERVICE_ROUTES` in
+   `srcs/api-gateway/routes/proxy.py:40-48`. Matching is plain `startswith` over insertion order, so
+   a more specific prefix must be inserted before any prefix of it. Without this entry the path
+   returns 404
+8. If the endpoint is slow, add its prefix to `SERVICE_TIMEOUTS` (`routes/proxy.py:16-18`) — do not
+   raise the shared 30 s default on `httpx_client`
+9. Also add `srcs/api-gateway/tests/conftest.py` env setup if the new URL has no default
+10. Copy `.env.example` to `.env` and configure before first run
 
 ### Modifying API Gateway Behavior
 
-**Add public endpoint** (no auth): Edit `srcs/api-gateway/middleware/auth_middleware.py`, add path to `PUBLIC_PATHS` list.
+**Add public endpoint** (no auth): Edit `srcs/api-gateway/middleware/auth_middleware.py` and add the
+**exact full path** to the `self.public_endpoints` set (`:22-29`). Matching is exact equality on
+`request.url.path` (`:33`), not a prefix test — `/api/v1/auth/verify` is protected precisely because
+only the exact literals are listed.
 
 **Change rate limits**: Update `RATE_LIMIT_PER_MINUTE` in `srcs/api-gateway/.env`.
 
@@ -412,13 +678,14 @@ Services use environment variables from `.env` files:
 ### Testing Strategy
 
 1. **Unit tests**: Test components in isolation with mocked dependencies
-2. **Integration tests**: Use API Gateway (localhost:8001) - backend services are NOT directly accessible
-3. **E2E tests**: Use NGINX proxy (localhost/api) for full production-like stack
+2. **Integration tests**: Use the API Gateway — `http://api-gateway:8001` from inside the network, or
+   `127.0.0.1:8001` from the host under `make up-dev` — backend services are NOT directly accessible
+3. **E2E tests**: Use the NGINX proxy at `https://localhost:8443/api` (self-signed cert — pass `curl -k`) for the full production-like stack
 4. **Load tests**: Test through NGINX to validate both rate limiting layers
 5. **Dependency override pattern**: Use `app.dependency_overrides[dep] = fixture` for mocking route dependencies
 6. **HTTPException detail format**: Error responses wrapped in `detail` field - test with `response.json()["detail"]`
 
-**⚠️ Important:** Backend services (auth:3001, user:3002, ai:3003) have NO external port exposure. All API requests must go through API Gateway (8001) or Nginx (80/443).
+**⚠️ Important:** Backend services (auth:3001, user:3002, ai:3003, classification:3004, recommendation:3005) have NO external port exposure. All API requests must go through Nginx (`https://localhost:8443`; `http://localhost:8000` only 301-redirects to the unpublished `https://localhost/`). The gateway on `127.0.0.1:8001` exists only under `make up-dev`. Note: `ollama` is an exception — docker-compose.yml:68-69 publishes its unauthenticated API on host port 11434.
 
 **Test Script Organization:**
 ```bash
@@ -434,9 +701,11 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Example: `srcs/classification-service/tests/conftest.py` (bypasses model loading in tests)
 
 **Docker Test File Changes:**
-- Adding new test files requires: `docker compose build SERVICE` (copies into container)
-- Use `docker compose run --rm SERVICE pytest` (works even when container not running)
-- Changes to existing test files use volume mounts (no rebuild needed)
+- New test files need NO rebuild for api-gateway, ai-service, auth-service, user-service or
+  recommendation-service — `tests/` is bind-mounted in all five
+- **classification-service is the exception**: `src/` and `tests/` are baked in (Dockerfile:23-24),
+  so every new or edited test file requires `docker compose build classification-service`
+- Use `docker compose run --rm SERVICE pytest` (works even when the container is not running)
 
 **AsyncMock Defensive Pattern:**
 - Always mock ALL async methods in execution path, even when expecting early rejection
@@ -444,18 +713,28 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Example: Low-confidence rejection tests should still mock downstream services (RAG, Ollama)
 
 **Flags:**
-- `--all` (default): Run both unit and integration tests
-- `--unit`: Unit tests only
-- `--integration`: Integration tests only
-- `--skip-init`: Skip build/start/migrations (services already running)
+- `scripts/run-unit-tests.sh`: `--all` (default) or any combination of
+  `--gateway --auth --user --ai --classification --recommendation`
+- `scripts/init-and-test.sh`: `--init` opts *into* build/start/migrate (skipped by default); every
+  other flag is forwarded verbatim to `run-unit-tests.sh`
+- `make test [init] [gateway] [auth] [user] [ai] [classification] [recommendation]` — extra words
+  become `--flags`. **`init` is a trap**: it is also a real target (`Makefile:28`), so `make test init`
+  runs `init-and-test.sh --init` *and then* the whole `build up migration seed superuser rag` chain
+  (verify with `make -n test init`). Prefer `./scripts/init-and-test.sh --init` if you only want the
+  script's build/start/migrate phase
+
+Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 104, `:121`),
+recommendation 42 (real 48, `:129`), gateway 45 (real 48, `:113`), auth 357 (real 409, `:117`). They only
+feed a printed total; do not trust them.
 
 **Jupyter Notebook Testing (E2E Integration):**
 - Location: `scripts/jupyter/test_ai_service.ipynb`
 - Purpose: Test full vision pipeline with real images through API Gateway
 - Setup: Notebook handles JWT authentication automatically
 - Images: Place test images in `scripts/jupyter/test_data/images/` directory
-- Run: `jupyter notebook scripts/jupyter/test_ai_service.ipynb` (requires `make up` first)
-- Note: All requests route through API Gateway (localhost:8001) with proper JWT tokens
+- Run: `jupyter notebook scripts/jupyter/test_ai_service.ipynb` (requires **`make up-dev`** first —
+  the notebooks call `http://localhost:8001`, which plain `make up` no longer publishes)
+- Note: All requests route through the API Gateway (127.0.0.1:8001) with proper JWT tokens
 - Note: notebooks uses real database transactions on `smartbreeds` database (production-like). Make sure to clean up test data as needed. Every run must use unique user accounts to avoid conflicts and leave a clean state.
 - **Headless execution:** `jupyter-nbconvert --to notebook --execute --allow-errors --ExecutePreprocessor.timeout=600 notebook.ipynb --output out.ipynb` — use `--allow-errors` to capture all cell outputs even when cells fail; set timeout ≥600 for AI notebooks
 
@@ -470,54 +749,75 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - **JWT Tokens**: RS256 asymmetric algorithm, stored in HTTP-only cookies
   - Auth Service: Signs tokens with RSA private key (jwt-private.pem, never shared)
   - API Gateway: Verifies tokens with RSA public key only (jwt-public.pem, read-only mount)
-  - Key generation: 2048-bit RSA, stored in `srcs/auth-service/keys/`
+  - Key generation: 4096-bit RSA (`make keys` → `srcs/auth-service/keys/generate-keys.sh`), stored in `srcs/auth-service/keys/` and gitignored (`.dockerignore` keeps them out of image layers too)
   - Volume mount: `./srcs/auth-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro`
 - **Network Isolation**: Backend services not exposed externally, only via API Gateway
 - **Rate Limiting**: Two layers (NGINX: 200/min, API Gateway: 60/min per user)
 - **Password Hashing**: argon2 in auth service
+- **Two-Factor Authentication**: TOTP (RFC 6238; SHA-1 / 6 digits / 30 s, the only profile all authenticator apps
+  honour), stdlib implementation pinned to the RFC test vectors. Secrets are Fernet-encrypted at rest
+  (`TWO_FACTOR_ENCRYPTION_KEY`, else derived from `SECRET_KEY` — changing either invalidates stored secrets);
+  recovery codes are SHA-256 hashed and consumed atomically; a used time step is never accepted twice; five
+  consecutive failures lock the account's second step for 15 minutes. Because the gateway's rate limits are per
+  user/IP, the lockout lives in the database on the account.
+- **Token types**: the auth service signs `access`, `refresh` and `mfa` JWTs with one key. Every verifier must check
+  `token_type`; the gateway enforces `access` (ROADMAP `GW-01`).
 - **HTTPS**: TLS 1.2+ via Nginx (self-signed cert in dev, replace in production)
-- **Token Blacklist**: Redis-backed for logout (optional: check in API Gateway middleware)
+- **Token Blacklist**: **not implemented.** Logout clears the cookies and revokes **all** of the
+  user's refresh tokens, identified from the `access_token` cookie (signature checked, `exp` not —
+  it may have expired in an idle tab; the path-scoped `refresh_token` cookie never reaches
+  `/logout`). A stolen access token remains valid until its 15-minute `exp`.
 
 ## Current State
 
 **Completed:**
-- API Gateway (FastAPI) with full middleware stack - 30 passing tests
-- Auth Service (Django) with authentication endpoints - 102 passing tests
-- User Service (Django) with profile and pet management - 73 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 104 passing tests
+- API Gateway (FastAPI) with full middleware stack - 48 passing tests
+- Auth Service (Django) with authentication, profile (PATCH /auth/me), TOTP 2FA and Log in with 42 - 409 passing tests
+- User Service (Django) with profile and pet management - 89 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 107 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
-- Multi-stage vision pipeline (Classification → RAG → Ollama orchestration)
+- Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
 - Crossbreed detection with intelligent thresholding
 - RAG system with ChromaDB for breed knowledge enrichment + bulk initialization endpoint
 - Docker infrastructure with isolated networks
 - Nginx reverse proxy configuration
-- Redis integration for rate limiting and caching
-- Ollama GPU setup for AI inference (qwen3-vl:8b model)
+- Redis integration for rate limiting (caching is not implemented — see Redis Usage above)
+- Ollama GPU setup for AI inference (qwen3-vl:8b model, `local` profile, fronted by LiteLLM)
 - Jupyter notebook for E2E pipeline testing
-
-**In Progress:**
-- Frontend (React scaffolding exists, needs implementation)
+- Frontend SPA: Analyze / My pets / Profile (name + email, 2FA, password or "Set a password" for 42 accounts),
+  2FA code step and "Log in with 42" on log in, IT/EN/ES, Playwright UI tests in the gate
 
 **Recently Completed:**
-- Recommendation Service — content-based filtering with 84 passing tests (61 unit + 23 integration)
-- Classification Service GPU support for RTX 5060 Ti (Blackwell) using PyTorch 2.11 nightly
+- LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service
+  talks OpenAI chat-completions to the proxy; VLM-only pipeline when classification is disabled
+- The whole AI stack runs without a GPU: LLM on hosted Mistral (free-tier-safe models, retries +
+  fallback), classification-service on CPU in every stack; GPU opt-in via `docker-compose.gpu.yml`
+- Frontend unblocked at the edge: nginx accepts vision uploads up to 8 MB and waits 300 s on
+  `/api/v1/vision`; the plaintext gateway port is gone; the TLS cert carries a SAN
+- Recommendation Service — content-based filtering with 70 passing tests (47 unit + 23 integration)
 
 ## Common Troubleshooting
 
+**`docker compose up` fails with "bind source path does not exist" (jwt-public.pem):**
+- `srcs/auth-service/keys/jwt-public.pem` is generated, not tracked by git. After pulling a branch or
+  cloning fresh, run `make keys` once (idempotent, never rotates an existing key) — `make up`,
+  `make test` and `make gate` already do this for you, but a bare `docker compose up` does not
+
 **"Connection refused" on localhost:8001:**
-- Check: `docker compose ps api-gateway`
-- Fix: `docker compose up api-gateway -d`
+- **Expected under plain `make up`** — the gateway port is no longer published. Use
+  `https://localhost:8443/api/...`, or start with `make up-dev` to get `127.0.0.1:8001`
+- Otherwise check: `docker compose ps api-gateway`; fix: `docker compose up api-gateway -d`
 
 **"502 Bad Gateway" from NGINX:**
 - API Gateway down or unreachable
-- Check: `curl http://localhost:8001/health`
+- Check: `docker exec ft_transcendence_api_gateway curl -s http://localhost:8001/health`
 - Check networks: `docker network inspect ft_transcendence_backend-network`
 
 **JWT always rejected:**
-- Verify RSA key pair exists: `ls -la srcs/auth-service/keys/`
-- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem`
+- Verify RSA key pair exists and matches: `make keys` (creates it if absent; if the public key does not match the private one it is rewritten, tokens stay valid)
+- Ensure public key is mounted in API Gateway: `docker exec ft_transcendence_api_gateway ls /app/keys/jwt-public.pem` (with the key missing, `docker compose up` fails with `bind source path does not exist` instead of starting the gateway — run `make keys`)
 - Check key permissions: Public key must be readable
-- Verify cookie is being set: `curl -v http://localhost:8001/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
+- Verify cookie is being set: `curl -kv https://localhost:8443/api/v1/auth/login -d '{"email":"user@example.com","password":"pass"}' -H "Content-Type: application/json" 2>&1 | grep -i "set-cookie"`
 - Test token signature: Tokens signed with RS256 private key must be verifiable with RS256 public key
 
 **Rate limiting not working:**
@@ -539,19 +839,22 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Fix: `return success_response(data)` NOT `return Response(success_response(data))`
 
 **Classification Service GPU troubleshooting:**
-- Using PyTorch 2.11 nightly (2.11.0.dev20260128+cu128) for RTX 5060 Ti Blackwell support
-- Torchvision: 0.25.0.dev20260128+cu128
-- CUDA 12.8 runtime required
+- The default build is **CPU** (`torch 2.11.0+cpu`); a GPU is only used when the image was built
+  and started with `docker-compose.gpu.yml` layered on (`cu128`, CUDA 12.8)
+- Which torch is in the image: `docker run --rm --entrypoint python ft_transcendence-classification-service -c "import torch; print(torch.__version__, torch.version.cuda)"` — `+cpu` / `None` means the CPU build
 - Environment variable `DEVICE=auto` detects GPU automatically (falls back to CPU if unavailable)
 - Verify GPU: `docker exec ft_transcendence_classification_service python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"`
-- Check docker-compose.yml: `runtime: nvidia` and `deploy.resources.reservations.devices` configured
-- **Note:** Nightly PyTorch versions may have breaking changes - pin to specific nightly build in requirements.txt
+- `runtime: nvidia` and the device reservation live in `docker-compose.gpu.yml`, not the base file
+- **Note:** torch/torchvision are pinned in the Dockerfile (not requirements.txt); keep the pair version-matched
 
 **Crossbreed detection returning false positives:**
-- Check confidence thresholds in `crossbreed_detector.py`
-- Minimum second breed threshold: 20% (prevents noise from triggering crossbreed)
+- Thresholds live in `srcs/classification-service/src/config.py:26-29` (and `.env`), not in
+  `crossbreed_detector.py` — that class only copies them in its constructor (`:16-19`)
+- `CROSSBREED_MIN_SECOND_BREED` = **0.05 (5%)** — the minimum second-breed probability for rule 2
+- Rule 1: second breed > `CROSSBREED_PROBABILITY_THRESHOLD` (0.35). Rule 2: top <
+  `PUREBRED_CONFIDENCE_THRESHOLD` (0.75) AND gap < `PUREBRED_GAP_THRESHOLD` (0.30) AND second > 0.05
 - Review test cases: `test_crossbreed_detector.py` for expected behavior
-- Confidence scale is 0.0-1.0 (0.26 = 26%, not 74%)
+- Confidence scale is 0.0-1.0 (0.26 = 26%)
 - Note: Low confidence scores may indicate image quality issues or model limitations, need further investigation
 
 **Low breed confidence / BREED_DETECTION_FAILED:**
@@ -572,9 +875,14 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Parameter names must match method signatures exactly
 
 **503 on /api/v1/vision/analyze:**
-- Root cause: API Gateway has a 30s global proxy timeout; Ollama inference takes 20–120s
-- Fix is in place: `SERVICE_TIMEOUTS` dict in `srcs/api-gateway/routes/proxy.py` overrides to 300s for `/api/v1/vision`
-- If adding a new slow endpoint, add its prefix to that dict
+- Root cause: API Gateway has a 30s global proxy timeout; LLM inference takes 20–120s
+- Fix is in place: `SERVICE_TIMEOUTS` in `srcs/api-gateway/routes/proxy.py:16-18` overrides to 300s
+  for `/api/v1/vision` (and `LLM_TIMEOUT` in `srcs/ai/src/config.py:17` is also 300)
+- nginx has a matching nested `location /api/v1/vision` with `proxy_read_timeout 300s` and
+  `client_max_body_size 8m`. Both were needed: the `/api` defaults (30 s, and nginx's implicit 1 MB
+  body limit) cut vision short and rejected any image above ~750 KB with a 413 — i.e. nearly
+  every phone photo, since base64 in JSON inflates a 5 MB image to ~6.7 MB
+- If adding a new slow endpoint, add its prefix to `SERVICE_TIMEOUTS`
 
 **Django `.delete()` count returns wrong number:**
 - `queryset.delete()` returns `(total_rows, {model_label: count})` where `total_rows` includes CASCADE-deleted related rows
@@ -582,12 +890,19 @@ make test [init] [flags]                              # make shortcut (no -- pre
 - Always use `deleted_counts.get('authentication.User', 0)` for per-model accuracy
 
 **Recommendation service product duplicates:**
-- Seed script is idempotent — skips if any products exist, prints a warning
+- Seed script is idempotent by product name — inserts only the `products.yaml` entries missing from the table (integration-test leftovers no longer block it)
 - Use `--force` flag to clear and re-seed: `docker exec ft_transcendence_recommendation_service python scripts/seed_products.py --force`
 - Product data lives in `scripts/products.yaml` — edit there, not in Python
 
 ## Reference Documentation
 
-- Full architecture details: `ARCHITECTURE.md`
+- Full architecture details: `ARCHITECTURE.md` — **mixed reliability; prefer this file and the
+  per-service `srcs/*/CLAUDE.md`.** Its body sections have been refreshed (it correctly states the
+  8000→80 / 8443→443 host ports and that LlamaIndex is *not* used anywhere in the repo), but the
+  trailing appendices — the sample `.env` block, the "Technology Decisions" table and the "Service
+  Inventory" table — are still pre-LiteLLM and contradict reality: `postgres`/`transcendence` DB
+  host+name, `JWT_ALGORITHM=HS256`, `OLLAMA_BASE_URL` as an AI Service variable, Django 6.0.1,
+  React 19.2, "AI Orchestration: LlamaIndex", and nginx on `80, 443`. Line numbers are deliberately
+  omitted — the file is being edited and they drift
 - API testing workflows: `docs/API_TESTING_GUIDE.md`
 - Implementation plans: `docs/plans/` (TDD step-by-step guides for each service)

@@ -33,11 +33,13 @@ class PetFeatureExtractor:
         features = np.zeros(15)
 
         # [0] Age (months) - normalize to 0-1 (assuming max 200 months = ~16 years)
-        age_months = pet_data.get("age_months", 0)
-        features[0] = min(age_months / 200.0, 1.0)
+        # user-service sends the key with None when age is unknown (e.g. a pet saved from a photo
+        # analysis), so .get's default never fires. Unknown age: feature 0, adult profile below.
+        age_months = pet_data.get("age_months")
+        features[0] = min(age_months / 200.0, 1.0) if age_months is not None else 0.0
 
         # [1, 3] Weight (kg) - normalize to 0-1 (assuming max 100kg)
-        weight_kg = pet_data.get("weight_kg", 0)
+        weight_kg = pet_data.get("weight_kg") or 0
         normalized_weight = min(weight_kg / 100.0, 1.0)
         features[1] = normalized_weight
         features[3] = normalized_weight
@@ -47,7 +49,7 @@ class PetFeatureExtractor:
         features[2] = 1.0 if pet_data.get("breed") else 0.5
 
         # [4-10] Health conditions (6 actual + 1 reserved)
-        health_conditions = pet_data.get("health_conditions", [])
+        health_conditions = pet_data.get("health_conditions") or []
         for i, condition in enumerate(self.HEALTH_CONDITIONS):
             if condition in health_conditions:
                 features[4 + i] = 1.0
@@ -56,7 +58,11 @@ class PetFeatureExtractor:
         # [11-13] Nutritional needs (normalized estimates based on age/weight)
         # These represent the pet's nutritional requirements
         # Older/larger dogs need higher protein, moderate fat
-        if age_months > 84:  # Senior (7+ years)
+        if age_months is None:  # Unknown: treat as adult
+            features[11] = 0.7
+            features[12] = 0.5
+            features[13] = 0.6
+        elif age_months > 84:  # Senior (7+ years)
             features[11] = 0.8  # Higher protein need
             features[12] = 0.6  # Moderate fat
             features[13] = 0.7  # Moderate calories

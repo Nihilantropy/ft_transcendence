@@ -10,6 +10,7 @@ These tests require:
 Run separately: docker compose run --rm recommendation-service pytest tests/integration/ -v
 DO NOT run with unit tests (marked with @pytest.mark.integration)
 """
+import uuid
 import pytest
 import pytest_asyncio
 import httpx
@@ -40,15 +41,25 @@ async def test_user_auth():
             json={
                 "email": TEST_USER_EMAIL,
                 "password": TEST_USER_PASSWORD,
+                # Required by RegisterSerializer (srcs/auth-service/apps/
+                # authentication/serializers.py:22,42). Omitting it made every
+                # test using this fixture error out with a 422 at setup.
+                "password_confirm": TEST_USER_PASSWORD,
                 "first_name": "Recommendation",
                 "last_name": "Tester"
             }
         )
 
-        if register_response.status_code == 409:
-            # User already exists, just login
+        if register_response.status_code == 201:
             pass
-        elif register_response.status_code != 201:
+        elif "already exists" in register_response.text:
+            # Expected on a re-run: the teardown below deliberately keeps the
+            # auth record, so registering again legitimately fails and the
+            # login that follows still succeeds. The previous check looked for
+            # 409, which this API never returns — RegisterSerializer.
+            # validate_email raises a DRF ValidationError, surfaced as 422.
+            pass
+        else:
             raise Exception(f"Registration failed: {register_response.status_code} - {register_response.text}")
 
         # Login to get tokens
@@ -351,10 +362,9 @@ async def test_recommendations_respects_species(test_user_auth: Dict[str, Any], 
 async def test_recommendations_unauthorized_pet_access(test_user_auth: Dict[str, Any]):
     """Test that users cannot request recommendations for pets they don't own."""
     async with httpx.AsyncClient(base_url=API_GATEWAY_URL, timeout=10.0, cookies=test_user_auth["cookies"]) as client:
-        # Try to access a pet ID that doesn't belong to this user
-        # Use a high ID that's unlikely to exist or belong to test user
+        # A well-formed UUID that belongs to no pet of this user
         response = await client.get(
-            "/api/v1/recommendations/food?pet_id=99999",
+            f"/api/v1/recommendations/food?pet_id={uuid.uuid4()}",
         )
 
         # Should return 404 (pet not found) or 403 (not owner)

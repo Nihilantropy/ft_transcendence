@@ -1,5 +1,5 @@
 """Admin API routes for product management."""
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -9,7 +9,17 @@ from src.models.product import Product
 from src.utils.database import get_db
 from src.utils.responses import success_response, error_response
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+
+async def require_admin(x_user_role: str | None = Header(None, alias="X-User-Role")):
+    """The gateway authenticates and forwards the role; enforcing it is this service's job."""
+    if not x_user_role:
+        raise HTTPException(401, detail=error_response("UNAUTHORIZED", "Authentication required"))
+    if x_user_role != "admin":
+        raise HTTPException(403, detail=error_response("FORBIDDEN", "Admin role required"))
+
+
+router = APIRouter(prefix="/api/v1/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
 @router.post("/products", status_code=201)
@@ -20,7 +30,7 @@ async def create_product(
     """
     Create a new product.
 
-    Requires admin role (enforced by API Gateway).
+    Requires admin role (enforced by require_admin).
     """
     # Convert Pydantic model to SQLAlchemy model
     product = Product(**product_data.dict())
@@ -43,7 +53,7 @@ async def list_products(
     """
     List all products with optional filtering.
 
-    Requires admin role (enforced by API Gateway).
+    Requires admin role (enforced by require_admin).
     """
     product_service = ProductService(db)
     products = await product_service.get_active_products(species=species)
@@ -69,7 +79,7 @@ async def get_product(
     """
     Get a single product by ID.
 
-    Requires admin role (enforced by API Gateway).
+    Requires admin role (enforced by require_admin).
     """
     product_service = ProductService(db)
     product = await product_service.get_product_by_id(product_id)
@@ -96,7 +106,7 @@ async def update_product(
     """
     Update an existing product.
 
-    Requires admin role (enforced by API Gateway).
+    Requires admin role (enforced by require_admin).
     """
     product_service = ProductService(db)
     product = await product_service.get_product_by_id(product_id)
@@ -130,7 +140,7 @@ async def delete_product(
     Delete (deactivate) a product.
 
     Soft-delete: sets is_active=False.
-    Requires admin role (enforced by API Gateway).
+    Requires admin role (enforced by require_admin).
     """
     product_service = ProductService(db)
     product = await product_service.get_product_by_id(product_id)

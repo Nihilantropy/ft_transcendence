@@ -1,0 +1,4 @@
+node.name: logstash
+path.config: /usr/share/logstash/pipeline
+config.reload.automatic: false
+xpack.monitoring.enabled: false

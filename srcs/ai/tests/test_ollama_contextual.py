@@ -10,10 +10,11 @@ from src.config import Settings
 def ollama_client():
     """Create Ollama client with test config."""
     settings = Settings(
-        OLLAMA_BASE_URL="http://test-ollama:11434",
-        OLLAMA_MODEL="qwen3-vl:8b",
-        OLLAMA_TIMEOUT=300,
-        OLLAMA_TEMPERATURE=0.1
+        LLM_BASE_URL="http://test-litellm:4000/v1",
+        LLM_VISION_MODEL="vision-model",
+        LLM_TEXT_MODEL="text-model",
+        LLM_TIMEOUT=300,
+        LLM_TEMPERATURE=0.1
     )
     return OllamaVisionClient(settings)
 
@@ -70,7 +71,7 @@ async def test_analyze_with_context_purebred(
     }
 
     mock_http_response = Mock()
-    mock_http_response.json.return_value = mock_response
+    mock_http_response.json.return_value = {"choices": [mock_response]}
     mock_http_response.raise_for_status = Mock()
 
     mock_async_client = AsyncMock()
@@ -94,7 +95,7 @@ async def test_analyze_with_context_purebred(
 
         # Verify prompt contains breed context
         call_args = mock_async_client.post.call_args
-        prompt = call_args[1]["json"]["messages"][0]["content"]
+        prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "Golden Retriever" in prompt
         assert "confidence: 0.89" in prompt
         assert "BREED CONTEXT" in prompt
@@ -143,7 +144,7 @@ async def test_analyze_with_context_crossbreed(ollama_client):
     }
 
     mock_http_response = Mock()
-    mock_http_response.json.return_value = mock_response
+    mock_http_response.json.return_value = {"choices": [mock_response]}
     mock_http_response.raise_for_status = Mock()
 
     mock_async_client = AsyncMock()
@@ -163,7 +164,7 @@ async def test_analyze_with_context_crossbreed(ollama_client):
 
         # Verify crossbreed prompt structure
         call_args = mock_async_client.post.call_args
-        prompt = call_args[1]["json"]["messages"][0]["content"]
+        prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "Goldendoodle" in prompt
         assert "Parent breeds: Golden Retriever, Poodle" in prompt
 
@@ -185,7 +186,7 @@ async def test_analyze_with_context_no_rag(
     }
 
     mock_http_response = Mock()
-    mock_http_response.json.return_value = mock_response
+    mock_http_response.json.return_value = {"choices": [mock_response]}
     mock_http_response.raise_for_status = Mock()
 
     mock_async_client = AsyncMock()
@@ -205,7 +206,7 @@ async def test_analyze_with_context_no_rag(
 
         # Verify prompt handles missing RAG gracefully
         call_args = mock_async_client.post.call_args
-        prompt = call_args[1]["json"]["messages"][0]["content"]
+        prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "BREED CONTEXT: (unavailable)" in prompt
 
 
@@ -239,3 +240,34 @@ async def test_analyze_with_context_timeout_error(
                 breed_analysis=sample_breed_analysis_purebred,
                 rag_context=None
             )
+
+
+def test_contextual_prompt_language(ollama_client, sample_breed_analysis_purebred):
+    """Report language is injected into the prompt; English stays the default."""
+    it_prompt = ollama_client._build_contextual_prompt(
+        "dog", sample_breed_analysis_purebred, None, "it"
+    )
+    en_prompt = ollama_client._build_contextual_prompt(
+        "dog", sample_breed_analysis_purebred, None
+    )
+    assert "in Italian" in it_prompt
+    assert "in English" in en_prompt
+
+
+def test_contextual_prompt_spanish(ollama_client, sample_breed_analysis_purebred):
+    """Spanish is a supported report language."""
+    prompt = ollama_client._build_contextual_prompt("dog", sample_breed_analysis_purebred, None, "es")
+    assert "in Spanish" in prompt
+
+
+def test_normalize_traits():
+    """Hedged or free-text trait values collapse onto the enum; unknown → None."""
+    from src.services.ollama_client import _normalize_traits
+
+    assert _normalize_traits(
+        {"size": "small/medium", "energy_level": "Medium-High", "temperament": "calmo"}
+    ) == {"size": "small", "energy_level": "medium", "temperament": "calmo"}
+    assert _normalize_traits({"size": "enorme"}) == {
+        "size": None, "energy_level": None, "temperament": ""
+    }
+    assert _normalize_traits(None)["size"] is None

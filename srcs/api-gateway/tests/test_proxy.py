@@ -14,6 +14,7 @@ def create_test_token(user_id: str, role: str = "user"):
     """Helper to create test JWT tokens using RS256"""
     payload = {
         "user_id": user_id,
+        "token_type": "access",
         "email": "test@example.com",
         "role": role,
         "iat": datetime.utcnow(),
@@ -56,6 +57,16 @@ async def test_proxy_forwards_to_user_service():
 
     assert response.status_code == 200
 
+def test_gateway_client_never_stores_cookies():
+    """Regression: the shared client must not keep Set-Cookie from backends (session leak)."""
+    import httpx
+    from routes.proxy import httpx_client
+    request = httpx.Request("POST", "http://auth-service:3001/api/v1/auth/login")
+    response = httpx.Response(200, headers={"set-cookie": "refresh_token=SECRET; Path=/"}, request=request)
+    httpx_client.cookies.extract_cookies(response)
+    assert len(httpx_client.cookies.jar) == 0
+
+
 @pytest.mark.asyncio
 async def test_proxy_adds_user_context_headers():
     """Test that proxy adds X-User-ID and X-User-Role headers"""
@@ -73,3 +84,22 @@ async def test_proxy_adds_user_context_headers():
         headers = call_args.kwargs.get("headers", {})
         assert "X-User-ID" in headers
         assert "X-Request-ID" in headers
+
+
+@pytest.mark.asyncio
+async def test_proxy_forwards_delete_body():
+    """Regression: a DELETE body was dropped while its Content-Length was forwarded, so httpx
+    raised "Too little data for declared Content-Length" and the client got a 500."""
+    token = create_test_token("user123", "user")
+    mock_response = Response(200, json={"success": True})
+
+    with patch("routes.proxy.httpx_client.request", new=AsyncMock(return_value=mock_response)) as mock_request:
+        response = client.request(
+            "DELETE", "/api/v1/auth/delete",
+            cookies={"access_token": token}, json={"password": "x"}
+        )
+
+    assert response.status_code == 200
+    kwargs = mock_request.call_args.kwargs
+    assert kwargs["content"] == b'{"password":"x"}'
+    assert int(kwargs["headers"]["content-length"]) == len(kwargs["content"])
