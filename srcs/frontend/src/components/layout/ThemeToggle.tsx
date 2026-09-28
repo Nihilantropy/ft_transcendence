@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
-import { useTheme } from 'next-themes'
-import { useTranslation } from 'react-i18next'
-import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-
+import { Moon, Sun } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 // theme toggle component
 // default theme is system, any click will switch to the opposite of the current resolved theme
