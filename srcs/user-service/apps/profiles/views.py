@@ -98,9 +98,10 @@ class PetViewSet(viewsets.ModelViewSet):
         user_id = self.request.user_id
         user_role = self.request.user_role
 
-        if user_role == 'admin':
-            return Pet.objects.all()
-        return Pet.objects.filter(user_id=user_id)
+        # Explicit order: without ORDER BY PostgreSQL returns heap order, and an UPDATE writes a
+        # new row version at the end of the table, so an edited pet jumped to the end of the list
+        pets = Pet.objects.all() if user_role == 'admin' else Pet.objects.filter(user_id=user_id)
+        return pets.order_by('created_at', 'id')
 
     def list(self, request):
         """GET /api/v1/pets"""

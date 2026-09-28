@@ -4,6 +4,7 @@ from apps.profiles.views import UserProfileViewSet, PetViewSet, PetAnalysisViewS
 from apps.profiles.models import UserProfile, Pet, PetAnalysis
 import uuid
 import json
+from datetime import timedelta
 
 
 @pytest.mark.django_db
@@ -171,6 +172,23 @@ class TestPetViewSet:
         assert response.status_code == 200
         assert len(response.data['data']) == 1
         assert response.data['data'][0]['name'] == 'MyPet'
+
+    def test_list_pets_is_ordered_by_creation_not_row_position(self):
+        """An edited pet must not move: the list follows created_at, not the physical row order
+        (an UPDATE rewrites the row elsewhere). Rows are inserted in the opposite order of their
+        created_at so that only an explicit ORDER BY returns them right."""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        second = Pet.objects.create(user_id=user_id, name='Second', species='cat')
+        first = Pet.objects.create(user_id=user_id, name='First', species='dog')
+        Pet.objects.filter(pk=first.pk).update(created_at=second.created_at - timedelta(days=1))
+
+        request = factory.get('/api/v1/pets/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        response = PetViewSet.as_view({'get': 'list'})(request)
+
+        assert [p['name'] for p in response.data['data']] == ['First', 'Second']
 
     def test_create_pet_sets_user_id_from_header(self):
         """Test POST /pets sets user_id from request"""

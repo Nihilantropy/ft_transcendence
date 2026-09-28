@@ -362,7 +362,7 @@ browser ── GET /api/v1/auth/oauth/42/start ───────────
                 Path=/api/v1/auth/oauth, Max-Age=600)
 browser ── (approves on the intra) ── GET /api/v1/auth/oauth/42/callback?code&state ──► auth-service
           state == cookie (compare_digest)? → POST /oauth/token → GET /v2/me → find / link / create the user
-          ◄── 302 /analyze?oauth=ok + session cookies   (or /login?oauth=mfa#<challenge>,
+          ◄── 302 /?oauth=ok + session cookies   (or /login?oauth=mfa#<challenge>,
                                                           /login?oauth=error, /login?oauth=unavailable)
 ```
 
@@ -372,7 +372,7 @@ browser ── (approves on the intra) ── GET /api/v1/auth/oauth/42/callback
 - **Single session:** like `/login`, a successful callback revokes the user's other refresh tokens.
 - **Failures** (state missing/mismatched, the user pressed Cancel, intra unreachable or 4xx/5xx, a profile without id or email, a disabled account) all end at `/login?oauth=error` with one `42 login …` warning in `make logs-auth-service` naming the exception type and HTTP status — never the code, state, secret or tokens. Intra calls use httpx with a 10 s timeout and no retries. The `oauth_state` cookie is deleted on every outcome.
 - **`?oauth=ok`** on the success redirect tells the frontend a 42 login has just completed, so it checks the session with `/auth/verify`.
-- Session cookies are `SameSite=Strict`: the `/analyze?oauth=ok` document request that ends the redirect chain from the intra does not carry them, but it is a static SPA page; the SPA's own `/auth/verify` fetch does.
+- Session cookies are `SameSite=Strict`: the `/?oauth=ok` document request that ends the redirect chain from the intra does not carry them, but it is a static SPA page; the SPA's own `/auth/verify` fetch does.
 - **The callback's `?code=…&state=…` ends up in three server logs**, all shipped to Elasticsearch by Vector when `make elk` runs: nginx's access log, the API Gateway's uvicorn access log, and the auth-service dev server's (`runserver`) stdout log of the request line. The authorization `code` is single-use, so this is low severity, but it applies equally to all three — there is no log that omits it.
 
 ### Create the 42 application and fill `.env`
@@ -400,7 +400,7 @@ The intra shows when the application's secret expires; after that every callback
 The gate never contacts the real intra (see global constraints). With real `OAUTH_42_CLIENT_ID`/`SECRET` in `srcs/auth-service/.env`, verify by hand in a browser:
 
 - [ ] `docker compose up -d --force-recreate auth-service`, then `curl -ks -o /dev/null -w '%{redirect_url}\n' https://localhost:8443/api/v1/auth/oauth/42/start` prints an `https://api.intra.42.fr/oauth/authorize?…` URL.
-- [ ] Open `https://localhost:8443/login`, click "Log in with 42", approve on the intra with an account whose email is new to SmartBreeds → redirected to `/analyze`, signed in.
+- [ ] Open `https://localhost:8443/login`, click "Log in with 42", approve on the intra with an account whose email is new to SmartBreeds → redirected to the dashboard (`/`), signed in.
 - [ ] Log out, log in with 42 again with the same intra account → same local user (linked by intra id, not re-created).
 - [ ] Set a password from Profile, log out, log in with email + that password → works.
 - [ ] Try "Log in with 42" with an intra account whose email already belongs to a *different* local account that has a password → lands on `/login?oauth=exists`.

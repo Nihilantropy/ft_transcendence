@@ -16,7 +16,7 @@ browser ── (user approves on intra) ── GET /api/v1/auth/oauth/42/callbac
           auth-service: state == cookie? → POST https://api.intra.42.fr/oauth/token (code → access token)
                         → GET https://api.intra.42.fr/v2/me → {id, email, login, first_name, last_name}
                         → find/link/create user → session cookies (or a 2FA challenge)
-          ◄── 302 /analyze   (or /login?oauth=mfa#<mfa_token>, or /login?oauth=error|unavailable)
+          ◄── 302 /?oauth=ok   (or /login?oauth=mfa#<mfa_token>, or /login?oauth=error|unavailable)
 ```
 
 ## Rulings (each with its cost if wrong)
@@ -64,7 +64,7 @@ Other providers, unlinking a 42 account, importing the intra avatar.
 
 ## Plan-time amendments (2026-09-27, from the planner's review of the code)
 
-- **Success redirect is `/analyze?oauth=ok`**, not `/analyze`: the marker tells the frontend a 42 login
+- **Success redirect is the dashboard, `/?oauth=ok`**: the marker tells the frontend a 42 login
   has just completed, so it checks the session.
 - **Cancel on intra** (`?error=access_denied`, no code) → `/login?oauth=error`.
 - **`state` comparison on bytes** (`secrets.compare_digest` raises on non-ASCII str → a crafted state
