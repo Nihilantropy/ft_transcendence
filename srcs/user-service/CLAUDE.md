@@ -135,10 +135,10 @@ Two callers bypass the gateway entirely and set the headers themselves: auth-ser
 10. **`PetCreateSerializer` silently ignores `breed_confidence`** — it is not in its `fields` list,
     so a POST that sets it succeeds while dropping it (stays AI-only). `image_url` **is** accepted on
     create, and both remain writable via PUT/PATCH (`PetSerializer`).
-10b. **`Pet.photo` holds the profile photo as a data URL, not a file** (`TextField`, migration 0004). The SPA
-    resizes to 256 px JPEG before sending; `validate_photo` (`apps/profiles/serializers.py`) accepts only
+10b. **`Pet.photo` holds the profile photo as a data URL, not a file** (`TextField`, migration 0004). The client
+    sends a small thumbnail; `validate_photo` (`apps/profiles/serializers.py`) accepts only
     `data:image/{jpeg,png};base64,…` with valid base64, at most 200 000 chars, and `''` to clear. No URLs (no
-    remote fetches) and no SVG (it can carry script). `image_url` is unrelated and unused by the SPA.
+    remote fetches) and no SVG (it can carry script). `image_url` is unrelated.
 11. **Two `health` routes exist**: `/health` (root, used by the compose healthcheck) and
     `/api/v1/health` (`apps/profiles/urls.py:12`). Neither is proxied by the gateway.
 12. **`age` and `weight` have no unit in this model.** recommendation-service reinterprets them as

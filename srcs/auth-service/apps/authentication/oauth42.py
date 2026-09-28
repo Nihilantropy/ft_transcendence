@@ -33,7 +33,7 @@ STATE_COOKIE_PATH = '/api/v1/auth/oauth'  # sent back to /oauth/42/callback, now
 STATE_MAX_AGE = 600
 
 # Where the browser lands in the SPA
-SUCCESS = '/analyze?oauth=ok'  # the marker makes the SPA check the session it has no hint of yet
+SUCCESS = '/analyze?oauth=ok'  # the marker tells the frontend a 42 login has just completed
 FAILED = '/login?oauth=error'
 UNAVAILABLE = '/login?oauth=unavailable'
 EXISTS = '/login?oauth=exists'  # local account with this email has a password: no auto-link

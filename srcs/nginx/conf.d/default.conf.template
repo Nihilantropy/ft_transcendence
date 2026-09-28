@@ -45,9 +45,10 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # CSP for the built SPA: no inline or eval'd script. React sets style via the CSSOM, which
-    # style-src does not restrict; fonts are self-hosted.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    # CSP for the built SPA: no eval'd script, and the only inline script is the theme bootstrap in
+    # srcs/frontend/index.html, allowed by its hash — edit that script and this hash must change.
+    # style-src allows inline styles: sonner (toasts) injects a <style> element at runtime.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-tgLOzHoI/FttSopC930xRpM2YMZh7B/4J/EdVa7AS/s='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
 
     # Error pages
     error_page 500 502 503 504 /50x.html;

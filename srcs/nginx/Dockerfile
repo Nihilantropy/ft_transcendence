@@ -5,13 +5,15 @@
 # Files are copied explicitly: a host node_modules must never reach the image.
 FROM node:22-slim AS web
 WORKDIR /web
-COPY --from=frontend package.json package-lock.json ./
-RUN npm ci
+# pnpm 9 matches the lockfile (v9.0) and the frontend CI.
+RUN corepack enable && corepack prepare pnpm@9 --activate
+COPY --from=frontend package.json pnpm-lock.yaml ./
+# --ignore-scripts: `prepare` installs git hooks (husky), meaningless without .git
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY --from=frontend index.html tsconfig.json vite.config.ts ./
 COPY --from=frontend public ./public
 COPY --from=frontend src ./src
-# Unit tests gate the build: `make gate` builds this image, so it runs them.
-RUN npm test && npm run build
+RUN pnpm build
 
 # ---------------------------------------------------------------------------- #
 #                                  RUNNER                                      #

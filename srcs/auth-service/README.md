@@ -371,7 +371,7 @@ browser ── (approves on the intra) ── GET /api/v1/auth/oauth/42/callback
 - **2FA still applies:** a user with 2FA gets the same challenge as `POST /login`, in the URL **fragment** (never sent to a server or logged); the Log in page finishes it with `POST /login/2fa`.
 - **Single session:** like `/login`, a successful callback revokes the user's other refresh tokens.
 - **Failures** (state missing/mismatched, the user pressed Cancel, intra unreachable or 4xx/5xx, a profile without id or email, a disabled account) all end at `/login?oauth=error` with one `42 login …` warning in `make logs-auth-service` naming the exception type and HTTP status — never the code, state, secret or tokens. Intra calls use httpx with a 10 s timeout and no retries. The `oauth_state` cookie is deleted on every outcome.
-- **`?oauth=ok`** on the success redirect is for the SPA: it keeps a localStorage hint of "maybe signed in" and skips `/auth/verify` without it, which a browser logging in with 42 for the first time does not have.
+- **`?oauth=ok`** on the success redirect tells the frontend a 42 login has just completed, so it checks the session with `/auth/verify`.
 - Session cookies are `SameSite=Strict`: the `/analyze?oauth=ok` document request that ends the redirect chain from the intra does not carry them, but it is a static SPA page; the SPA's own `/auth/verify` fetch does.
 - **The callback's `?code=…&state=…` ends up in three server logs**, all shipped to Elasticsearch by Vector when `make elk` runs: nginx's access log, the API Gateway's uvicorn access log, and the auth-service dev server's (`runserver`) stdout log of the request line. The authorization `code` is single-use, so this is low severity, but it applies equally to all three — there is no log that omits it.
 
@@ -401,7 +401,6 @@ The gate never contacts the real intra (see global constraints). With real `OAUT
 
 - [ ] `docker compose up -d --force-recreate auth-service`, then `curl -ks -o /dev/null -w '%{redirect_url}\n' https://localhost:8443/api/v1/auth/oauth/42/start` prints an `https://api.intra.42.fr/oauth/authorize?…` URL.
 - [ ] Open `https://localhost:8443/login`, click "Log in with 42", approve on the intra with an account whose email is new to SmartBreeds → redirected to `/analyze`, signed in.
-- [ ] Profile shows "Set a password" (no current-password field) and email is read-only with a hint.
 - [ ] Log out, log in with 42 again with the same intra account → same local user (linked by intra id, not re-created).
 - [ ] Set a password from Profile, log out, log in with email + that password → works.
 - [ ] Try "Log in with 42" with an intra account whose email already belongs to a *different* local account that has a password → lands on `/login?oauth=exists`.

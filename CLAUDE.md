@@ -7,9 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **SmartBreeds** is a luxury pet companion platform using AI-powered computer vision for breed identification and health monitoring. The system employs a microservices architecture with Docker-based deployment.
 
 **Core Technologies:**
-- Frontend: React + Vite + TypeScript + Tailwind SPA in `srcs/frontend/`, built inside the
-  nginx image and served same-origin (see srcs/frontend/README.md). WCAG 2.1 AA target;
-  animations are CSS-only and pausable (`data-motion` on `<html>`)
+- Frontend: React + Vite + TypeScript + Tailwind SPA in `srcs/frontend/` (pnpm), built inside the
+  nginx image and served same-origin
 - API Gateway: FastAPI (routing, JWT validation, rate limiting)
 - Backend Services: Django 5.0.1 (auth-service) and Django 5.1.5 (user-service), both on `python:3.11-slim`
 - AI Services:
@@ -136,20 +135,11 @@ unit suites, recommendation-service's integration tests, then the root `tests/` 
 (`tests/integration/` via the gateway, `tests/e2e/` via nginx over verified HTTPS) in the
 `tester` service (profile `test`, networks `backend-network` + `proxy`, reads nginx's cert from
 the `nginx-ssl` volume). Paste its last lines into the PR. How to add a test: `tests/README.md`.
-UI tests: Playwright (Chromium) in `tests/e2e/ui/`, same `tester` service; fixtures `registered`
-and `fake_vision` in `tests/e2e/ui/conftest.py`. Every UI test also runs an autouse axe-core WCAG
-2.1 A/AA audit (`no_axe_violations`) and a CSP watchdog (`no_csp_violations`); `test_ui_a11y.py`
-covers keyboard navigation, reflow at 320 px and the dark theme. The whole UI suite runs from one
-container IP, and the frontend's `api.ts` retries 429s (up to 2 retries, honoring `Retry-After` or
-2 s, capped at 5 s) so nginx's per-IP limit (200 r/m, burst 20) doesn't trip it mid-suite. Anonymous
-visitors without the `session` localStorage hint (set on login, cleared on logout) also make no
-`/auth/verify` or `/auth/refresh` calls on load, so the suite's throwaway/unauthenticated pages
-don't add to that per-IP count either.
 
 2FA in gate tests: `helpers.totp(secret, step=1)` (stdlib RFC 6238) gives the next valid code — the
 server never accepts the same 30 s step twice, and 2fa/enable already spent the current one. Store
-`totp_secret` / `recovery_codes` on the fixture user (UI fixture `two_factor` does it) and `pop()` a
-recovery code when you use it: the `gw_user` / `ui_user` teardowns finish a 2FA login with what is left.
+`totp_secret` / `recovery_codes` on the fixture user and `pop()` a
+recovery code when you use it: the `gw_user` teardown finishes a 2FA login with what is left.
 
 **Critical Docker Workflow:**
 - Rebuild rules differ per service:
@@ -163,8 +153,8 @@ recovery code when you use it: the `gw_user` / `ui_user` teardowns finish a 2FA 
   - **ai-service**: `src/` and `tests/` are mounted — only `requirements.txt`/Dockerfile changes
     need a rebuild
   - **frontend**: baked into the nginx image — any `srcs/frontend` edit needs
-    `docker compose build nginx && docker compose up -d nginx`; the build also runs Vitest. For a
-    fast loop use `npm run dev` (srcs/frontend/README.md)
+    `docker compose build nginx && docker compose up -d nginx`. For a fast loop use `pnpm dev`
+    in `srcs/frontend`
   - **No FastAPI service runs `--reload`** (`api-gateway/Dockerfile:21`, `ai/Dockerfile:35`,
     `recommendation-service/Dockerfile:32`), so a mounted code edit needs
     `docker compose restart SERVICE` to take effect. Only auth-service and user-service really
@@ -639,7 +629,7 @@ Services use environment variables from `.env` files:
 - `.env.example` files exist for ai, api-gateway, auth-service, classification-service, db, nginx,
   recommendation-service and user-service. **`srcs/litellm/` and `srcs/ollama/` have none** — they
   are configured entirely from the root `.env` (`LITELLM_MASTER_KEY`, `OLLAMA_BASE_URL`,
-  `MISTRAL_API_KEY`) plus `srcs/litellm/config.yaml`. `srcs/frontend/.env.example` exists but is 0 bytes
+  `MISTRAL_API_KEY`) plus `srcs/litellm/config.yaml`
 - `OAUTH_42_CLIENT_ID` / `OAUTH_42_CLIENT_SECRET` (auth-service) stay empty in `.env.example`: the gate
   passes either way (`/start` → intra, or → `/login?oauth=unavailable`). Real values only in the gitignored
   `srcs/auth-service/.env`, followed by `docker compose up -d --force-recreate auth-service`
@@ -784,8 +774,6 @@ feed a printed total; do not trust them.
 - Redis integration for rate limiting (caching is not implemented — see Redis Usage above)
 - Ollama GPU setup for AI inference (qwen3-vl:8b model, `local` profile, fronted by LiteLLM)
 - Jupyter notebook for E2E pipeline testing
-- Frontend SPA: Analyze / My pets / Profile (name + email, 2FA, password or "Set a password" for 42 accounts),
-  2FA code step and "Log in with 42" on log in, IT/EN/ES, Playwright UI tests in the gate
 
 **Recently Completed:**
 - LiteLLM inference gateway — `local` (Ollama) / `cloud` (Mistral) compose profiles; AI Service

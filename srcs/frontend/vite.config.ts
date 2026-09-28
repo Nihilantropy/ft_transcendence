@@ -14,8 +14,9 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'https://localhost:8443',
         changeOrigin: true,
+        secure: false, // nginx's self-signed certificate
       },
     },
   },

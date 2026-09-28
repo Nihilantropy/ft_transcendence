@@ -2,15 +2,15 @@
 
 Date: 2026-09-27
 Status: **design by the controller under the user's standing instruction ("non fermarti finché non hai
-finito tutto")**; decisions recorded as rulings. Branch `feat/2fa-profile` from `develop` after
-sub-project A is merged. Supersedes teammate PR #12 (musturu / Lorenzo), whose two commits
+finito tutto")**; decisions recorded as rulings. Branch `feat/2fa-profile` from `develop`.
+Supersedes teammate PR #12 (musturu / Lorenzo), whose two commits
 (`ffb4f85` feature, `4d0d06b` docs, on `origin/feat/auth/2fa`) are carried over with their authorship.
 
 ## Goal
 
 Ship the subject's **Minor "Implement a complete 2FA (Two-Factor Authentication) system for the
 users"** and let users edit their profile, end to end: backend from PR #12 (conflicts resolved), gate
-tests (integration + e2e), and the frontend UI.
+tests (integration + e2e).
 
 ## What PR #12 already provides (auth-service + gateway)
 
@@ -47,34 +47,10 @@ tests (integration + e2e), and the frontend UI.
 3. **`jwt-public.pem` untracking**: accept PR #12's `git rm --cached` + `make keys`; `make gate` and
    `make up` must still produce a working key pair on a fresh clone. The local modified pem in the
    user's checkout becomes an untracked file (no data loss).
-4. **QR code rendered in the browser with the `qrcode` npm package** (MIT), SVG → `<img
-   src="data:image/svg+xml,…">` (CSP `img-src data:` already allows it). The secret is also shown as text
-   grouped in fours with a copy button — the accessible alternative to the QR. Cost: ~20 KB gz of JS.
-5. **Recovery codes** shown once, with "Copy" and "Download .txt" (Blob, no server call) and a required
-   "I've saved them" checkbox before the dialog can close.
-6. **Gate tests generate TOTP codes with a small stdlib RFC 6238 helper** in `tests/helpers.py`
+4. **Gate tests generate TOTP codes with a small stdlib RFC 6238 helper** in `tests/helpers.py`
    (hmac/sha1/base64/struct) — no new test dependency; unit-tested against the RFC 6238 test vector.
-7. **Profile editing = first name, last name, email.** No avatar, no friends (the "Standard user
+5. **Profile editing = first name, last name, email.** No avatar, no friends (the "Standard user
    management" Major is not claimed).
-
-## Frontend
-
-- `auth.tsx`: `User` gains `first_name`, `last_name`, `two_factor_enabled`. `login()` returns
-  `{ mfaToken: string } | void`; new `loginWithCode(mfaToken, code)`; `refreshUser()` re-reads
-  `/auth/verify` (used after enable/disable/profile changes). The A `session` hint is set only when a user
-  is actually set (not on `mfa_required`).
-- **Log in, second step** (same page): after `mfa_required` the card shows "Enter the 6-digit code from your
-  authenticator app" (`autocomplete="one-time-code"`, `inputmode="numeric"`, pattern hint) and a toggle
-  "Use a recovery code instead" (text input). `INVALID_2FA_CODE` → field error; `TOKEN_EXPIRED` → back to
-  step one with "The code request expired — log in again"; 429 → lockout copy. Focus moves to the code field.
-- **Profile** sections: *Your details* (first/last name, email; current password — and code when 2FA is
-  on — appear only when the email differs), *Two-factor authentication*, *Change password* (+ code when
-  2FA on), *Delete account*, Log out.
-- **2FA section**: status "On"/"Off". Off → "Turn on" opens a native `<dialog>`: step 1 QR + secret + copy;
-  step 2 current password + 6-digit code → enable; step 3 recovery codes (copy / download / confirm). On →
-  "Turn off" dialog: current password + code (TOTP or recovery).
-- Everything uses A's `useForm` / `PasswordField` / `ErrorSummary`, validation in the browser (6 digits,
-  recovery format), strings in it/en/es, copy for every new error code, axe/CSP watchdogs apply.
 
 ## Tests
 
@@ -83,9 +59,6 @@ tests (integration + e2e), and the frontend UI.
   → login returns `mfa_required` and sets no cookies → `login/2fa` → session works → a recovery code works
   once and is refused the second time → change-password needs a code → disable. Profile: PATCH names;
   email change without password → 422; with password → 200 and cookies re-issued.
-- **E2E UI `tests/e2e/ui/test_ui_two_factor.py`**: turn on 2FA from Profile reading the secret from the page;
-  recovery codes shown; log out; log in asks for the code; wrong code → error; right code → /analyze;
-  recovery-code login; turn off. Profile names saved and shown after reload.
 
 ## Out of scope
 

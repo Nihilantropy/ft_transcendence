@@ -57,7 +57,7 @@ class Pet(models.Model):
     health_conditions = models.JSONField(default=list, blank=True)
 
     image_url = models.CharField(max_length=500, null=True, blank=True)
-    # Small thumbnail as a data URL (the SPA resizes to 256 px): no media volume, no file serving.
+    # Small thumbnail as a data URL: no media volume, no file serving.
     photo = models.TextField(blank=True, default='')
 
     created_at = models.DateTimeField(auto_now_add=True)

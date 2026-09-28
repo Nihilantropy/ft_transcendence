@@ -46,6 +46,7 @@ SERVICE_ROUTES = {
     "/api/v1/auth": settings.AUTH_SERVICE_URL,
     "/api/v1/users": settings.USER_SERVICE_URL,
     "/api/v1/pets": settings.USER_SERVICE_URL,
+    "/api/v1/analyses": settings.USER_SERVICE_URL,  # pet analyses persistence (user-service)
     "/api/v1/vision": settings.AI_SERVICE_URL,
     # "/api/v1/rag": Intentionally not exposed - internal use only
     "/api/v1/recommendations": settings.RECOMMENDATION_SERVICE_URL,
