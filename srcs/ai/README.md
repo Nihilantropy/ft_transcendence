@@ -108,10 +108,21 @@ The AI Service performs **no** authentication of its own. It ignores the `X-User
 Request (`src/routes/vision.py:14-16`):
 
 ```json
-{ "image": "data:image/jpeg;base64,/9j/4AAQ..." }
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQ...",
+  "language": "it",
+  "user_context": "Ha 12 anni e zoppica dalla zampa posteriore sinistra"
+}
 ```
 
-`image` is the only field and it is required. `ImageProcessor` requires a real data URI
+`image` is required: there is no text-only analysis. `language` (`en` | `it` | `es` | `de` | `ja`, default
+`en`) sets the language of the free-text report fields. `user_context` is optional owner text
+(≤1000 characters, trimmed; blank → `null`, longer → 422) that the report takes into account —
+age, known conditions, behaviour, questions. It reaches **only** the descriptive LLM stage
+(`analyze_with_context`), never the NSFW / species / breed gates or the RAG query, so text cannot
+talk its way past them. In the prompt it sits inside an `<<<OWNER_NOTES … OWNER_NOTES>>>` fence
+labelled as information, not instructions (delimiters are stripped from the text), and the model
+is told to trust the image when the two disagree. Its content is never logged, only its length. `ImageProcessor` requires a real data URI
 (`data:image/<fmt>;base64,<payload>`); a bare base64 string is rejected. Accepted formats:
 `jpeg`, `jpg`, `png`, `webp`.
 
