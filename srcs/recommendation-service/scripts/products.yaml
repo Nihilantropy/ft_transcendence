@@ -12,6 +12,7 @@ products:
   # Senior / Joint Health
   - name: Royal Canin Golden Retriever Adult
     brand: Royal Canin
+    image_url: /api/v1/recommendations/images/royal-canin-golden-retriever-adult.jpg
     description: Breed-specific formula for Golden Retrievers
     price: 89.99
     target_species: dog
@@ -28,6 +29,7 @@ products:
 
   - name: "Hill's Science Diet Senior 7+ Large Breed"
     brand: "Hill's"
+    image_url: /api/v1/recommendations/images/hills-science-diet-senior-7-large-breed.jpg
     description: Senior formula for large breed dogs
     price: 79.99
     target_species: dog
@@ -43,6 +45,7 @@ products:
   # Puppy / Adult
   - name: Purina Pro Plan Puppy Large Breed
     brand: Purina
+    image_url: /api/v1/recommendations/images/purina-pro-plan-puppy-large-breed.jpg
     description: Growth formula for large breed puppies
     price: 69.99
     target_species: dog
@@ -54,6 +57,7 @@ products:
 
   - name: Blue Buffalo Life Protection Adult
     brand: Blue Buffalo
+    image_url: /api/v1/recommendations/images/blue-buffalo-life-protection-adult.jpg
     description: Natural adult dog food
     price: 74.99
     target_species: dog
@@ -67,6 +71,7 @@ products:
   # Sensitive Stomach
   - name: Purina Pro Plan Sensitive Skin & Stomach
     brand: Purina
+    image_url: /api/v1/recommendations/images/purina-pro-plan-sensitive-skin-stomach.jpg
     description: Easy-to-digest formula for sensitive dogs
     price: 72.99
     target_species: dog
@@ -79,6 +84,7 @@ products:
 
   - name: Natural Balance L.I.D. Lamb & Brown Rice
     brand: Natural Balance
+    image_url: /api/v1/recommendations/images/natural-balance-lid-lamb-brown-rice.jpg
     description: Limited ingredient diet for sensitive stomachs
     price: 67.99
     target_species: dog
@@ -91,6 +97,7 @@ products:
   # Weight Management
   - name: "Hill's Science Diet Perfect Weight"
     brand: "Hill's"
+    image_url: /api/v1/recommendations/images/hills-science-diet-perfect-weight.jpg
     description: Clinically proven weight loss formula
     price: 76.99
     target_species: dog
@@ -103,6 +110,7 @@ products:
   # Grain-Free / Hypoallergenic
   - name: Taste of the Wild High Prairie
     brand: Taste of the Wild
+    image_url: /api/v1/recommendations/images/taste-of-the-wild-high-prairie.jpg
     description: Grain-free with roasted bison and venison
     price: 69.99
     target_species: dog
@@ -116,6 +124,7 @@ products:
 
   - name: Royal Canin Feline Health Nutrition Adult
     brand: Royal Canin
+    image_url: /api/v1/recommendations/images/royal-canin-feline-health-nutrition-adult.jpg
     description: Complete and balanced nutrition for adult cats
     price: 54.99
     target_species: cat
@@ -127,6 +136,7 @@ products:
 
   - name: "Hill's Science Diet Senior 11+ Indoor"
     brand: "Hill's"
+    image_url: /api/v1/recommendations/images/hills-science-diet-senior-11-indoor.jpg
     description: Senior formula for indoor cats
     price: 49.99
     target_species: cat
@@ -140,6 +150,7 @@ products:
 
   - name: Purina Pro Plan Sensitive Skin & Stomach Cat
     brand: Purina
+    image_url: /api/v1/recommendations/images/purina-pro-plan-sensitive-skin-stomach-cat.jpg
     description: Easy-to-digest formula for cats with sensitivities
     price: 52.99
     target_species: cat
@@ -152,6 +163,7 @@ products:
 
   - name: Blue Buffalo Wilderness High Protein Cat
     brand: Blue Buffalo
+    image_url: /api/v1/recommendations/images/blue-buffalo-wilderness-high-protein-cat.jpg
     description: Grain-free, high-protein cat food
     price: 58.99
     target_species: cat
@@ -162,6 +174,7 @@ products:
 
   - name: Royal Canin Urinary SO Cat
     brand: Royal Canin
+    image_url: /api/v1/recommendations/images/royal-canin-urinary-so-cat.jpg
     description: Veterinary diet for urinary health
     price: 64.99
     target_species: cat
@@ -173,6 +186,7 @@ products:
   # Kitten
   - name: Royal Canin Kitten
     brand: Royal Canin
+    image_url: /api/v1/recommendations/images/royal-canin-kitten.jpg
     description: Complete nutrition for kittens up to 12 months
     price: 47.99
     target_species: cat
@@ -185,6 +199,7 @@ products:
 
   - name: Purina Pro Plan Kitten Chicken & Rice
     brand: Purina
+    image_url: /api/v1/recommendations/images/purina-pro-plan-kitten-chicken-rice.jpg
     description: High-protein formula to support kitten growth and immunity
     price: 44.99
     target_species: cat
@@ -198,6 +213,7 @@ products:
   # Indoor
   - name: "Hill's Science Diet Adult Indoor Cat"
     brand: "Hill's"
+    image_url: /api/v1/recommendations/images/hills-science-diet-adult-indoor-cat.jpg
     description: Clinically proven to reduce hairballs and maintain healthy weight for indoor cats
     price: 51.99
     target_species: cat
@@ -211,6 +227,7 @@ products:
 
   - name: Wellness CORE Grain-Free Indoor
     brand: Wellness
+    image_url: /api/v1/recommendations/images/wellness-core-grain-free-indoor.jpg
     description: Grain-free, low-fat formula designed for less-active indoor cats
     price: 59.99
     target_species: cat
@@ -226,6 +243,7 @@ products:
   # Hairball Control
   - name: Purina ONE Hairball Formula Adult Cat
     brand: Purina
+    image_url: /api/v1/recommendations/images/purina-one-hairball-formula-adult-cat.jpg
     description: High-fiber blend to minimize hairball formation and support digestion
     price: 42.99
     target_species: cat
@@ -237,6 +255,7 @@ products:
 
   - name: Iams Proactive Health Hairball Care
     brand: Iams
+    image_url: /api/v1/recommendations/images/iams-proactive-health-hairball-care.jpg
     description: Clinically proven to reduce hairballs with natural fiber blend
     price: 38.99
     target_species: cat
@@ -249,6 +268,7 @@ products:
   # Weight Management
   - name: "Hill's Science Diet Perfect Weight Cat"
     brand: "Hill's"
+    image_url: /api/v1/recommendations/images/hills-science-diet-perfect-weight-cat.jpg
     description: Clinically proven weight management formula for cats
     price: 54.99
     target_species: cat
@@ -262,6 +282,7 @@ products:
   # Hypoallergenic / Limited Ingredient
   - name: Natural Balance L.I.D. Green Pea & Duck Cat
     brand: Natural Balance
+    image_url: /api/v1/recommendations/images/natural-balance-lid-green-pea-duck-cat.jpg
     description: Limited ingredient diet for cats with food sensitivities
     price: 56.99
     target_species: cat
@@ -278,6 +299,7 @@ products:
   # Dental Health
   - name: Royal Canin Dental Care Cat
     brand: Royal Canin
+    image_url: /api/v1/recommendations/images/royal-canin-dental-care-cat.jpg
     description: Specially textured kibble to reduce tartar and plaque build-up
     price: 61.99
     target_species: cat
@@ -291,6 +313,7 @@ products:
   # High Protein / Raw-Inspired
   - name: Orijen Cat & Kitten
     brand: Orijen
+    image_url: /api/v1/recommendations/images/orijen-cat-kitten.jpg
     description: Biologically appropriate formula with 90% quality animal ingredients
     price: 79.99
     target_species: cat
