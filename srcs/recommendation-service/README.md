@@ -381,15 +381,19 @@ fail with a FK violation if either history table ever holds rows.
 
 YAML entries accept exactly the `Product` column names. Omitted booleans default to `false`;
 `price`, `min/max_weight_kg` and the three `*_percentage` fields are converted to `Decimal`
-(`scripts/seed_products.py:25-32`). `is_active`, `product_url`, `organic` and `raw_food` are
-not set by any current YAML entry.
+(`scripts/seed_products.py:25-32`). `is_active`, `organic` and `raw_food` are not set by any
+current YAML entry.
 
 Every entry sets `image_url: /api/v1/recommendations/images/<slug>.jpg`: the photo is a file in
-`static/products/`, served by the service itself (`src/main.py`, `StaticFiles`) and reached through
-the gateway like any other `/api/v1/recommendations` call, so it stays same-origin for nginx's CSP
-(`img-src 'self'`). Adding a product means adding its photo there too;
-`tests/unit/test_product_images.py` fails otherwise. Existing rows only pick up a changed
-`image_url` with `seed_products.py --force`.
+`static/products/`, served by the service itself (`src/main.py`, `CachedStaticFiles`) and reached
+through the gateway like any other `/api/v1/recommendations` call, so it stays same-origin for
+nginx's CSP (`img-src 'self'`). Successful responses carry `Cache-Control: private, max-age=86400`
+(a day in the browser, private because they come through the authenticated gateway), so a changed
+photo needs a new file name. Adding a product means adding its photo there too;
+`tests/unit/test_product_images.py` fails otherwise.
+
+Every entry also sets `product_url` to the product's page on the brand's official site. Existing
+rows only pick up a changed `image_url` or `product_url` with `seed_products.py --force`.
 
 ## Testing
 

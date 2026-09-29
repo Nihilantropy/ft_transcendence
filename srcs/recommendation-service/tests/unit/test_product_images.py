@@ -29,3 +29,11 @@ def test_product_image_is_served_as_jpeg():
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/jpeg"
+
+
+@pytest.mark.unit
+def test_product_image_is_cacheable_by_the_browser_only():
+    """A day in the browser's own cache (private: it comes through the authenticated gateway)."""
+    response = TestClient(app).get(catalog_image_urls()[0])
+
+    assert response.headers["cache-control"] == "private, max-age=86400"
