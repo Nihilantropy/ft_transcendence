@@ -1,3 +1,5 @@
+import type { Language } from '@/i18n/i18n'
+
 // ---------------------------------------------------------------------------
 // User
 // ---------------------------------------------------------------------------
@@ -161,6 +163,15 @@ export type VisionAnalysisData = {
   traits: BreedTraits
   health_observations: string[]
   enriched_info: EnrichedInfo | null
+  language?: Language
+  translations?: Partial<Record<Language, ReportTranslation>>
+}
+
+// the report's free text: what changes with the language
+export type ReportTranslation = {
+  description: string
+  temperament: string
+  health_observations: string[]
 }
 
 // ---------------------------------------------------------------------------

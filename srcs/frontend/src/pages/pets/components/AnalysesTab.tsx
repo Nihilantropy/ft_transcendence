@@ -91,6 +91,7 @@ export function AnalysesTab({ petId }: AnalysesTabProps) {
           {openAnalysis?.raw_response && (
             <AnalysisResultCard
               data={openAnalysis.raw_response as unknown as VisionAnalysisData}
+              analysisId={openAnalysis.id}
               hideSave
             />
           )}

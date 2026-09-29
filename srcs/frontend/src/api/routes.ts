@@ -11,6 +11,7 @@ import type {
   PetAnalysis,
   PetPayload,
   RegisterPayload,
+  ReportTranslation,
   TwoFactorConfirmPayload,
   TwoFactorLoginPayload,
   TwoFactorSetup,
@@ -143,11 +144,30 @@ export async function analyzeImage(
       signal,
     })
     .json()
-  return unwrap(response)
+  // saved with the report, so it can be translated when the interface changes language
+  return { ...unwrap(response), language }
 }
 
 export async function createAnalysis(payload: AnalysisPayload): Promise<PetAnalysis> {
   const response: ApiResponse<PetAnalysis> = await api.post('v1/analyses', { json: payload }).json()
+  return unwrap(response)
+}
+
+export async function translateReport(texts: string[], language: Language): Promise<string[]> {
+  const response: ApiResponse<{ texts: string[] }> = await api
+    .post('v1/vision/translate', { json: { texts, language }, timeout: 120_000 })
+    .json()
+  return unwrap(response).texts
+}
+
+export async function saveReportTranslation(
+  analysisId: string,
+  language: Language,
+  translation: ReportTranslation,
+): Promise<PetAnalysis> {
+  const response: ApiResponse<PetAnalysis> = await api
+    .post(`v1/analyses/${analysisId}/translations`, { json: { language, ...translation } })
+    .json()
   return unwrap(response)
 }
 

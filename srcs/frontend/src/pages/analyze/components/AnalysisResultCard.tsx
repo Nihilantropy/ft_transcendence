@@ -15,7 +15,9 @@ import {
 import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown'
 import { Image } from '@/components/ui/Image'
 import { MarkdownLite } from '@/components/ui/MarkdownLite'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { toast } from '@/components/ui/Toast'
+import { useLocalizedReport } from '@/hooks/useLocalizedReport'
 import { breedDisplayName } from '@/lib/breeds'
 import { cn, getApiErrorMessage } from '@/lib/utils'
 import { useCreateAnalysisMutation, useListPets, useUpdatePetMutation } from '@/queries/pets'
@@ -33,6 +35,7 @@ interface AnalysisResultCardProps {
   initialPetId?: string
   // read-only mode: viewing an already-saved analysis (no save section)
   hideSave?: boolean
+  analysisId?: string
 }
 
 const TRAIT_VALUE_KEYS = {
@@ -46,12 +49,15 @@ export function AnalysisResultCard({
   photo,
   initialPetId,
   hideSave,
+  analysisId,
 }: AnalysisResultCardProps) {
   const { t } = useTranslation(['analyze', 'breeds', 'pets'])
-  const { breed_analysis: breed } = data
+
+  const { report, isTranslating } = useLocalizedReport(data, analysisId)
+  const { breed_analysis: breed } = report
 
   const traitEntries = (['size', 'energy_level', 'temperament'] as const).flatMap((k) => {
-    const raw = data.traits[k]
+    const raw = report.traits[k]
     if (typeof raw !== 'string' || raw.trim() === '') return []
     const value =
       k === 'temperament'
@@ -69,7 +75,7 @@ export function AnalysisResultCard({
   const mixCommonName = breed.crossbreed_analysis?.common_name ?? undefined
 
   // LLM output: guard every list/string against null and whitespace-only values
-  const healthObservations = (data.health_observations ?? []).filter((o) => o.trim() !== '')
+  const healthObservations = (report.health_observations ?? []).filter((o) => o.trim() !== '')
 
   return (
     <Card radius="lg" background="elevated" padding="md" className="space-y-6">
@@ -77,7 +83,7 @@ export function AnalysisResultCard({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-text-lo" aria-hidden>
-            {renderSpeciesIcon(data.species === 'cat' ? 'cat' : 'dog', {
+            {renderSpeciesIcon(report.species === 'cat' ? 'cat' : 'dog', {
               size: 18,
               strokeWidth: 1.5,
             })}
@@ -107,7 +113,11 @@ export function AnalysisResultCard({
       </div>
 
       {/* description of this animal */}
-      {data.description.trim() !== '' && <MarkdownLite text={data.description} />}
+      {report.description.trim() !== '' && (
+        <TranslatingText isTranslating={isTranslating}>
+          <MarkdownLite text={report.description} />
+        </TranslatingText>
+      )}
 
       {/* traits (LLM output, keys optional) */}
       {traitEntries.length > 0 && (
@@ -117,7 +127,13 @@ export function AnalysisResultCard({
               <dt className="text-text-lo text-xs font-medium tracking-[0.15em] uppercase">
                 {t(`analyze:result.${key}`)}
               </dt>
-              <dd className="text-text-hi mt-1 text-sm first-letter:uppercase">{value}</dd>
+              <dd className="text-text-hi mt-1 text-sm first-letter:uppercase">
+                {key === 'temperament' ? (
+                  <TranslatingText isTranslating={isTranslating}>{value}</TranslatingText>
+                ) : (
+                  value
+                )}
+              </dd>
             </div>
           ))}
         </dl>
@@ -126,22 +142,40 @@ export function AnalysisResultCard({
       {/* visible health observations */}
       {healthObservations.length > 0 && (
         <ResultSection title={t('analyze:result.health')}>
-          <ul className="text-text-hi space-y-1.5 text-sm">
-            {healthObservations.map((obs) => (
-              <li key={obs} className="flex items-start gap-2.5">
-                <span
-                  className="bg-text-lo/60 mt-2 h-1 w-1 flex-shrink-0 rounded-full"
-                  aria-hidden
-                />
-                {obs}
-              </li>
-            ))}
-          </ul>
+          <TranslatingText isTranslating={isTranslating}>
+            <ul className="text-text-hi space-y-1.5 text-sm">
+              {healthObservations.map((obs) => (
+                <li key={obs} className="flex items-start gap-2.5">
+                  <span
+                    className="bg-text-lo/60 mt-2 h-1 w-1 flex-shrink-0 rounded-full"
+                    aria-hidden
+                  />
+                  {obs}
+                </li>
+              ))}
+            </ul>
+          </TranslatingText>
         </ResultSection>
       )}
 
       {!hideSave && <SaveSection data={data} photo={photo} initialPetId={initialPetId} />}
     </Card>
+  )
+}
+
+// while waiting for the translation
+function TranslatingText({
+  isTranslating,
+  children,
+}: {
+  isTranslating: boolean
+  children: ReactNode
+}) {
+  if (!isTranslating) return children
+  return (
+    <Skeleton aria-busy className="bg-text-lo/10">
+      <div className="invisible">{children}</div>
+    </Skeleton>
   )
 }
 
