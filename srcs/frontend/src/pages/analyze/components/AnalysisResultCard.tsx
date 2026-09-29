@@ -16,6 +16,7 @@ import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown'
 import { Image } from '@/components/ui/Image'
 import { MarkdownLite } from '@/components/ui/MarkdownLite'
 import { toast } from '@/components/ui/Toast'
+import { breedDisplayName } from '@/lib/breeds'
 import { cn, getApiErrorMessage } from '@/lib/utils'
 import { useCreateAnalysisMutation, useListPets, useUpdatePetMutation } from '@/queries/pets'
 import { useUser } from '@/stores/auth'
@@ -58,6 +59,15 @@ export function AnalysisResultCard({
         : t(`analyze:result.${TRAIT_VALUE_KEYS[k]}.${raw}`, { defaultValue: raw })
     return [{ key: k, value }]
   })
+  // a likely mix:
+  const breedName = (id: string) => breedDisplayName(id, t)
+  const [firstBreed, secondBreed] = breed.breed_probabilities
+  const mixParents =
+    breed.is_likely_crossbreed && firstBreed && secondBreed
+      ? ([firstBreed, secondBreed] as const)
+      : null
+  const mixCommonName = breed.crossbreed_analysis?.common_name ?? undefined
+
   // LLM output: guard every list/string against null and whitespace-only values
   const healthObservations = (data.health_observations ?? []).filter((o) => o.trim() !== '')
 
@@ -75,24 +85,25 @@ export function AnalysisResultCard({
           <BreedBadge
             breed={breed.primary_breed}
             confidence={breed.confidence}
+            label={mixParents ? (mixCommonName ?? t('analyze:result.mix')) : undefined}
             className="px-3 py-0.5 text-[13px]"
           />
         </div>
-        {breed.is_likely_crossbreed &&
-          breed.crossbreed_analysis &&
-          (breed.crossbreed_analysis.common_name ??
-            breed.crossbreed_analysis.detected_breeds.length > 0) && (
-            <div className="text-text-mid text-sm">
-              <span className="text-text-hi font-medium">{t('analyze:result.crossbreed')}: </span>
-              {breed.crossbreed_analysis.common_name ??
-                breed.crossbreed_analysis.detected_breeds.join(' × ')}
-              {breed.crossbreed_analysis.confidence_reasoning.trim() !== '' && (
-                <p className="text-text-lo mt-0.5 text-xs">
-                  {breed.crossbreed_analysis.confidence_reasoning}
-                </p>
-              )}
-            </div>
-          )}
+        {mixParents && (
+          <div className="text-text-mid text-sm">
+            <span className="text-text-hi font-medium">{t('analyze:result.crossbreed')}: </span>
+            {breedName(mixParents[0].breed)}
+            {/* the font draws "×" above the text's middle: nudged down to sit on it */}
+            <span className="relative top-[0.12em] mx-1.5">×</span>
+            {breedName(mixParents[1].breed)}
+            <p className="text-text-lo mt-0.5 text-xs">
+              {t('analyze:result.mixReason', {
+                first: Math.round(mixParents[0].probability * 100),
+                second: Math.round(mixParents[1].probability * 100),
+              })}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* description of this animal */}
@@ -232,7 +243,7 @@ function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
               <DialogDescription>
                 {t('analyze:save.updateMessage', {
                   name: savedPet?.name ?? '',
-                  breed: t(`breeds:${detectedBreed}`, { defaultValue: detectedBreed }),
+                  breed: breedDisplayName(detectedBreed, t),
                   confidence: Math.round(data.breed_analysis.confidence * 100),
                 })}
               </DialogDescription>

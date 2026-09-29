@@ -20,6 +20,8 @@
   },
   "result": {
     "crossbreed": "Probabile incrocio",
+    "mix": "Incrocio",
+    "mixReason": "Due razze con probabilità simili: {{first}}% e {{second}}%.",
     "size": "Taglia",
     "energy_level": "Energia",
     "temperament": "Temperamento",

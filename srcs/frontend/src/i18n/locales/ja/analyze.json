@@ -20,6 +20,8 @@
   },
   "result": {
     "crossbreed": "ミックスの可能性があります",
+    "mix": "ミックス",
+    "mixReason": "2つの品種の確率が近いです（{{first}}%・{{second}}%）。",
     "size": "サイズ",
     "energy_level": "活発さ",
     "temperament": "性格",

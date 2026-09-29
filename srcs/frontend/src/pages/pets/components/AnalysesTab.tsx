@@ -86,7 +86,7 @@ export function AnalysesTab({ petId }: AnalysesTabProps) {
           if (!open) setOpenAnalysis(null)
         }}
       >
-        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto pt-12">
           <DialogTitle className="sr-only">{t('analyses.reportTitle')}</DialogTitle>
           {openAnalysis?.raw_response && (
             <AnalysisResultCard

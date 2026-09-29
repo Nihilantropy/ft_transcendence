@@ -1,4 +1,6 @@
 import type { Species } from '@/api/types'
+import { titleCase } from '@/lib/utils'
+import type { TFunction } from 'i18next'
 
 export const DOG_BREED_IDS: readonly string[] = [
   'affenpinscher',
@@ -179,4 +181,27 @@ export function getBreedsForSpecies(species: Species): readonly string[] {
   if (species === 'dog') return DOG_BREED_IDS
   if (species === 'cat') return CAT_BREED_IDS
   return []
+}
+
+const MIX_SUFFIX = '_mix'
+
+// find the split where both halves are known breed ids, so each can be translated
+export function splitMixBreed(id: string): [string, string] | null {
+  if (!id.endsWith(MIX_SUFFIX)) return null
+  const known = new Set<string>([...DOG_BREED_IDS, ...CAT_BREED_IDS])
+  const parts = id.slice(0, -MIX_SUFFIX.length).split('_')
+  for (let i = 1; i < parts.length; i++) {
+    const first = parts.slice(0, i).join('_')
+    const second = parts.slice(i).join('_')
+    if (known.has(first) && known.has(second)) return [first, second]
+  }
+  return null
+}
+
+// a breed id as shown to the user, a mix as "A × B"; t must reach the 'breeds' namespace
+export function breedDisplayName(id: string, t: TFunction): string {
+  const name = (breed: string) =>
+    t(`breeds:${breed}`, { defaultValue: titleCase(breed.replace(/_/g, ' ')) })
+  const mix = splitMixBreed(id)
+  return mix ? `${name(mix[0])} × ${name(mix[1])}` : name(id)
 }

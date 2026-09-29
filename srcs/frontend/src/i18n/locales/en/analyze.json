@@ -20,6 +20,8 @@
   },
   "result": {
     "crossbreed": "Likely crossbreed",
+    "mix": "Mix",
+    "mixReason": "Two breeds with similar probabilities: {{first}}% and {{second}}%.",
     "size": "Size",
     "energy_level": "Energy",
     "temperament": "Temperament",

@@ -1,3 +1,4 @@
+import { splitMixBreed } from '@/lib/breeds'
 import { cn, titleCase } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -5,11 +6,15 @@ interface BreedBadgeProps {
   breed: string
   confidence?: number | null
   className?: string
+  // shown instead of the breed's name (e.g. "Crossbreed" for a mix)
+  label?: string
 }
 
 // breed + AI-detection confidence
-export function BreedBadge({ breed, confidence, className }: BreedBadgeProps) {
+export function BreedBadge({ breed, confidence, className, label }: BreedBadgeProps) {
   const { t } = useTranslation('breeds')
+  const name = (id: string) => t(id, { defaultValue: titleCase(id.replace(/_/g, ' ')) })
+  const mix = splitMixBreed(breed)
 
   return (
     <span
@@ -18,7 +23,18 @@ export function BreedBadge({ breed, confidence, className }: BreedBadgeProps) {
         className,
       )}
     >
-      <span>{t(breed, { defaultValue: titleCase(breed.replace(/_/g, ' ')) })}</span>
+      <span>
+        {label ??
+          (mix ? (
+            <>
+              {name(mix[0])}
+              <span className="relative top-[0.12em] mx-1">×</span>
+              {name(mix[1])}
+            </>
+          ) : (
+            name(breed)
+          ))}
+      </span>
       {confidence && (
         <span className="text-accent/70 tabular-nums">{Math.round(confidence * 100)}%</span>
       )}
