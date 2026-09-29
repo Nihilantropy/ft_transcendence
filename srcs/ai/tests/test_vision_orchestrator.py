@@ -331,3 +331,64 @@ async def test_cat_species_pipeline(mock_classification, mock_ollama, mock_rag, 
     # Verify breed detection called with species="cat"
     call_args = mock_classification.detect_breed.call_args
     assert call_args[0][1] == "cat"
+
+
+def _happy_classification(mock_classification):
+    mock_classification.check_content = AsyncMock(return_value={"is_safe": True})
+    mock_classification.detect_species = AsyncMock(return_value={"species": "dog", "confidence": 0.9})
+    mock_classification.detect_breed = AsyncMock(return_value={"breed_analysis": {
+        "primary_breed": "golden_retriever", "confidence": 0.89,
+        "is_likely_crossbreed": False, "breed_probabilities": [],
+    }})
+
+
+def _happy_llm(mock_ollama, mock_rag):
+    mock_rag.get_breed_context = AsyncMock(return_value=None)
+    mock_ollama.analyze_with_context = AsyncMock(return_value={
+        "description": "An older dog",
+        "traits": {"size": "large", "energy_level": "low", "temperament": "calm"},
+        "health_observations": [],
+    })
+
+
+@pytest.mark.asyncio
+async def test_user_context_reaches_only_the_descriptive_stage(mock_classification, mock_ollama, mock_rag, mock_config):
+    """The owner's text goes to the LLM description, never to the NSFW/species/breed gates."""
+    _happy_classification(mock_classification)
+    _happy_llm(mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
+
+    await orchestrator.analyze_image("data:image/jpeg;base64,test123", "it", "Ha 12 anni")
+
+    assert mock_ollama.analyze_with_context.call_args[1]["user_context"] == "Ha 12 anni"
+    for gate in (mock_classification.check_content, mock_classification.detect_species,
+                 mock_classification.detect_breed):
+        assert "Ha 12 anni" not in repr(gate.call_args)
+
+
+@pytest.mark.asyncio
+async def test_user_context_defaults_to_none(mock_classification, mock_ollama, mock_rag, mock_config):
+    _happy_classification(mock_classification)
+    _happy_llm(mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
+
+    await orchestrator.analyze_image("data:image/jpeg;base64,test123")
+
+    assert mock_ollama.analyze_with_context.call_args[1]["user_context"] is None
+
+
+@pytest.mark.asyncio
+async def test_user_context_on_vlm_only_path(mock_classification, mock_ollama, mock_rag, mock_config):
+    """VLM-only: the text reaches the description, not the LLM's breed detection."""
+    mock_config.CLASSIFICATION_ENABLED = False
+    mock_ollama.analyze_breed = AsyncMock(return_value={"species": "dog", "breed_analysis": {
+        "primary_breed": "golden_retriever", "confidence": 0.8,
+        "is_likely_crossbreed": False, "breed_probabilities": [],
+    }})
+    _happy_llm(mock_ollama, mock_rag)
+    orchestrator = VisionOrchestrator(mock_classification, mock_ollama, mock_rag, mock_config)
+
+    await orchestrator.analyze_image("data:image/jpeg;base64,test123", "en", "He limps")
+
+    assert mock_ollama.analyze_with_context.call_args[1]["user_context"] == "He limps"
+    assert "He limps" not in repr(mock_ollama.analyze_breed.call_args)
