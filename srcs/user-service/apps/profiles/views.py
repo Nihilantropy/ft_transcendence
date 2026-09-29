@@ -6,7 +6,7 @@ from apps.profiles.models import UserProfile, Pet, PetAnalysis
 from apps.profiles.serializers import (
     UserProfileSerializer, UserProfileUpdateSerializer,
     PetSerializer, PetCreateSerializer,
-    PetAnalysisSerializer, PetAnalysisCreateSerializer
+    PetAnalysisSerializer, PetAnalysisCreateSerializer, AnalysisTranslationSerializer
 )
 from apps.profiles.permissions import IsOwnerOrAdmin
 from apps.profiles.utils import success_response, error_response
@@ -224,3 +224,31 @@ class PetAnalysisViewSet(viewsets.ModelViewSet):
             return success_response(serializer.data)
         except PetAnalysis.DoesNotExist:
             return error_response('NOT_FOUND', 'Analysis not found', status=404)
+
+    @action(detail=True, methods=['post'])
+    def translations(self, request, pk=None):
+        """POST /api/v1/analyses/{id}/translations
+
+        Stores the report's free text in another language under
+        raw_response.translations.<language>, so it is translated only once
+        """
+        serializer = AnalysisTranslationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response('VALIDATION_ERROR', 'Invalid input', serializer.errors, status=422)
+        fields = dict(serializer.validated_data)
+        language = fields.pop('language')
+
+        with transaction.atomic():
+            # locked: two languages saved at once must not overwrite each other
+            try:
+                analysis = self.get_queryset().select_for_update().get(pk=pk)
+            except PetAnalysis.DoesNotExist:
+                return error_response('NOT_FOUND', 'Analysis not found', status=404)
+            self.check_object_permissions(request, analysis)
+            if not isinstance(analysis.raw_response, dict):
+                return error_response('NO_REPORT', 'This analysis has no report to translate', status=409)
+            translations = {**analysis.raw_response.get('translations', {}), language: fields}
+            analysis.raw_response = {**analysis.raw_response, 'translations': translations}
+            analysis.save(update_fields=['raw_response'])
+
+        return success_response(PetAnalysisSerializer(analysis).data)

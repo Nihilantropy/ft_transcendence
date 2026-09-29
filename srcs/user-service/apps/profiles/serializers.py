@@ -165,3 +165,15 @@ class PetAnalysisCreateSerializer(serializers.ModelSerializer):
         model = PetAnalysis
         fields = ['pet_id', 'user_id', 'image_url', 'breed_detected',
                   'confidence', 'traits', 'raw_response']
+
+
+class AnalysisTranslationSerializer(serializers.Serializer):
+    """A saved report's free text in another interface language (translated by ai-service)"""
+
+    language = serializers.ChoiceField(choices=['it', 'en', 'ja'])
+    description = serializers.CharField(allow_blank=True, max_length=10000)
+    temperament = serializers.CharField(allow_blank=True, max_length=2000, required=False, default='')
+    health_observations = serializers.ListField(
+        child=serializers.CharField(allow_blank=True, max_length=2000),
+        max_length=50, required=False, default=list,
+    )

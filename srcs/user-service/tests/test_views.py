@@ -878,3 +878,69 @@ class TestPetAnalysisViewSetAdditional:
         
         assert response.status_code == 404
         assert response.data['error']['code'] == 'NOT_FOUND'
+
+
+@pytest.mark.django_db
+class TestAnalysisTranslations:
+    def _post(self, analysis_id, user_id, data):
+        request = RequestFactory().post(
+            f'/api/v1/analyses/{analysis_id}/translations',
+            data=json.dumps(data), content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        view = PetAnalysisViewSet.as_view({'post': 'translations'})
+        return view(request, pk=str(analysis_id))
+
+    def _analysis(self, user_id, raw_response):
+        return PetAnalysis.objects.create(
+            pet_id=uuid.uuid4(), user_id=user_id, image_url='/x.jpg',
+            breed_detected='Lab', confidence=0.9, traits={}, raw_response=raw_response
+        )
+
+    def test_translation_is_stored_next_to_the_original(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, {'description': 'Un cane', 'language': 'it'})
+
+        response = self._post(analysis.id, user_id, {
+            'language': 'ja', 'description': '犬', 'temperament': '穏やか',
+            'health_observations': ['健康'],
+        })
+
+        assert response.status_code == 200
+        analysis.refresh_from_db()
+        assert analysis.raw_response['description'] == 'Un cane'
+        assert analysis.raw_response['translations']['ja'] == {
+            'description': '犬', 'temperament': '穏やか', 'health_observations': ['健康'],
+        }
+
+    def test_a_second_language_keeps_the_first(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, {'description': 'Un cane'})
+        self._post(analysis.id, user_id, {'language': 'ja', 'description': '犬'})
+        self._post(analysis.id, user_id, {'language': 'en', 'description': 'A dog'})
+
+        analysis.refresh_from_db()
+        assert set(analysis.raw_response['translations']) == {'ja', 'en'}
+
+    def test_another_users_analysis_is_not_found(self):
+        analysis = self._analysis(uuid.uuid4(), {'description': 'Un cane'})
+        response = self._post(analysis.id, uuid.uuid4(), {'language': 'ja', 'description': '犬'})
+
+        assert response.status_code == 404
+        analysis.refresh_from_db()
+        assert 'translations' not in analysis.raw_response
+
+    def test_unknown_language_is_rejected(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, {'description': 'Un cane'})
+        response = self._post(analysis.id, user_id, {'language': 'xx', 'description': 'x'})
+
+        assert response.status_code == 422
+
+    def test_analysis_without_report_is_a_conflict(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, None)
+        response = self._post(analysis.id, user_id, {'language': 'ja', 'description': '犬'})
+
+        assert response.status_code == 409

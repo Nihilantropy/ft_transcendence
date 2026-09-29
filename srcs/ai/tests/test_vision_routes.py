@@ -87,3 +87,39 @@ def test_unsupported_language_is_rejected(client, orchestrator):
     r = client.post("/api/v1/vision/analyze", json={"image": IMAGE, "language": "fr"})
     assert r.status_code == 422
     orchestrator.analyze_image.assert_not_called()
+
+
+# --- /translate ---
+
+@pytest.fixture
+def llm(monkeypatch):
+    llm_client = Mock()
+    llm_client.translate_texts = AsyncMock(return_value=["Un cane", "calmo"])
+    monkeypatch.setattr(vision, "llm_client", llm_client)
+    return llm_client
+
+
+def test_translate_returns_the_texts_in_order(client, llm):
+    r = client.post("/api/v1/vision/translate", json={"texts": ["A dog", "calm"], "language": "it"})
+    assert r.status_code == 200
+    assert r.json()["data"] == {"texts": ["Un cane", "calmo"]}
+    llm.translate_texts.assert_awaited_once_with(["A dog", "calm"], "it")
+
+
+def test_translate_rejects_an_unknown_language(client, llm):
+    r = client.post("/api/v1/vision/translate", json={"texts": ["A dog"], "language": "xx"})
+    assert r.status_code == 422
+    llm.translate_texts.assert_not_awaited()
+
+
+def test_translate_llm_unreachable_is_503(client, llm):
+    llm.translate_texts.side_effect = ConnectionError("down")
+    r = client.post("/api/v1/vision/translate", json={"texts": ["A dog"], "language": "it"})
+    assert r.status_code == 503
+
+
+def test_translate_unusable_reply_is_500(client, llm):
+    llm.translate_texts.side_effect = RuntimeError("Translation reply does not match")
+    r = client.post("/api/v1/vision/translate", json={"texts": ["A dog"], "language": "it"})
+    assert r.status_code == 500
+    assert r.json()["detail"]["error"]["code"] == "TRANSLATION_FAILED"

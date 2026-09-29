@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     # Inject into routes
     vision.image_processor = image_processor
     vision.vision_orchestrator = vision_orchestrator
+    vision.llm_client = ollama_client
 
     rag.rag_service = rag_service
     rag.document_processor = document_processor

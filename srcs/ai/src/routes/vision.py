@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal, Optional
+from typing import Annotated, List, Literal, Optional
 import logging
 from datetime import datetime
 
@@ -30,9 +30,16 @@ class VisionAnalysisRequest(BaseModel):
         return v.strip()
 
 
+class TranslationRequest(BaseModel):
+    """Free-text fields of a saved report, to show it in another interface language."""
+    texts: List[Annotated[str, Field(max_length=10000)]] = Field(..., max_length=50)
+    language: Literal["en", "it", "es", "de", "ja"] = Field(..., description="Target language")
+
+
 # Service instances (injected at startup)
 image_processor = None
 vision_orchestrator = None  # Changed from ollama_client
+llm_client = None
 
 
 @router.post("/analyze", response_model=VisionAnalysisResponse)
@@ -127,6 +134,41 @@ async def analyze_image(request: VisionAnalysisRequest):
                 "timestamp": datetime.utcnow().isoformat()
             }
         )
+
+
+def _error(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={
+            "success": False,
+            "data": None,
+            "error": {"code": code, "message": message},
+            "timestamp": datetime.utcnow().isoformat(),
+        },
+    )
+
+
+@router.post("/translate")
+async def translate_report(request: TranslationRequest):
+    """Translate a report's free-text fields (description, temperament, health notes)
+    """
+    try:
+        texts = await llm_client.translate_texts(request.texts, request.language)
+    except ConnectionError as e:
+        logger.error(f"Translation: LLM unreachable: {e}")
+        raise _error(status.HTTP_503_SERVICE_UNAVAILABLE, "VISION_SERVICE_UNAVAILABLE",
+                     "Translation temporarily unavailable, please try again")
+    except Exception as e:
+        logger.error(f"Translation failed: {e}", exc_info=True)
+        raise _error(status.HTTP_500_INTERNAL_SERVER_ERROR, "TRANSLATION_FAILED",
+                     "The report could not be translated")
+
+    return {
+        "success": True,
+        "data": {"texts": texts},
+        "error": None,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 
 @router.get("/health")
