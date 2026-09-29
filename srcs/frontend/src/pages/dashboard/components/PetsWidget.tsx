@@ -51,11 +51,11 @@ export function PetsWidget() {
           </ul>
         </ScrollableRow>
       ) : (
-        <div className="text-center">
+        <div className="my-auto text-center lg:-translate-y-[22px]">
           <h3 className="text-text-hi text-base font-bold tracking-tight">
             {t('blocks.pets.empty.title')}
           </h3>
-          <p className="text-text-mid mt-2 text-sm leading-relaxed">
+          <p className="text-text-mid mt-1 text-sm leading-relaxed">
             {t('blocks.pets.empty.message')}
           </p>
           <Button asChild className="mt-4">

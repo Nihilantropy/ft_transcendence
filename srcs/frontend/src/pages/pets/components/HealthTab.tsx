@@ -1,4 +1,5 @@
 import type { Pet } from '@/api/types'
+import { healthConditionLabel } from '@/lib/healthConditions'
 import { useTranslation } from 'react-i18next'
 
 interface HealthTabProps {
@@ -25,7 +26,7 @@ export function HealthTab({ pet }: HealthTabProps) {
             <li key={c} className="flex items-center gap-2.5">
               {/* tiny dot */}
               <span className="bg-text-lo/60 h-1 w-1 flex-shrink-0 rounded-full" aria-hidden />
-              {c}
+              {healthConditionLabel(c, t)}
             </li>
           ))}
         </ul>

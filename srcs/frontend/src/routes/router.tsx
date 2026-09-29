@@ -8,6 +8,7 @@ import { PetDetail } from '@/pages/pets/PetDetail'
 import { PetForm } from '@/pages/pets/PetForm'
 import { PetsList } from '@/pages/pets/PetsList'
 import { ProfilePage } from '@/pages/profile/ProfilePage'
+import { RecommendationsPage } from '@/pages/recommendations/RecommendationsPage'
 import { HomePage } from '@/routes/HomeRoute'
 import { ProtectedRoute } from '@/routes/ProtectedRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
         children: [
           { path: 'analyze', element: <AnalyzePage /> },
           { path: 'profile', element: <ProfilePage /> },
+          { path: 'recommendations', element: <RecommendationsPage /> },
           {
             path: 'pets',
             children: [

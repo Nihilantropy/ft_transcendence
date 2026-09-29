@@ -37,7 +37,7 @@
     "weightPlaceholder": "kg",
     "healthConditions": "健康状態",
     "healthConditionsPlaceholder": "例：アレルギー、糖尿病（カンマ区切り）",
-    "healthConditionsHint": "複数ある場合はカンマで区切ってください。",
+    "healthConditionsSuggestions": "よくある症状:",
     "submit": {
       "create": "ペットを登録",
       "edit": "変更を保存"
@@ -79,7 +79,8 @@
       "cancel": "キャンセル"
     },
     "loadError": "ペットを読み込めませんでした。",
-    "analyzeAgain": "分析する"
+    "analyzeAgain": "分析する",
+    "recommendations": "おすすめ"
   },
   "overview": {
     "title": "プロフィール",
@@ -96,6 +97,14 @@
     "title": "健康状態",
     "conditions": "既知の症状",
     "noConditions": "記録された症状はありません。"
+  },
+  "healthConditionCodes": {
+    "joint_health": "関節の問題",
+    "sensitive_stomach": "お腹が弱い",
+    "weight_management": "体重過多",
+    "skin_allergies": "皮膚アレルギー",
+    "dental_health": "歯のトラブル",
+    "kidney_health": "腎臓の問題"
   },
   "analyses": {
     "title": "分析履歴",

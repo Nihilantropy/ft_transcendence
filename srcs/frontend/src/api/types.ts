@@ -162,3 +162,32 @@ export type VisionAnalysisData = {
   health_observations: string[]
   enriched_info: EnrichedInfo | null
 }
+
+// ---------------------------------------------------------------------------
+// Recommendations
+// ---------------------------------------------------------------------------
+
+export type NutritionalHighlights = {
+  protein_percentage: number | null
+  fat_percentage: number | null
+  calories_per_100g: number | null
+}
+
+export type RecommendationItem = {
+  product_id: number
+  name: string
+  brand: string
+  price: number | null
+  product_url: string | null
+  image_url: string | null
+  similarity_score: number
+  rank_position: number
+  match_reasons: string[]
+  nutritional_highlights: NutritionalHighlights
+}
+
+export type FoodRecommendations = {
+  recommendations: RecommendationItem[]
+  metadata: Record<string, unknown>
+  algorithm_version: string
+}

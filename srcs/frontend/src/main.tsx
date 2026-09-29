@@ -3,6 +3,7 @@ import '@/i18n/i18n'
 import { QueryProvider } from '@/providers/queryClient'
 import { useAuthStore } from '@/stores/auth'
 import '@/styles/globals.css'
+import { HTTPError } from 'ky'
 import { ThemeProvider } from 'next-themes'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -18,8 +19,13 @@ async function init(): Promise<void> {
   try {
     const user = await verify()
     useAuthStore.getState().setUser(user)
-  } catch {
-    // no session, or session is invalid
+  } catch (error) {
+    // 401: no session, or an invalid one (ky already tried the refresh)
+    if (!(error instanceof HTTPError && error.response.status === 401)) {
+      useAuthStore
+        .getState()
+        .setSessionError(error instanceof Error ? error : new Error(String(error)))
+    }
   } finally {
     useAuthStore.getState().setReady(true)
   }

@@ -1,0 +1,33 @@
+{
+  "title": "おすすめ",
+  "subtitle": "種類・年齢・体重・健康状態から、ペットにぴったりのフードをご提案します。",
+  "petPicker": "ペットを選択",
+  "score": "適合度 {{value}}%",
+  "forPet": "{{name}}向け",
+  "nutrition": {
+    "protein": "タンパク質 {{value}}%",
+    "fat": "脂質 {{value}}%",
+    "calories": "{{value}} kcal/100 g"
+  },
+  "reasons": {
+    "jointHealth": "関節ケア",
+    "sensitiveStomach": "お腹にやさしい"
+  },
+  "empty": {
+    "noPets": {
+      "title": "まだペットがいません",
+      "message": "最初のペットを追加すると、フードのおすすめが表示されます。",
+      "cta": "最初のペットを追加"
+    },
+    "noProducts": {
+      "title": "{{name}}へのおすすめはありません",
+      "message": "カタログに十分に合う商品がありません。年齢・体重・健康状態を追加してみてください。",
+      "unsupportedSpecies": "現在、おすすめは犬と猫のみに対応しています。"
+    }
+  },
+  "errors": {
+    "generic": "おすすめを読み込めませんでした。もう一度お試しください。",
+    "PET_NOT_FOUND": "ペットが見つかりません。",
+    "RATE_LIMIT_EXCEEDED": "リクエストが多すぎます。しばらくしてからお試しください。"
+  }
+}

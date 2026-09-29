@@ -25,9 +25,12 @@
     },
     "recommendations": {
       "title": "Per te",
+      "viewAll": "Vedi tutte",
       "empty": {
-        "message": "Le raccomandazioni arriveranno dopo le prime analisi."
-      }
+        "title": "Nessun consiglio ancora",
+        "message": "Aggiungi un pet per ricevere consigli sul cibo più adatto."
+      },
+      "noProducts": "Per ora nessun prodotto è adatto ai tuoi pet."
     },
     "analyze": {
       "bot": {

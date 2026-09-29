@@ -11,6 +11,7 @@ import enDashboard from './locales/en/dashboard.json'
 import enLanding from './locales/en/landing.json'
 import enPets from './locales/en/pets.json'
 import enProfile from './locales/en/profile.json'
+import enRecommendations from './locales/en/recommendations.json'
 import itAnalyze from './locales/it/analyze.json'
 import itAuth from './locales/it/auth.json'
 import itBot from './locales/it/bot.json'
@@ -20,6 +21,7 @@ import itDashboard from './locales/it/dashboard.json'
 import itLanding from './locales/it/landing.json'
 import itPets from './locales/it/pets.json'
 import itProfile from './locales/it/profile.json'
+import itRecommendations from './locales/it/recommendations.json'
 import jaAnalyze from './locales/ja/analyze.json'
 import jaAuth from './locales/ja/auth.json'
 import jaBot from './locales/ja/bot.json'
@@ -29,6 +31,7 @@ import jaDashboard from './locales/ja/dashboard.json'
 import jaLanding from './locales/ja/landing.json'
 import jaPets from './locales/ja/pets.json'
 import jaProfile from './locales/ja/profile.json'
+import jaRecommendations from './locales/ja/recommendations.json'
 
 export const LANGUAGES = ['it', 'en', 'ja'] as const
 export type Language = (typeof LANGUAGES)[number]
@@ -52,6 +55,7 @@ void i18n
         bot: itBot,
         analyze: itAnalyze,
         breeds: itBreeds,
+        recommendations: itRecommendations,
       },
       en: {
         common: enCommon,
@@ -63,6 +67,7 @@ void i18n
         bot: enBot,
         analyze: enAnalyze,
         breeds: enBreeds,
+        recommendations: enRecommendations,
       },
       ja: {
         common: jaCommon,
@@ -74,12 +79,24 @@ void i18n
         bot: jaBot,
         analyze: jaAnalyze,
         breeds: jaBreeds,
+        recommendations: jaRecommendations,
       },
     },
     fallbackLng: 'it',
     supportedLngs: LANGUAGES,
     defaultNS: 'common',
-    ns: ['common', 'landing', 'auth', 'pets', 'dashboard', 'bot', 'analyze', 'breeds', 'profile'],
+    ns: [
+      'common',
+      'landing',
+      'auth',
+      'pets',
+      'dashboard',
+      'bot',
+      'analyze',
+      'breeds',
+      'profile',
+      'recommendations',
+    ],
     interpolation: { escapeValue: false },
     detection: {
       order: ['localStorage', 'navigator'],

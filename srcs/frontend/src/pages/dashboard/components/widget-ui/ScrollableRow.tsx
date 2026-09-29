@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 interface ScrollableRowProps {
   children: ReactNode
@@ -12,8 +12,9 @@ export function ScrollableRow({ children, className }: ScrollableRowProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
+  const [isAnimated, setIsAnimated] = useState(false)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
 
@@ -24,39 +25,47 @@ export function ScrollableRow({ children, className }: ScrollableRowProps) {
     }
 
     check()
+    const frame = requestAnimationFrame(() => {
+      setIsAnimated(true)
+    })
     el.addEventListener('scroll', check, { passive: true })
     const ro = new ResizeObserver(check)
     ro.observe(el)
 
     return () => {
+      cancelAnimationFrame(frame)
       el.removeEventListener('scroll', check)
       ro.disconnect()
     }
   }, [])
 
+  const transition = isAnimated && 'transition-opacity duration-200'
+
   return (
     <div className={cn('relative', className)}>
-      <div ref={ref} className="scrollbar-hidden overflow-x-auto">
+      <div ref={ref} className="scrollbar-hidden relative overflow-x-auto">
         {children}
       </div>
-      {/* fade gradients only: visual cue that content continues */}
+      {/* fade gradients: solid under the chevron, so it always reads, then fading into the content */}
       <div
         aria-hidden
         style={{
-          background: 'linear-gradient(to right, var(--c-elevated), transparent)',
+          background: 'linear-gradient(to right, var(--c-elevated) 24px, transparent)',
         }}
         className={cn(
-          'pointer-events-none absolute inset-y-0 left-0 w-10 transition-opacity duration-200',
+          'pointer-events-none absolute inset-y-0 left-0 w-14',
+          transition,
           canScrollLeft ? 'opacity-100' : 'opacity-0',
         )}
       />
       <div
         aria-hidden
         style={{
-          background: 'linear-gradient(to left, var(--c-elevated), transparent)',
+          background: 'linear-gradient(to left, var(--c-elevated) 24px, transparent)',
         }}
         className={cn(
-          'pointer-events-none absolute inset-y-0 right-0 w-10 transition-opacity duration-200',
+          'pointer-events-none absolute inset-y-0 right-0 w-14',
+          transition,
           canScrollRight ? 'opacity-100' : 'opacity-0',
         )}
       />
@@ -65,7 +74,8 @@ export function ScrollableRow({ children, className }: ScrollableRowProps) {
         size={18}
         aria-hidden
         className={cn(
-          'text-accent pointer-events-none absolute top-1/2 left-1 -translate-y-1/2 transition-opacity duration-200',
+          'text-accent pointer-events-none absolute top-1/2 left-1 -translate-y-1/2',
+          transition,
           canScrollLeft ? 'opacity-100' : 'opacity-0',
         )}
       />
@@ -73,7 +83,8 @@ export function ScrollableRow({ children, className }: ScrollableRowProps) {
         size={18}
         aria-hidden
         className={cn(
-          'text-accent pointer-events-none absolute top-1/2 right-1 -translate-y-1/2 transition-opacity duration-200',
+          'text-accent pointer-events-none absolute top-1/2 right-1 -translate-y-1/2',
+          transition,
           canScrollRight ? 'opacity-100' : 'opacity-0',
         )}
       />

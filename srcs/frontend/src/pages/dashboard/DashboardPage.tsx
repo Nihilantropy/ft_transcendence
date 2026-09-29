@@ -3,6 +3,7 @@ import { useUser } from '@/stores/auth'
 import { useTranslation } from 'react-i18next'
 import { AnalyzeWidget } from './components/AnalyzeWidget'
 import { PetsWidget } from './components/PetsWidget'
+import { RecommendationsWidget } from './components/RecommendationsWidget'
 
 export function DashboardPage() {
   const { t } = useTranslation('dashboard')
@@ -23,6 +24,7 @@ export function DashboardPage() {
       <div className="mt-10 grid items-start gap-4 lg:grid-cols-2">
         <AnalyzeWidget />
         <PetsWidget />
+        <RecommendationsWidget />
       </div>
     </div>
   )

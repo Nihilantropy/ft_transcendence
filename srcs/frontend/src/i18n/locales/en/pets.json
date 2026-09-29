@@ -37,7 +37,7 @@
     "weightPlaceholder": "Kg",
     "healthConditions": "Health conditions",
     "healthConditionsPlaceholder": "E.g. allergies, diabetes (comma-separated)",
-    "healthConditionsHint": "Separate multiple conditions with a comma.",
+    "healthConditionsSuggestions": "Common conditions:",
     "submit": {
       "create": "Create pet",
       "edit": "Save changes"
@@ -79,7 +79,8 @@
       "cancel": "Cancel"
     },
     "loadError": "Could not load the pet.",
-    "analyzeAgain": "Analyze"
+    "analyzeAgain": "Analyze",
+    "recommendations": "Recommendations"
   },
   "overview": {
     "title": "Profile",
@@ -96,6 +97,14 @@
     "title": "Health status",
     "conditions": "Known conditions",
     "noConditions": "No conditions recorded."
+  },
+  "healthConditionCodes": {
+    "joint_health": "Joint problems",
+    "sensitive_stomach": "Sensitive stomach",
+    "weight_management": "Overweight",
+    "skin_allergies": "Skin allergies",
+    "dental_health": "Dental problems",
+    "kidney_health": "Kidney problems"
   },
   "analyses": {
     "title": "Analysis history",

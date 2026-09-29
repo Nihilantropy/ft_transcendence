@@ -37,7 +37,7 @@
     "weightPlaceholder": "Kg",
     "healthConditions": "Condizioni di salute",
     "healthConditionsPlaceholder": "Es. allergie, diabete (separate da virgola)",
-    "healthConditionsHint": "Separa più condizioni con una virgola.",
+    "healthConditionsSuggestions": "Condizioni comuni:",
     "submit": {
       "create": "Crea pet",
       "edit": "Salva modifiche"
@@ -79,7 +79,8 @@
       "cancel": "Annulla"
     },
     "loadError": "Non è stato possibile caricare il pet.",
-    "analyzeAgain": "Analizza"
+    "analyzeAgain": "Analizza",
+    "recommendations": "Consigli"
   },
   "overview": {
     "title": "Anagrafica",
@@ -96,6 +97,14 @@
     "title": "Stato di salute",
     "conditions": "Condizioni note",
     "noConditions": "Nessuna condizione registrata."
+  },
+  "healthConditionCodes": {
+    "joint_health": "Problemi articolari",
+    "sensitive_stomach": "Stomaco sensibile",
+    "weight_management": "Sovrappeso",
+    "skin_allergies": "Allergie cutanee",
+    "dental_health": "Problemi dentali",
+    "kidney_health": "Problemi renali"
   },
   "analyses": {
     "title": "Storico analisi",

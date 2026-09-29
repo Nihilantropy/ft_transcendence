@@ -1,0 +1,33 @@
+{
+  "title": "Recommendations",
+  "subtitle": "The best food for each pet, based on species, age, weight and health conditions.",
+  "petPicker": "Choose a pet",
+  "score": "{{value}}% match",
+  "forPet": "for {{name}}",
+  "nutrition": {
+    "protein": "Protein {{value}}%",
+    "fat": "Fat {{value}}%",
+    "calories": "{{value}} kcal/100 g"
+  },
+  "reasons": {
+    "jointHealth": "Joint health",
+    "sensitiveStomach": "Sensitive stomach"
+  },
+  "empty": {
+    "noPets": {
+      "title": "No pets yet",
+      "message": "Add your first pet to get food recommendations.",
+      "cta": "Add your first pet"
+    },
+    "noProducts": {
+      "title": "No recommendations for {{name}}",
+      "message": "No product in the catalog is a good enough fit: try adding age, weight or health conditions.",
+      "unsupportedSpecies": "For now, recommendations are only available for dogs and cats."
+    }
+  },
+  "errors": {
+    "generic": "Couldn't load the recommendations. Please try again.",
+    "PET_NOT_FOUND": "Pet not found.",
+    "RATE_LIMIT_EXCEEDED": "Too many requests. Please try again shortly."
+  }
+}

@@ -10,6 +10,7 @@ import type { DropdownOption } from '@/components/ui/Dropdown'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { toast } from '@/components/ui/Toast'
 import { getBreedsForSpecies } from '@/lib/breeds'
+import { HEALTH_CONDITION_CODES } from '@/lib/healthConditions'
 import { getApiErrorMessage, titleCase } from '@/lib/utils'
 import {
   useCreatePetMutation,
@@ -233,7 +234,11 @@ function Form({ pet }: { pet?: Pet }) {
         name="health_conditions"
         label={t('pets:form.healthConditions')}
         placeholder={t('pets:form.healthConditionsPlaceholder')}
-        hint={t('pets:form.healthConditionsHint')}
+        suggestions={HEALTH_CONDITION_CODES.map((code) => ({
+          value: code,
+          label: t(`pets:healthConditionCodes.${code}`),
+        }))}
+        suggestionsLabel={t('pets:form.healthConditionsSuggestions')}
       />
 
       <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">

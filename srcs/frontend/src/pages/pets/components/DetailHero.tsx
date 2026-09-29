@@ -3,7 +3,7 @@ import { BreedBadge } from '@/components/pet/BreedBadge'
 import { renderSpeciesIcon } from '@/components/pet/speciesIcon'
 import { Button } from '@/components/ui/Button'
 import { Image } from '@/components/ui/Image'
-import { Pencil, ScanHeart } from 'lucide-react'
+import { Pencil, ScanHeart, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
@@ -11,7 +11,7 @@ interface DetailHeroProps {
   pet: Pet
 }
 
-// top section of PetDetail: image, name, breed badge, analyze + edit actions
+// top section of PetDetail: image, name, breed badge, analyze + recommendations + edit actions
 export function DetailHero({ pet }: DetailHeroProps) {
   const { t } = useTranslation('pets')
 
@@ -50,6 +50,12 @@ export function DetailHero({ pet }: DetailHeroProps) {
           <Link to="/analyze" state={{ pet: { id: pet.id } }}>
             <ScanHeart size={14} aria-hidden />
             {t('detail.analyzeAgain')}
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to={`/recommendations?pet=${pet.id}`}>
+            <Sparkles size={14} aria-hidden />
+            {t('detail.recommendations')}
           </Link>
         </Button>
         <Button variant="outline" size="sm" asChild>

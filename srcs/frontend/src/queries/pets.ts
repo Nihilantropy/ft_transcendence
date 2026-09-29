@@ -8,6 +8,7 @@ import {
   updatePet,
 } from '@/api/routes'
 import type { Pet, PetAnalysis, PetPayload } from '@/api/types'
+import { recommendationKeys } from '@/queries/recommendations'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // query key factory
@@ -18,10 +19,13 @@ export const petKeys = {
   analyses: (petId: string) => [...petKeys.all, 'analyses', petId] as const,
 }
 
+const PETS_STALE_TIME = 5 * 60_000
+
 export const useListPets = () =>
   useQuery({
     queryKey: petKeys.list(),
     queryFn: listPets,
+    staleTime: PETS_STALE_TIME,
   })
 
 export const useGetPet = (id: string | undefined) =>
@@ -29,6 +33,7 @@ export const useGetPet = (id: string | undefined) =>
     queryKey: petKeys.detail(id ?? ''),
     queryFn: () => getPet(id as string),
     enabled: Boolean(id),
+    staleTime: PETS_STALE_TIME,
   })
 
 export const useListPetAnalyses = (petId: string | undefined) =>
@@ -62,6 +67,8 @@ export const useUpdatePetMutation = () => {
         pets?.map((p) => (p.id === updated.id ? updated : p)),
       )
       void queryClient.invalidateQueries({ queryKey: petKeys.list() })
+      // age, weight and health conditions drive the recommendations
+      void queryClient.invalidateQueries({ queryKey: recommendationKeys.all })
     },
   })
 }
@@ -74,6 +81,7 @@ export const useDeletePetMutation = () => {
       queryClient.setQueryData<Pet[]>(petKeys.list(), (pets) => pets?.filter((p) => p.id !== id))
       queryClient.removeQueries({ queryKey: petKeys.detail(id) })
       queryClient.removeQueries({ queryKey: petKeys.analyses(id) })
+      queryClient.removeQueries({ queryKey: [...recommendationKeys.all, 'food', id] })
       void queryClient.invalidateQueries({ queryKey: petKeys.list() })
     },
   })

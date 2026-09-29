@@ -4,6 +4,7 @@ import { api, BASE_URL } from './ky'
 import type {
   AnalysisPayload,
   ChangePasswordPayload,
+  FoodRecommendations,
   LoginPayload,
   LoginResult,
   Pet,
@@ -147,5 +148,21 @@ export async function analyzeImage(
 
 export async function createAnalysis(payload: AnalysisPayload): Promise<PetAnalysis> {
   const response: ApiResponse<PetAnalysis> = await api.post('v1/analyses', { json: payload }).json()
+  return unwrap(response)
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               Recommendations                              */
+/* -------------------------------------------------------------------------- */
+
+// foods ranked for one pet
+export async function getFoodRecommendations(
+  petId: string,
+  limit?: number,
+): Promise<FoodRecommendations> {
+  const searchParams = limit ? { pet_id: petId, limit } : { pet_id: petId }
+  const response: ApiResponse<FoodRecommendations> = await api
+    .get('v1/recommendations/food', { searchParams })
+    .json()
   return unwrap(response)
 }

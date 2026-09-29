@@ -7,4 +7,5 @@ export interface NavItem {
 export const AUTHED_NAV: ReadonlyArray<NavItem> = [
   { to: '/analyze', labelKey: 'nav.analyze' },
   { to: '/pets', labelKey: 'nav.pets' },
+  { to: '/recommendations', labelKey: 'nav.recommendations' },
 ]
