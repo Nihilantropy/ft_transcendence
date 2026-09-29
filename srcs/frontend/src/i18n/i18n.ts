@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
+import enAnalyze from './locales/en/analyze.json'
 import enAuth from './locales/en/auth.json'
 import enBot from './locales/en/bot.json'
 import enBreeds from './locales/en/breeds.json'
@@ -9,6 +10,7 @@ import enCommon from './locales/en/common.json'
 import enDashboard from './locales/en/dashboard.json'
 import enLanding from './locales/en/landing.json'
 import enPets from './locales/en/pets.json'
+import itAnalyze from './locales/it/analyze.json'
 import itAuth from './locales/it/auth.json'
 import itBot from './locales/it/bot.json'
 import itBreeds from './locales/it/breeds.json'
@@ -29,6 +31,7 @@ void i18n
         pets: itPets,
         dashboard: itDashboard,
         bot: itBot,
+        analyze: itAnalyze,
         breeds: itBreeds,
       },
       en: {
@@ -38,13 +41,14 @@ void i18n
         pets: enPets,
         dashboard: enDashboard,
         bot: enBot,
+        analyze: enAnalyze,
         breeds: enBreeds,
       },
     },
     fallbackLng: 'it',
     supportedLngs: ['it', 'en'],
     defaultNS: 'common',
-    ns: ['common', 'landing', 'auth', 'pets', 'dashboard', 'bot', 'breeds'],
+    ns: ['common', 'landing', 'auth', 'pets', 'dashboard', 'bot', 'analyze', 'breeds'],
     interpolation: { escapeValue: false },
     detection: {
       order: ['localStorage', 'navigator'],

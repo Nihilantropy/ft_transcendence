@@ -1,4 +1,5 @@
 import type { Pet } from '@/api/types'
+import { formatPetAge, titleCase } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
 interface OverviewTabProps {
@@ -14,12 +15,12 @@ export function OverviewTab({ pet }: OverviewTabProps) {
     {
       label: t('overview.breed'),
       value: pet.breed
-        ? t(`breeds:${pet.breed}`, { defaultValue: pet.breed })
+        ? t(`breeds:${pet.breed}`, { defaultValue: titleCase(pet.breed.replace(/_/g, ' ')) })
         : t('overview.breedUnknown'),
     },
     {
       label: t('overview.age'),
-      value: pet.age != null ? t('age.years', { count: pet.age }) : t('overview.ageUnknown'),
+      value: pet.age != null ? formatPetAge(pet.age, t) : t('overview.ageUnknown'),
     },
     {
       label: t('overview.weight'),

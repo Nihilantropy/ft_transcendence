@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn, titleCase } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
 interface BreedBadgeProps {
@@ -18,7 +18,7 @@ export function BreedBadge({ breed, confidence, className }: BreedBadgeProps) {
         className,
       )}
     >
-      <span>{t(breed, { defaultValue: breed })}</span>
+      <span>{t(breed, { defaultValue: titleCase(breed.replace(/_/g, ' ')) })}</span>
       {confidence && (
         <span className="text-accent/70 tabular-nums">{Math.round(confidence * 100)}%</span>
       )}

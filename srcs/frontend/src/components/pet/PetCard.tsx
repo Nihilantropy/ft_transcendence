@@ -3,7 +3,7 @@ import { BreedBadge } from '@/components/pet/BreedBadge'
 import { renderSpeciesIcon } from '@/components/pet/speciesIcon'
 import { Card } from '@/components/ui/Card'
 import { Image } from '@/components/ui/Image'
-import { cn } from '@/lib/utils'
+import { cn, formatPetAge } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
@@ -57,7 +57,7 @@ export function PetCard({ pet, variant = 'default', className }: PetCardProps) {
           <div className="mt-2 flex h-6 items-center gap-2">
             {pet.breed && <BreedBadge breed={pet.breed} confidence={pet.breed_confidence} />}
             {pet.age != null && (
-              <span className="text-text-mid text-xs">{t('age.years', { count: pet.age })}</span>
+              <span className="text-text-mid text-xs">{formatPetAge(pet.age, t)}</span>
             )}
           </div>
         </div>
@@ -72,12 +72,13 @@ interface PetCardImageProps {
   className: string
 }
 
-// pet image or species-icon fallback
+// pet profile pic / species icon fallback
 function PetCardImage({ pet, iconSize, className }: PetCardImageProps) {
+  const src = pet.photo || pet.image_url
   return (
     <div className={cn('overflow-hidden', className)}>
-      {pet.image_url ? (
-        <Image src={pet.image_url} alt={pet.name} className="h-full w-full object-cover" />
+      {src ? (
+        <Image src={src} alt={pet.name} className="h-full w-full object-cover" />
       ) : (
         <div className="text-text-lo flex h-full w-full items-center justify-center">
           {renderSpeciesIcon(pet.species, {

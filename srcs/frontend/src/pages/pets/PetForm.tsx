@@ -1,8 +1,10 @@
 import type { Pet, PetPayload, Species } from '@/api/types'
+import { FormAgeInput } from '@/components/form/FormAgeInput'
 import { FormDropdown } from '@/components/form/FormDropdown'
 import { FormNumberInput } from '@/components/form/FormNumberInput'
 import { FormTagInput } from '@/components/form/FormTagInput'
 import { FormTextInput } from '@/components/form/FormTextInput'
+import { PetPhotoInput } from '@/components/pet/PetPhotoInput'
 import { Button } from '@/components/ui/Button'
 import type { DropdownOption } from '@/components/ui/Dropdown'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -52,13 +54,13 @@ function Form({ pet }: { pet?: Pet }) {
       .trim()
       .min(1, t('pets:errors.nameRequired'))
       .max(100, t('pets:errors.nameTooLong')),
-    species: z.enum(['dog', 'cat', 'other']),
+    species: z.enum(['dog', 'cat', 'other'], { message: t('pets:errors.speciesRequired') }),
     breed: z.string().max(100, t('pets:errors.breedTooLong')).optional(),
     age: z
       .number({ message: t('pets:errors.ageInvalid') })
       .int(t('pets:errors.ageInvalid'))
       .min(0, t('pets:errors.ageInvalid'))
-      .max(150, t('pets:errors.ageTooLarge'))
+      .max(150 * 12 + 11, t('pets:errors.ageTooLarge'))
       .nullable()
       .optional(),
     weight: z
@@ -68,6 +70,7 @@ function Form({ pet }: { pet?: Pet }) {
       .nullable()
       .optional(),
     health_conditions: z.array(z.string()).optional(),
+    photo: z.string().optional(),
   })
 
   const form = useForm<PetPayload>({
@@ -79,8 +82,11 @@ function Form({ pet }: { pet?: Pet }) {
       age: pet?.age ?? null,
       weight: pet?.weight ?? null,
       health_conditions: pet?.health_conditions ?? [],
+      photo: pet?.photo ?? '',
     },
   })
+
+  const photo = useWatch({ control: form.control, name: 'photo' })
 
   // species drives the breed list
   const species = useWatch({ control: form.control, name: 'species' })
@@ -150,6 +156,15 @@ function Form({ pet }: { pet?: Pet }) {
       onKeyDown={onKeyDown}
       className="flex flex-col gap-5"
     >
+      <PetPhotoInput
+        value={photo ?? ''}
+        onChange={(value) => {
+          form.setValue('photo', value, { shouldDirty: true })
+        }}
+        // a cleared species falls back to the generic paw icon
+        species={species || undefined}
+      />
+
       <FormTextInput
         form={form}
         name="name"
@@ -163,7 +178,10 @@ function Form({ pet }: { pet?: Pet }) {
         name="species"
         label={t('pets:form.species')}
         options={speciesOptions}
+        placeholder={t('pets:form.speciesPlaceholder')}
         searchPlaceholder={t('pets:form.species')}
+        clearable
+        clearLabel={t('pets:form.clearSpecies')}
       />
 
       {species === 'other' ? (
@@ -183,16 +201,22 @@ function Form({ pet }: { pet?: Pet }) {
           placeholder={t('pets:form.breedPlaceholder')}
           searchPlaceholder={t('pets:form.breedPlaceholder')}
           options={breedOptions}
+          clearable
+          clearLabel={t('pets:form.clearBreed')}
         />
       )}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <FormNumberInput
+        <FormAgeInput
           form={form}
           name="age"
-          label={t('pets:form.age')}
-          placeholder={t('pets:form.agePlaceholder')}
-          autoComplete="off"
+          yearsLabel={t('pets:form.ageYears')}
+          monthsLabel={t('pets:form.ageMonths')}
+          messages={{
+            invalid: t('pets:errors.ageInvalid'),
+            tooLarge: t('pets:errors.ageTooLarge'),
+            monthsRange: t('pets:errors.monthsRange'),
+          }}
         />
         <FormNumberInput
           form={form}

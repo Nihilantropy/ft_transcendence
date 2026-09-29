@@ -1,5 +1,13 @@
-import { createPet, deletePet, getPet, listPetAnalyses, listPets, updatePet } from '@/api/routes'
-import type { PetPayload } from '@/api/types'
+import {
+  createAnalysis,
+  createPet,
+  deletePet,
+  getPet,
+  listPetAnalyses,
+  listPets,
+  updatePet,
+} from '@/api/routes'
+import type { Pet, PetAnalysis, PetPayload } from '@/api/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // query key factory
@@ -30,11 +38,14 @@ export const useListPetAnalyses = (petId: string | undefined) =>
     enabled: Boolean(petId),
   })
 
+// Mutations write the server's answer straight into the cache
 export const useCreatePetMutation = () => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createPet,
-    onSuccess: () => {
+    onSuccess: (created) => {
+      queryClient.setQueryData(petKeys.detail(created.id), created)
+      queryClient.setQueryData<Pet[]>(petKeys.list(), (pets) => pets && [...pets, created])
       void queryClient.invalidateQueries({ queryKey: petKeys.list() })
     },
   })
@@ -45,9 +56,12 @@ export const useUpdatePetMutation = () => {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<PetPayload> }) =>
       updatePet(id, payload),
-    onSuccess: (_, { id }) => {
+    onSuccess: (updated) => {
+      queryClient.setQueryData(petKeys.detail(updated.id), updated)
+      queryClient.setQueryData<Pet[]>(petKeys.list(), (pets) =>
+        pets?.map((p) => (p.id === updated.id ? updated : p)),
+      )
       void queryClient.invalidateQueries({ queryKey: petKeys.list() })
-      void queryClient.invalidateQueries({ queryKey: petKeys.detail(id) })
     },
   })
 }
@@ -57,8 +71,25 @@ export const useDeletePetMutation = () => {
   return useMutation({
     mutationFn: deletePet,
     onSuccess: (_, id) => {
-      void queryClient.invalidateQueries({ queryKey: petKeys.list() })
+      queryClient.setQueryData<Pet[]>(petKeys.list(), (pets) => pets?.filter((p) => p.id !== id))
       queryClient.removeQueries({ queryKey: petKeys.detail(id) })
+      queryClient.removeQueries({ queryKey: petKeys.analyses(id) })
+      void queryClient.invalidateQueries({ queryKey: petKeys.list() })
+    },
+  })
+}
+
+export const useCreateAnalysisMutation = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: createAnalysis,
+    onSuccess: (analysis) => {
+      // the backend lists analyses newest first
+      queryClient.setQueryData<PetAnalysis[]>(
+        petKeys.analyses(analysis.pet_id),
+        (analyses) => analyses && [analysis, ...analyses],
+      )
+      void queryClient.invalidateQueries({ queryKey: petKeys.analyses(analysis.pet_id) })
     },
   })
 }

@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
-import { useGetPet } from '@/queries/pets'
+import { useGetPet, useListPetAnalyses } from '@/queries/pets'
 import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +18,7 @@ export function PetDetail() {
   const { id } = useParams<{ id: string }>()
 
   const { data: pet, isPending, isError } = useGetPet(id)
+  useListPetAnalyses(id)
 
   const [tab, setTab] = useState<Tab>('overview')
 

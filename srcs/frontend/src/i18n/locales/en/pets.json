@@ -11,7 +11,9 @@
   },
   "age": {
     "years_one": "{{count}} year",
-    "years_other": "{{count}} years"
+    "years_other": "{{count}} years",
+    "months_one": "{{count}} month",
+    "months_other": "{{count}} months"
   },
   "weight": "{{value}} kg",
   "empty": {
@@ -31,7 +33,6 @@
     "breed": "Breed",
     "breedPlaceholder": "E.g. Labrador (optional)",
     "age": "Age",
-    "agePlaceholder": "Years",
     "weight": "Weight",
     "weightPlaceholder": "Kg",
     "healthConditions": "Health conditions",
@@ -41,7 +42,12 @@
       "create": "Create pet",
       "edit": "Save changes"
     },
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "ageYears": "Years",
+    "ageMonths": "Months",
+    "speciesPlaceholder": "Dog, cat or other",
+    "clearSpecies": "Clear species",
+    "clearBreed": "Clear breed"
   },
   "errors": {
     "nameRequired": "Name is required.",
@@ -55,7 +61,8 @@
     "nameTooLong": "The name cannot exceed 100 characters.",
     "breedTooLong": "The breed cannot exceed 100 characters.",
     "ageTooLarge": "Age cannot exceed 150 years.",
-    "weightTooLarge": "Weight cannot exceed 500 kg."
+    "weightTooLarge": "Weight cannot exceed 500 kg.",
+    "monthsRange": "Months must be between 0 and 11."
   },
   "detail": {
     "tabs": {
@@ -71,7 +78,8 @@
       "confirm": "Delete",
       "cancel": "Cancel"
     },
-    "loadError": "Could not load the pet."
+    "loadError": "Could not load the pet.",
+    "analyzeAgain": "Analyze"
   },
   "overview": {
     "title": "Profile",
@@ -96,6 +104,14 @@
       "message": "Upload a photo to get started.",
       "cta": "Analyze a photo"
     },
-    "loadError": "Could not load the analyses."
+    "loadError": "Could not load the analyses.",
+    "reportTitle": "Analysis report"
+  },
+  "photo": {
+    "upload": "Upload photo",
+    "change": "Change photo",
+    "remove": "Remove photo",
+    "alt": "Pet's profile photo",
+    "invalid": "Couldn't read this image: use a JPEG, PNG or WebP photo."
   }
 }

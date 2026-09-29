@@ -1,7 +1,7 @@
 import { Footer } from '@/components/layout/Footer'
 import { Header } from '@/components/layout/Header'
 import { useEffect, useRef, useState } from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 
 export function AppShell() {
   const mainRef = useRef<HTMLElement>(null)
@@ -18,6 +18,11 @@ export function AppShell() {
       main.removeEventListener('scroll', onScroll)
     }
   }, [])
+
+  const { pathname } = useLocation()
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 })
+  }, [pathname])
 
   return (
     <div className="flex h-full flex-col">

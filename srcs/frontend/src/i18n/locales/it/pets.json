@@ -11,7 +11,9 @@
   },
   "age": {
     "years_one": "{{count}} anno",
-    "years_other": "{{count}} anni"
+    "years_other": "{{count}} anni",
+    "months_one": "{{count}} mese",
+    "months_other": "{{count}} mesi"
   },
   "weight": "{{value}} kg",
   "empty": {
@@ -31,7 +33,6 @@
     "breed": "Razza",
     "breedPlaceholder": "Es. Labrador (opzionale)",
     "age": "Età",
-    "agePlaceholder": "Anni",
     "weight": "Peso",
     "weightPlaceholder": "Kg",
     "healthConditions": "Condizioni di salute",
@@ -41,7 +42,12 @@
       "create": "Crea pet",
       "edit": "Salva modifiche"
     },
-    "cancel": "Annulla"
+    "cancel": "Annulla",
+    "ageYears": "Anni",
+    "ageMonths": "Mesi",
+    "speciesPlaceholder": "Cane, gatto o altro",
+    "clearSpecies": "Togli la specie",
+    "clearBreed": "Togli la razza"
   },
   "errors": {
     "nameRequired": "Il nome è obbligatorio.",
@@ -55,7 +61,8 @@
     "nameTooLong": "Il nome non può superare i 100 caratteri.",
     "breedTooLong": "La razza non può superare i 100 caratteri.",
     "ageTooLarge": "L'età non può superare i 150 anni.",
-    "weightTooLarge": "Il peso non può superare i 500 kg."
+    "weightTooLarge": "Il peso non può superare i 500 kg.",
+    "monthsRange": "I mesi vanno da 0 a 11."
   },
   "detail": {
     "tabs": {
@@ -71,7 +78,8 @@
       "confirm": "Elimina",
       "cancel": "Annulla"
     },
-    "loadError": "Non è stato possibile caricare il pet."
+    "loadError": "Non è stato possibile caricare il pet.",
+    "analyzeAgain": "Analizza"
   },
   "overview": {
     "title": "Anagrafica",
@@ -96,6 +104,14 @@
       "message": "Carica una foto per cominciare.",
       "cta": "Analizza una foto"
     },
-    "loadError": "Non è stato possibile caricare le analisi."
+    "loadError": "Non è stato possibile caricare le analisi.",
+    "reportTitle": "Referto analisi"
+  },
+  "photo": {
+    "upload": "Carica foto",
+    "change": "Cambia foto",
+    "remove": "Rimuovi foto",
+    "alt": "Foto profilo del pet",
+    "invalid": "Non riesco a leggere questa immagine: usa una foto JPEG, PNG o WebP."
   }
 }

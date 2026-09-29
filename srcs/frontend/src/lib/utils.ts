@@ -48,6 +48,13 @@ export function getSafeNext(searchParams: URLSearchParams, fallback: string): st
   return raw
 }
 
+// pet.age is stored in months
+// so under a year we show months, from 12 up we show whole years
+export function formatPetAge(months: number, t: TFunction): string {
+  if (months < 12) return t('age.months', { count: months })
+  return t('age.years', { count: Math.floor(months / 12) })
+}
+
 // time-of-day bucket from local hour, used to pick a localized greeting
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening'
 export function getTimeOfDay(date: Date = new Date()): TimeOfDay {

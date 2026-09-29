@@ -17,6 +17,7 @@ interface ChatInputProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  hasAttachment?: boolean
 }
 
 // chat input pill: + (attach) | auto-growing textarea | send
@@ -28,6 +29,7 @@ export function ChatInput({
   placeholder,
   disabled,
   className,
+  hasAttachment,
 }: ChatInputProps) {
   const { t } = useTranslation('bot')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -42,7 +44,7 @@ export function ChatInput({
     el.style.height = `${String(el.scrollHeight)}px`
   }, [value])
 
-  const canSubmit = value.trim().length > 0 && !disabled
+  const canSubmit = (value.trim().length > 0 || hasAttachment === true) && !disabled
 
   const handleSubmit = (e?: SubmitEvent<HTMLFormElement>) => {
     e?.preventDefault()

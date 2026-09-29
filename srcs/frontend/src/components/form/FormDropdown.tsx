@@ -16,6 +16,8 @@ interface FormDropdownProps<T extends FieldValues> {
   disabled?: boolean
   className?: string
   id?: string
+  clearable?: boolean
+  clearLabel?: string
 }
 
 export function FormDropdown<T extends FieldValues>({
@@ -31,6 +33,8 @@ export function FormDropdown<T extends FieldValues>({
   disabled,
   className,
   id,
+  clearable,
+  clearLabel,
 }: FormDropdownProps<T>) {
   const inputId = id ?? String(name)
   const helperId = `${inputId}-helper`
@@ -61,6 +65,14 @@ export function FormDropdown<T extends FieldValues>({
             disabled={disabled}
             ariaInvalid={errorMessage ? true : undefined}
             ariaDescribedBy={hint || errorMessage ? helperId : undefined}
+            onClear={
+              clearable
+                ? () => {
+                    field.onChange('')
+                  }
+                : undefined
+            }
+            clearLabel={clearLabel}
           />
         )}
       />

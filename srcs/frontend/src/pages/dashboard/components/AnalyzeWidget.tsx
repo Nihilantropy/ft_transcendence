@@ -2,6 +2,7 @@ import { BotAvatar } from '@/components/chat/BotAvatar'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useFileDrop } from '@/hooks/useFileDrop'
+import { pickBotMessage } from '@/lib/botMessages'
 import { cn } from '@/lib/utils'
 import { DashboardSection } from '@/pages/dashboard/components/widget-ui/DashboardSection'
 import { useListPets } from '@/queries/pets'
@@ -38,15 +39,13 @@ export function AnalyzeWidget() {
   })
 
   const handleSubmit = () => {
-    // @TODO : implement the actual analyze flow with the draft
-    void navigate('/analyze')
+    void navigate('/analyze', { state: { draft } })
   }
 
   // attaching an image is a shortcut to start the analyze flow
   const handleFile = (file: File) => {
     if (!file.type.startsWith('image/')) return
-    // @TODO : thread 'file' (+ optional 'draft') to /analyze
-    void navigate('/analyze')
+    void navigate('/analyze', { state: { file, draft } })
   }
 
   const { isDragging, dropHandlers } = useFileDrop(handleFile)
@@ -64,7 +63,11 @@ export function AnalyzeWidget() {
             {t('blocks.analyze.bot.name')}
           </p>
           <p className="text-text-lo flex items-center gap-1.5 text-xs">
-            <span className="bg-success inline-block h-1.5 w-1.5 rounded-full" aria-hidden />
+            {/* online dot with a soft, slow ping halo */}
+            <span className="relative inline-flex h-1.5 w-1.5" aria-hidden>
+              <span className="bg-success/60 absolute inline-flex h-full w-full rounded-full animate-[ping_2.5s_cubic-bezier(0,0,0.2,1)_infinite]" />
+              <span className="bg-success relative inline-flex h-1.5 w-1.5 rounded-full" />
+            </span>
             {t('blocks.analyze.bot.status')}
           </p>
         </div>
@@ -105,39 +108,4 @@ function MessageSkeleton() {
       </div>
     </div>
   )
-}
-
-/* -------------------------------------------------------------------------- */
-/*                        random message picker                               */
-/* -------------------------------------------------------------------------- */
-
-// every pool in locales holds exactly this many messages
-// always keep this in sync with the locale files since we can't introspect i18n keys at runtime
-const MESSAGES_PER_BUCKET = 6
-
-type Bucket = 'neutral' | 'withName' | 'withPet' | 'withNameAndPet'
-
-interface MessagePick {
-  messageKey: string
-  petName: string | null
-}
-
-function pickBotMessage(hasName: boolean, pets: { name: string }[]): MessagePick {
-  const randomPet = pets.length > 0 ? pets[Math.floor(Math.random() * pets.length)] : undefined
-  const petName = randomPet?.name ?? null
-  const hasPet = petName !== null
-
-  const buckets: Bucket[] = ['neutral']
-  if (hasName) buckets.push('withName')
-  if (hasPet) buckets.push('withPet')
-  if (hasName && hasPet) buckets.push('withNameAndPet')
-
-  // flat array of all valid keys, then pick one uniformly
-  const candidates = buckets.flatMap((bucket) =>
-    Array.from({ length: MESSAGES_PER_BUCKET }, (_, i) => `bot:messages.${bucket}.${String(i)}`),
-  )
-  const messageKey =
-    candidates[Math.floor(Math.random() * candidates.length)] ?? 'bot:messages.neutral.0'
-
-  return { messageKey, petName }
 }

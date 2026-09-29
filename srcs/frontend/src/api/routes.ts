@@ -1,6 +1,7 @@
 import { unwrap, type ApiResponse } from '@/lib/utils'
 import { api } from './ky'
 import type {
+  AnalysisPayload,
   ChangePasswordPayload,
   LoginPayload,
   Pet,
@@ -8,6 +9,7 @@ import type {
   PetPayload,
   RegisterPayload,
   User,
+  VisionAnalysisData,
 } from './types'
 
 /* -------------------------------------------------------------------------- */
@@ -75,5 +77,29 @@ export async function deletePet(id: string): Promise<void> {
 
 export async function listPetAnalyses(petId: string): Promise<PetAnalysis[]> {
   const response: ApiResponse<PetAnalysis[]> = await api.get(`v1/pets/${petId}/analyses`).json()
+  return unwrap(response)
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               Vision analysis                              */
+/* -------------------------------------------------------------------------- */
+
+export async function analyzeImage(
+  imageDataUri: string,
+  language: 'it' | 'en',
+  signal?: AbortSignal,
+): Promise<VisionAnalysisData> {
+  const response: ApiResponse<VisionAnalysisData> = await api
+    .post('v1/vision/analyze', {
+      json: { image: imageDataUri, language },
+      timeout: 300_000,
+      signal,
+    })
+    .json()
+  return unwrap(response)
+}
+
+export async function createAnalysis(payload: AnalysisPayload): Promise<PetAnalysis> {
+  const response: ApiResponse<PetAnalysis> = await api.post('v1/analyses', { json: payload }).json()
   return unwrap(response)
 }

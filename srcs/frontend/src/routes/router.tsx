@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/layout/AppShell'
+import { AnalyzePage } from '@/pages/analyze/AnalyzePage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { ErrorPage } from '@/pages/error/ErrorPage'
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute />,
         children: [
+          { path: 'analyze', element: <AnalyzePage /> },
           {
             path: 'pets',
             children: [

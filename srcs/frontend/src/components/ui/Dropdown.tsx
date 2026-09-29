@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import * as Popover from '@radix-ui/react-popover'
 import { Command } from 'cmdk'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, X } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 
 export interface DropdownOption<V extends string = string> {
@@ -25,6 +25,8 @@ interface DropdownProps<V extends string = string> {
   ariaInvalid?: boolean
   ariaDescribedBy?: string
   id?: string
+  onClear?: () => void
+  clearLabel?: string
 }
 
 // searchable dropdown built on Radix Popover + cmdk Command
@@ -42,6 +44,8 @@ export function Dropdown<V extends string = string>({
   ariaInvalid,
   ariaDescribedBy,
   id,
+  onClear,
+  clearLabel = 'Clear',
 }: DropdownProps<V>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -56,30 +60,48 @@ export function Dropdown<V extends string = string>({
     setQuery('')
   }
 
+  const canClear = Boolean(onClear && value && !disabled)
+
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <Button
-          variant="naked"
-          id={id}
-          type="button"
-          disabled={disabled}
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-invalid={ariaInvalid || undefined}
-          aria-describedby={ariaDescribedBy}
-          className={cn(
-            'border-border-soft text-text-hi flex h-11 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm font-normal',
-            'focus-visible:border-accent focus-visible:ring-accent/30',
-            !displayLabel && 'text-text-lo',
-            className,
-          )}
-        >
-          <span className="truncate text-left">{displayLabel ?? placeholder}</span>
-          <ChevronDown size={16} className="text-text-mid ml-2 shrink-0" aria-hidden />
-        </Button>
-      </Popover.Trigger>
+      {/* the clear button sits over the trigger (a button can't nest in a button) */}
+      <div className="relative">
+        <Popover.Trigger asChild>
+          <Button
+            variant="naked"
+            id={id}
+            type="button"
+            disabled={disabled}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-invalid={ariaInvalid || undefined}
+            aria-describedby={ariaDescribedBy}
+            className={cn(
+              'border-border-soft text-text-hi flex h-11 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm font-normal',
+              'focus-visible:border-accent focus-visible:ring-accent/30',
+              !displayLabel && 'text-text-lo',
+              className,
+            )}
+          >
+            <span className={cn('truncate text-left', canClear && 'pr-8')}>
+              {displayLabel ?? placeholder}
+            </span>
+            <ChevronDown size={16} className="text-text-mid ml-2 shrink-0" aria-hidden />
+          </Button>
+        </Popover.Trigger>
+        {canClear && (
+          <button
+            type="button"
+            aria-label={clearLabel}
+            title={clearLabel}
+            onClick={onClear}
+            className="text-text-lo hover:text-text-hi focus-visible:ring-accent absolute top-1/2 right-9 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <X size={14} aria-hidden />
+          </button>
+        )}
+      </div>
       <Popover.Portal>
         <Popover.Content
           align="start"
@@ -113,7 +135,8 @@ export function Dropdown<V extends string = string>({
               {options.map((option) => (
                 <Command.Item
                   key={option.value}
-                  value={option.label}
+                  value={option.value}
+                  keywords={[option.label]}
                   onSelect={() => handleSelect(option.value)}
                   className={cn(
                     'text-text-hi flex cursor-pointer items-center justify-between rounded-sm px-3 py-2 text-sm',

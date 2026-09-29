@@ -32,13 +32,6 @@ async function tryRefresh(): Promise<boolean> {
 
 const hooks: Hooks = {
   afterResponse: [
-    // dev-only delay to simulate slow network and show loading states
-    async ({ response }) => {
-      if (import.meta.env.DEV) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-      }
-      return response
-    },
     // refresh-on-401: try to renew the access cookie once, then replay
     async ({ request, response }) => {
       if (response.status !== 401) return response
