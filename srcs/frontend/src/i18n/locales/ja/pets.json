@@ -1,0 +1,117 @@
+{
+  "title": "マイペット",
+  "newPet": "ペットを追加",
+  "search": "名前で検索",
+  "clearSearch": "検索をクリア",
+  "filterSpecies": "すべての種類",
+  "species": {
+    "dog": "犬",
+    "cat": "猫",
+    "other": "その他"
+  },
+  "age": {
+    "years_one": "{{count}}歳",
+    "years_other": "{{count}}歳",
+    "months_one": "{{count}}か月",
+    "months_other": "{{count}}か月"
+  },
+  "weight": "{{value}} kg",
+  "empty": {
+    "title": "まだペットがいません",
+    "message": "最初のペットを追加して、品種・健康状態・必要なケアの記録を始めましょう。",
+    "cta": "最初のペットを追加"
+  },
+  "noResults": "この検索に一致する結果はありません。",
+  "form": {
+    "title": {
+      "create": "新しいペット",
+      "edit": "ペットを編集"
+    },
+    "name": "名前",
+    "namePlaceholder": "お名前は？",
+    "species": "種類",
+    "breed": "品種",
+    "breedPlaceholder": "例：ラブラドール（任意）",
+    "age": "年齢",
+    "weight": "体重",
+    "weightPlaceholder": "kg",
+    "healthConditions": "健康状態",
+    "healthConditionsPlaceholder": "例：アレルギー、糖尿病（カンマ区切り）",
+    "healthConditionsHint": "複数ある場合はカンマで区切ってください。",
+    "submit": {
+      "create": "ペットを登録",
+      "edit": "変更を保存"
+    },
+    "cancel": "キャンセル",
+    "ageYears": "歳",
+    "ageMonths": "か月",
+    "speciesPlaceholder": "犬、猫、その他",
+    "clearSpecies": "種類をクリア",
+    "clearBreed": "品種をクリア"
+  },
+  "errors": {
+    "nameRequired": "名前は必須です。",
+    "speciesRequired": "種類は必須です。",
+    "ageInvalid": "年齢は正の数で入力してください。",
+    "weightInvalid": "体重は正の数で入力してください。",
+    "generic": "問題が発生しました。もう一度お試しください。",
+    "NOT_FOUND": "ペットが見つかりません。",
+    "VALIDATION_ERROR": "入力内容が正しくありません。各項目を確認して、もう一度お試しください。",
+    "INTERNAL_ERROR": "サーバーエラーです。しばらくしてからもう一度お試しください。",
+    "nameTooLong": "名前は100文字以内で入力してください。",
+    "breedTooLong": "品種は100文字以内で入力してください。",
+    "ageTooLarge": "年齢は150歳以下で入力してください。",
+    "weightTooLarge": "体重は500 kg以下で入力してください。",
+    "monthsRange": "月数は0〜11の範囲で入力してください。"
+  },
+  "detail": {
+    "tabs": {
+      "overview": "概要",
+      "health": "健康",
+      "analyses": "分析"
+    },
+    "edit": "編集",
+    "delete": "削除",
+    "deleteConfirm": {
+      "title": "{{name}}を削除しますか？",
+      "message": "この操作は取り消せません。関連するすべての分析も失われます。",
+      "confirm": "削除",
+      "cancel": "キャンセル"
+    },
+    "loadError": "ペットを読み込めませんでした。",
+    "analyzeAgain": "分析する"
+  },
+  "overview": {
+    "title": "プロフィール",
+    "species": "種類",
+    "breed": "品種",
+    "breedUnknown": "未設定",
+    "age": "年齢",
+    "ageUnknown": "未設定",
+    "weight": "体重",
+    "weightUnknown": "未設定",
+    "createdAt": "登録日"
+  },
+  "health": {
+    "title": "健康状態",
+    "conditions": "既知の症状",
+    "noConditions": "記録された症状はありません。"
+  },
+  "analyses": {
+    "title": "分析履歴",
+    "empty": {
+      "title": "まだ分析がありません",
+      "message": "写真をアップロードして始めましょう。",
+      "cta": "写真を分析"
+    },
+    "loadError": "分析を読み込めませんでした。",
+    "reportTitle": "分析レポート"
+  },
+  "photo": {
+    "upload": "写真をアップロード",
+    "change": "写真を変更",
+    "remove": "写真を削除",
+    "alt": "ペットのプロフィール写真",
+    "invalid": "この画像を読み込めませんでした。JPEG、PNG、WebP形式の写真を使用してください。"
+  }
+}

@@ -1,7 +1,12 @@
 {
   "input": {
-    "placeholder": "Write a message or attach a photo…",
+    "placeholder": "Attach a photo, add a message if you like",
+    "notePlaceholder": "Add a note (optional): age, symptoms, questions…",
     "dragActive": "Drop the photo here"
+  },
+  "actions": {
+    "repeat": "Repeat analysis",
+    "new": "New analysis"
   },
   "attachment": {
     "remove": "Remove attachment",
@@ -63,6 +68,5 @@
     "IMAGE_TOO_SMALL": "The photo is too small: at least 224px per side.",
     "INVALID_IMAGE_FORMAT": "Unsupported format: use JPEG, PNG or WebP."
   },
-  "needPhoto": "I need a photo to get started — attach one with + or drop it here.",
   "linkedGreeting": "Let's analyze {{name}}: send me a photo of them."
 }

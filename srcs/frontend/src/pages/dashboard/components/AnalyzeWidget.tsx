@@ -1,8 +1,11 @@
+import { USER_CONTEXT_MAX_LENGTH } from '@/api/routes'
 import { BotAvatar } from '@/components/chat/BotAvatar'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { toast } from '@/components/ui/Toast'
 import { useFileDrop } from '@/hooks/useFileDrop'
 import { pickBotMessage } from '@/lib/botMessages'
+import { validatePetImage } from '@/lib/image'
 import { cn } from '@/lib/utils'
 import { DashboardSection } from '@/pages/dashboard/components/widget-ui/DashboardSection'
 import { useListPets } from '@/queries/pets'
@@ -13,7 +16,7 @@ import { useNavigate } from 'react-router'
 
 // fake chatbot widget for the analyze flow
 // the greeting is picked at random from a pool based on what we know about the user (first name, pets)
-// typing is disabled in the chat sense: submit always navigates to /analyze
+// the photo (and an optional message) is prepared here, sending hands it off to /analyze
 export function AnalyzeWidget() {
   const { t } = useTranslation(['dashboard', 'bot'])
   const navigate = useNavigate()
@@ -23,6 +26,7 @@ export function AnalyzeWidget() {
   // gate the greeting until both auth and pets have resolved
   const isReady = isAuthReady && !isPetsPending
   const [draft, setDraft] = useState('')
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
 
   const firstName = user?.first_name?.trim()
   const hasName = Boolean(firstName)
@@ -38,14 +42,21 @@ export function AnalyzeWidget() {
     defaultValue: '',
   })
 
-  const handleSubmit = () => {
-    void navigate('/analyze', { state: { draft } })
+  // a photo we can't analyze (format, size) is refused right away, never attached
+  const handleFile = (file: File) => {
+    void validatePetImage(file).then((validated) => {
+      if (!validated.ok) {
+        toast.error(t(`analyze:errors.${validated.error}`))
+        return
+      }
+      setPendingFile(file)
+    })
   }
 
-  // attaching an image is a shortcut to start the analyze flow
-  const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return
-    void navigate('/analyze', { state: { file, draft } })
+  // only submits with a photo attached: /analyze starts the analysis right away
+  const handleSubmit = () => {
+    if (!pendingFile) return
+    void navigate('/analyze', { state: { file: pendingFile, draft } })
   }
 
   const { isDragging, dropHandlers } = useFileDrop(handleFile)
@@ -88,6 +99,11 @@ export function AnalyzeWidget() {
         onChange={setDraft}
         onSubmit={handleSubmit}
         onFile={handleFile}
+        attachment={pendingFile}
+        onRemoveAttachment={() => {
+          setPendingFile(null)
+        }}
+        maxLength={USER_CONTEXT_MAX_LENGTH}
         placeholder={
           isDragging ? t('blocks.analyze.bot.dragActive') : t('blocks.analyze.bot.inputPlaceholder')
         }

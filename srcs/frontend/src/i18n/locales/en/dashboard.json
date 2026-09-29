@@ -33,7 +33,7 @@
       "bot": {
         "name": "SmartBreeds AI",
         "status": "Ready to analyze",
-        "inputPlaceholder": "Ask me anything or drop a photo",
+        "inputPlaceholder": "Attach a photo, add a message if you like",
         "dragActive": "Release the photo to begin",
         "remove": "Remove"
       }

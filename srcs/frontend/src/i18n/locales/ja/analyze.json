@@ -1,0 +1,72 @@
+{
+  "input": {
+    "placeholder": "写真を添付、メッセージは任意",
+    "notePlaceholder": "メモを追加（任意）：年齢、症状、質問など…",
+    "dragActive": "ここに写真をドロップ"
+  },
+  "actions": {
+    "repeat": "もう一度分析",
+    "new": "新しい分析"
+  },
+  "attachment": {
+    "remove": "添付を削除",
+    "alt": "添付された写真"
+  },
+  "phases": {
+    "uploading": "写真をアップロードしています…",
+    "classifying": "品種を判定しています…",
+    "searching": "品種の情報を調べています…",
+    "generating": "レポートを作成しています…"
+  },
+  "result": {
+    "crossbreed": "ミックスの可能性があります",
+    "size": "サイズ",
+    "energy_level": "活発さ",
+    "temperament": "性格",
+    "health": "健康に関する所見",
+    "sizes": {
+      "small": "小型",
+      "medium": "中型",
+      "large": "大型"
+    },
+    "energy": {
+      "low": "おだやか",
+      "medium": "ふつう",
+      "high": "活発"
+    }
+  },
+  "save": {
+    "title": "この分析結果をペットに保存",
+    "selectPet": "ペットを選択…",
+    "cta": "保存",
+    "success": "分析結果を保存しました",
+    "noPets": "分析結果を保存するには、まずペットを登録してください",
+    "updateTitle": "{{name}}の情報を更新しますか？",
+    "updateMessage": "分析の結果、{{breed}}（{{confidence}}%）と判定されました。この結果で{{name}}のプロフィールを更新しますか？",
+    "updateCta": "{{name}}を更新",
+    "updateSkip": "いいえ、このままにする",
+    "updated": "{{name}}のプロフィールを更新しました",
+    "usePhoto": "この写真を{{name}}のプロフィール写真にする",
+    "ctaFor": "{{name}}に保存",
+    "pickAnother": "別のペットを選ぶ"
+  },
+  "errors": {
+    "generic": "問題が発生しました。もう一度お試しください。",
+    "imageType": "対応していない形式です。JPEG、PNG、WebPをご利用ください。",
+    "imageTooLarge": "写真のサイズが5MBを超えています。",
+    "imageTooSmall": "写真が小さすぎます。縦横それぞれ224px以上の写真をご利用ください。",
+    "RATE_LIMITED": "リクエストが多すぎます。1分ほど待ってから、もう一度お試しください。",
+    "CONTENT_POLICY_VIOLATION": "この画像は分析できません。",
+    "UNSUPPORTED_SPECIES": "現在、分析できるのは犬と猫のみです。",
+    "SPECIES_DETECTION_FAILED": "この写真からは動物を見つけられませんでした。もっと鮮明な写真でお試しください。",
+    "BREED_DETECTION_FAILED": "品種を特定できませんでした。別の写真でお試しください。",
+    "VISION_SERVICE_UNAVAILABLE": "現在、分析サービスをご利用いただけません。しばらくしてからもう一度お試しください。",
+    "INTERNAL_ERROR": "分析中に内部エラーが発生しました。もう一度お試しください。",
+    "SERVICE_UNAVAILABLE": "現在、分析サービスをご利用いただけません。数分後にもう一度お試しください。",
+    "RATE_LIMIT_EXCEEDED": "リクエストが多すぎます。1分ほど待ってから、もう一度お試しください。",
+    "IMAGE_TOO_LARGE": "写真のサイズが5MBを超えています。",
+    "IMAGE_TOO_SMALL": "写真が小さすぎます。縦横それぞれ224px以上の写真をご利用ください。",
+    "INVALID_IMAGE_FORMAT": "対応していない形式です。JPEG、PNG、WebPをご利用ください。"
+  },
+  "linkedGreeting": "{{name}}を分析しましょう。{{name}}の写真を送ってください。"
+}

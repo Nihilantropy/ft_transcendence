@@ -1,3 +1,4 @@
+import type { Language } from '@/i18n/i18n'
 import { unwrap, type ApiResponse } from '@/lib/utils'
 import { api, BASE_URL } from './ky'
 import type {
@@ -124,14 +125,19 @@ export async function listPetAnalyses(petId: string): Promise<PetAnalysis[]> {
 /*                               Vision analysis                              */
 /* -------------------------------------------------------------------------- */
 
+// the owner's optional note
+export const USER_CONTEXT_MAX_LENGTH = 1000
+
 export async function analyzeImage(
   imageDataUri: string,
-  language: 'it' | 'en',
+  language: Language,
+  userContext: string,
   signal?: AbortSignal,
 ): Promise<VisionAnalysisData> {
   const response: ApiResponse<VisionAnalysisData> = await api
     .post('v1/vision/analyze', {
-      json: { image: imageDataUri, language },
+      // an empty note is left out, like before the field existed
+      json: { image: imageDataUri, language, user_context: userContext || undefined },
       timeout: 300_000,
       signal,
     })

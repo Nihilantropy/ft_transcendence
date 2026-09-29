@@ -1,6 +1,7 @@
 {
   "attach": "Allega foto",
   "send": "Invia",
+  "photoRequired": "Allega una foto per inviare il messaggio.",
   "messages": {
     "neutral": [
       "Ciao 👋\nMandami una foto del tuo pet: analizzo razza, salute e ciò di cui ha davvero bisogno.",

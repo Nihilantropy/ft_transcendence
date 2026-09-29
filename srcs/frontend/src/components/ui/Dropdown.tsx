@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import * as Popover from '@radix-ui/react-popover'
 import { Command } from 'cmdk'
 import { Check, ChevronDown, X } from 'lucide-react'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 
 export interface DropdownOption<V extends string = string> {
   value: V
@@ -27,6 +27,8 @@ interface DropdownProps<V extends string = string> {
   id?: string
   onClear?: () => void
   clearLabel?: string
+  searchable?: boolean
+  align?: 'start' | 'end'
 }
 
 // searchable dropdown built on Radix Popover + cmdk Command
@@ -46,10 +48,14 @@ export function Dropdown<V extends string = string>({
   id,
   onClear,
   clearLabel = 'Clear',
+  searchable = true,
+  align = 'start',
 }: DropdownProps<V>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const listId = useId()
+  // without the search field, the list itself takes focus so cmdk's keyboard nav works
+  const commandRef = useRef<HTMLDivElement>(null)
   const selected = options.find((o) => o.value === value)
   // when allowCustom and the typed value isn't in options, show it as the "selected" label
   const displayLabel = selected?.label ?? (allowCustom && value ? String(value) : undefined)
@@ -104,19 +110,26 @@ export function Dropdown<V extends string = string>({
       </div>
       <Popover.Portal>
         <Popover.Content
-          align="start"
+          align={align}
           sideOffset={4}
-          className="border-border-soft bg-elevated z-50 w-[var(--radix-popover-trigger-width)] rounded-md border shadow-[0_12px_32px_oklch(0%_0_0/0.35)]"
+          onOpenAutoFocus={(e) => {
+            if (searchable) return
+            e.preventDefault()
+            commandRef.current?.focus()
+          }}
+          className="border-border-soft bg-elevated z-50 w-[var(--radix-popover-trigger-width)] min-w-40 rounded-md border shadow-[0_12px_32px_oklch(0%_0_0/0.35)]"
         >
-          <Command>
-            <div className="border-border-soft border-b px-3 py-2">
-              <Command.Input
-                value={query}
-                onValueChange={setQuery}
-                placeholder={searchPlaceholder}
-                className="text-text-hi placeholder:text-text-lo h-8 w-full bg-transparent text-sm outline-none"
-              />
-            </div>
+          <Command ref={commandRef} tabIndex={-1} className="outline-none">
+            {searchable && (
+              <div className="border-border-soft border-b px-3 py-2">
+                <Command.Input
+                  value={query}
+                  onValueChange={setQuery}
+                  placeholder={searchPlaceholder}
+                  className="text-text-hi placeholder:text-text-lo h-8 w-full bg-transparent text-sm outline-none"
+                />
+              </div>
+            )}
             <Command.List id={listId} className="max-h-64 overflow-y-auto p-1">
               <Command.Empty className="text-text-mid px-3 py-6 text-center text-sm">
                 {allowCustom && query.trim() ? (

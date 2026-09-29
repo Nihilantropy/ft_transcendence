@@ -1,6 +1,7 @@
 {
   "attach": "Attach photo",
   "send": "Send",
+  "photoRequired": "Attach a photo to send your message.",
   "messages": {
     "neutral": [
       "Hey 👋\nDrop a photo of your pet — I'll analyze breed, health and what they really need.",

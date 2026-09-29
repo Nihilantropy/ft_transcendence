@@ -1,6 +1,6 @@
 export type ImageValidationError = 'imageType' | 'imageTooLarge' | 'imageTooSmall'
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+export const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_BYTES = 5 * 1024 * 1024
 const MIN_EDGE = 224
 

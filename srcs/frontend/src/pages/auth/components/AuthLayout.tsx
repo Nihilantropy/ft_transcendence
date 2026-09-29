@@ -1,5 +1,5 @@
 import { Brand } from '@/components/layout/Brand'
-import { LanguageToggle } from '@/components/layout/LanguageToggle'
+import { LanguagePicker } from '@/components/layout/LanguagePicker'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { Image } from '@/components/ui/Image'
 import type { ReactNode } from 'react'
@@ -36,7 +36,7 @@ function Header() {
     <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-4 px-4 py-3 lg:px-8 lg:py-4">
       <Brand to="/" className="lg:text-white" />
       <div className="flex items-center gap-1">
-        <LanguageToggle />
+        <LanguagePicker />
         <ThemeToggle />
       </div>
     </header>

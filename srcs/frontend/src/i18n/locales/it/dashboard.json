@@ -33,7 +33,7 @@
       "bot": {
         "name": "SmartBreeds AI",
         "status": "Pronto ad analizzare",
-        "inputPlaceholder": "Chiedimi qualcosa o invia una foto",
+        "inputPlaceholder": "Allega una foto, se vuoi aggiungi un messaggio",
         "dragActive": "Rilascia la foto per iniziare",
         "remove": "Rimuovi"
       }

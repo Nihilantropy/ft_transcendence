@@ -72,7 +72,11 @@ export function AnalysisResultCard({
               strokeWidth: 1.5,
             })}
           </span>
-          <BreedBadge breed={breed.primary_breed} confidence={breed.confidence} />
+          <BreedBadge
+            breed={breed.primary_breed}
+            confidence={breed.confidence}
+            className="px-3 py-0.5 text-[13px]"
+          />
         </div>
         {breed.is_likely_crossbreed &&
           breed.crossbreed_analysis &&
@@ -96,9 +100,9 @@ export function AnalysisResultCard({
 
       {/* traits (LLM output, keys optional) */}
       {traitEntries.length > 0 && (
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
           {traitEntries.map(({ key, value }) => (
-            <div key={key}>
+            <div key={key} className={cn(key === 'temperament' && 'col-span-full')}>
               <dt className="text-text-lo text-xs font-medium tracking-[0.15em] uppercase">
                 {t(`analyze:result.${key}`)}
               </dt>
@@ -113,8 +117,11 @@ export function AnalysisResultCard({
         <ResultSection title={t('analyze:result.health')}>
           <ul className="text-text-hi space-y-1.5 text-sm">
             {healthObservations.map((obs) => (
-              <li key={obs} className="flex items-center gap-2.5">
-                <span className="bg-text-lo/60 h-1 w-1 flex-shrink-0 rounded-full" aria-hidden />
+              <li key={obs} className="flex items-start gap-2.5">
+                <span
+                  className="bg-text-lo/60 mt-2 h-1 w-1 flex-shrink-0 rounded-full"
+                  aria-hidden
+                />
                 {obs}
               </li>
             ))}

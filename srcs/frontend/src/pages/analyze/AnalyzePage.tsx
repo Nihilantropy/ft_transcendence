@@ -1,4 +1,4 @@
-import { analyzeImage, verify } from '@/api/routes'
+import { analyzeImage, USER_CONTEXT_MAX_LENGTH, verify } from '@/api/routes'
 import type { VisionAnalysisData } from '@/api/types'
 import { BotAvatar } from '@/components/chat/BotAvatar'
 import { ChatInput } from '@/components/chat/ChatInput'
@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/Button'
 import { Image } from '@/components/ui/Image'
 import { toast } from '@/components/ui/Toast'
 import { useFileDrop } from '@/hooks/useFileDrop'
+import { currentLanguage } from '@/i18n/i18n'
 import { pickBotMessage } from '@/lib/botMessages'
 import { toPetPhoto, validatePetImage } from '@/lib/image'
 import { cn } from '@/lib/utils'
 import { useListPets } from '@/queries/pets'
 import { useUser } from '@/stores/auth'
 import { HTTPError } from 'ky'
-import { Bot, X } from 'lucide-react'
+import { Bot, Plus, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -62,6 +63,8 @@ export function AnalyzePage() {
   const abortRef = useRef<AbortController | null>(null)
   const objectUrlsRef = useRef<string[]>([])
   const lastMessageRef = useRef<HTMLDivElement>(null)
+  // photo + text of the last analysis, sent again by "repeat analysis"
+  const lastInputRef = useRef<{ file: File; text: string } | null>(null)
 
   // greeting: same personalized pool as the dashboard widget
   const firstName = user?.first_name?.trim()
@@ -93,6 +96,7 @@ export function AnalyzePage() {
       return
     }
 
+    lastInputRef.current = { file, text }
     const imageUrl = URL.createObjectURL(file)
     objectUrlsRef.current.push(imageUrl)
     pushMessage({ id: msgId(), role: 'user', text, imageUrl })
@@ -106,9 +110,8 @@ export function AnalyzePage() {
 
     try {
       await verify()
-      const language = i18n.language.startsWith('it') ? 'it' : 'en'
       const [data, photo] = await Promise.all([
-        analyzeImage(validated.dataUri, language, controller.signal),
+        analyzeImage(validated.dataUri, currentLanguage(), text, controller.signal),
         toPetPhoto(file).catch(() => undefined),
       ])
       pushMessage({ id: msgId(), role: 'result', data, photo })
@@ -121,23 +124,36 @@ export function AnalyzePage() {
     }
   }
 
-  const handleSubmit = () => {
-    if (status === 'analyzing') return
-    if (pendingFile) {
-      void runAnalysis(pendingFile, draft.trim())
-      return
-    }
-    // text without a photo: the pipeline needs an image -> reply like a chatbot
-    const text = draft.trim()
-    if (!text) return
-    pushMessage({ id: msgId(), role: 'user', text })
-    pushMessage({ id: msgId(), role: 'bot', text: t('analyze:needPhoto') })
-    setDraft('')
+  // after a report the input gives way to two actions: the same photo + text again, or a clean page back to the greeting
+  const showNextActions = status === 'idle' && messages.at(-1)?.role === 'result'
+
+  const repeatAnalysis = () => {
+    const last = lastInputRef.current
+    if (last) void runAnalysis(last.file, last.text)
   }
 
+  const startNewAnalysis = () => {
+    setMessages([])
+    setDraft('')
+    setPendingFile(null)
+    lastInputRef.current = null
+  }
+
+  // only submits with a photo attached; the text is its optional note
+  const handleSubmit = () => {
+    if (status === 'analyzing' || !pendingFile) return
+    void runAnalysis(pendingFile, draft.trim())
+  }
+
+  // a photo we can't analyze (format, size) is refused right away, never attached
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return
-    setPendingFile(file)
+    void validatePetImage(file).then((validated) => {
+      if (!validated.ok) {
+        toast.error(t(`analyze:errors.${validated.error}`))
+        return
+      }
+      setPendingFile(file)
+    })
   }
 
   const { isDragging, dropHandlers } = useFileDrop(handleFile)
@@ -149,14 +165,9 @@ export function AnalyzePage() {
     const { file, draft: incomingDraft } = routeState
     const text = incomingDraft?.trim() ?? ''
     void navigate('.', { replace: true, state: null })
-    // the hand-off arrives already SENT: either the analysis starts right away (file) or the text lands as a sent message with the bot's reply (no file)
+    // the hand-off arrives already SENT: the analysis starts right away, the text as its note
     setTimeout(() => {
-      if (file) {
-        void runAnalysis(file, text)
-      } else if (text) {
-        pushMessage({ id: msgId(), role: 'user', text })
-        pushMessage({ id: msgId(), role: 'bot', text: t('analyze:needPhoto') })
-      }
+      if (file) void runAnalysis(file, text)
     }, 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeState])
@@ -201,33 +212,25 @@ export function AnalyzePage() {
   const isEmpty = messages.length === 0 && status === 'idle'
 
   const inputBlock = (
-    <>
-      {pendingFile && (
-        <div className="border-border-soft bg-elevated mb-2 flex w-fit items-center gap-2 rounded-xl border px-3 py-2">
-          <span className="text-text-hi max-w-60 truncate text-xs">{pendingFile.name}</span>
-          <Button
-            type="button"
-            variant="naked"
-            onClick={() => {
-              setPendingFile(null)
-            }}
-            aria-label={t('analyze:attachment.remove')}
-            className="text-text-mid hover:text-text-hi h-5 w-5"
-          >
-            <X size={14} aria-hidden />
-          </Button>
-        </div>
-      )}
-      <ChatInput
-        value={draft}
-        onChange={setDraft}
-        onSubmit={handleSubmit}
-        onFile={handleFile}
-        hasAttachment={pendingFile !== null}
-        disabled={status === 'analyzing'}
-        placeholder={isDragging ? t('analyze:input.dragActive') : t('analyze:input.placeholder')}
-      />
-    </>
+    <ChatInput
+      value={draft}
+      onChange={setDraft}
+      onSubmit={handleSubmit}
+      onFile={handleFile}
+      attachment={pendingFile}
+      onRemoveAttachment={() => {
+        setPendingFile(null)
+      }}
+      disabled={status === 'analyzing'}
+      maxLength={USER_CONTEXT_MAX_LENGTH}
+      placeholder={
+        isDragging
+          ? t('analyze:input.dragActive')
+          : pendingFile
+            ? t('analyze:input.notePlaceholder')
+            : t('analyze:input.placeholder')
+      }
+    />
   )
 
   // empty state: greeting + input centered in the page
@@ -324,7 +327,22 @@ export function AnalyzePage() {
       </div>
 
       {/* input pinned to the bottom of the scrollport while the list scrolls */}
-      <div className="bg-base sticky bottom-0 pt-3 pb-2">{inputBlock}</div>
+      <div className="bg-base sticky bottom-0 pt-3 pb-2">
+        {showNextActions ? (
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" size="sm" onClick={repeatAnalysis}>
+              <RotateCcw size={14} aria-hidden />
+              {t('analyze:actions.repeat')}
+            </Button>
+            <Button size="sm" onClick={startNewAnalysis}>
+              <Plus size={14} aria-hidden />
+              {t('analyze:actions.new')}
+            </Button>
+          </div>
+        ) : (
+          inputBlock
+        )}
+      </div>
     </div>
   )
 }

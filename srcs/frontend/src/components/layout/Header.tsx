@@ -1,5 +1,5 @@
 import { Brand } from '@/components/layout/Brand'
-import { LanguageToggle } from '@/components/layout/LanguageToggle'
+import { LanguagePicker } from '@/components/layout/LanguagePicker'
 import { NavDrawer } from '@/components/layout/NavDrawer'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { UserAvatar } from '@/components/layout/UserAvatar'
@@ -51,7 +51,7 @@ export function Header({ bordered = false }: HeaderProps) {
           )}
         </div>
         <div className="-mr-3 flex items-center gap-1">
-          <LanguageToggle />
+          <LanguagePicker />
           <ThemeToggle />
           {isAuthenticated && (
             <>

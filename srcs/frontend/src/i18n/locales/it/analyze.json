@@ -1,7 +1,12 @@
 {
   "input": {
-    "placeholder": "Scrivi un messaggio o allega una foto…",
+    "placeholder": "Allega una foto, se vuoi aggiungi un messaggio",
+    "notePlaceholder": "Aggiungi una nota (facoltativa): età, sintomi, domande…",
     "dragActive": "Rilascia qui la foto"
+  },
+  "actions": {
+    "repeat": "Ripeti analisi",
+    "new": "Nuova analisi"
   },
   "attachment": {
     "remove": "Rimuovi allegato",
@@ -63,6 +68,5 @@
     "IMAGE_TOO_SMALL": "La foto è troppo piccola: servono almeno 224px per lato.",
     "INVALID_IMAGE_FORMAT": "Formato non supportato: usa JPEG, PNG o WebP."
   },
-  "needPhoto": "Per iniziare mi serve una foto: allegala col + o trascinala qui.",
   "linkedGreeting": "Analizziamo {{name}}: mandami una sua foto."
 }

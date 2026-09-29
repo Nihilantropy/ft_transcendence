@@ -1,0 +1,42 @@
+{
+  "greeting": {
+    "morning": "おはようございます",
+    "afternoon": "こんにちは",
+    "evening": "こんばんは",
+    "withName": "{{greeting}}、{{name}}さん"
+  },
+  "intro": "あなたのsmartbreedsの概要です。",
+  "blocks": {
+    "pets": {
+      "title": "あなたのペット",
+      "empty": {
+        "title": "まだペットが登録されていません",
+        "message": "最初のペットを登録してはじめましょう。",
+        "cta": "ペットを追加"
+      },
+      "viewAll": "すべて表示"
+    },
+    "lastAnalysis": {
+      "title": "最新の分析",
+      "empty": {
+        "title": "まだ分析はありません",
+        "message": "写真をアップロードして、最初の分析を受け取りましょう。"
+      }
+    },
+    "recommendations": {
+      "title": "あなたへのおすすめ",
+      "empty": {
+        "message": "最初の分析のあとに、おすすめが表示されます。"
+      }
+    },
+    "analyze": {
+      "bot": {
+        "name": "SmartBreeds AI",
+        "status": "分析の準備ができました",
+        "inputPlaceholder": "写真を添付、メッセージは任意",
+        "dragActive": "写真を離すと分析を開始します",
+        "remove": "削除"
+      }
+    }
+  }
+}
