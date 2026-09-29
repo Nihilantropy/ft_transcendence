@@ -1,14 +1,15 @@
-import { extractError } from '@/lib/utils'
+import { extractError, type ApiErrorDetails } from '@/lib/utils'
 import ky, { HTTPError, type Hooks } from 'ky'
 
 declare module 'ky' {
   interface HTTPError {
     detail?: string
     code?: string
+    details?: ApiErrorDetails
   }
 }
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api'
+export const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api'
 
 let refreshPromise: Promise<boolean> | null = null
 
@@ -47,9 +48,10 @@ const hooks: Hooks = {
     // enrich the HTTPError with `code` + `detail` pulled from the response body
     ({ error }) => {
       if (!(error instanceof HTTPError)) return error
-      const { code, message } = extractError(error.data)
+      const { code, message, details } = extractError(error.data)
       error.code = code
       error.detail = message
+      error.details = details
       return error
     },
   ],

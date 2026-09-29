@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { toast } from '@/components/ui/Toast'
 import { getApiErrorMessage } from '@/lib/utils'
 import { AuthLayout } from '@/pages/auth/components/AuthLayout'
+import { OAuth42Button } from '@/pages/auth/components/OAuth42Button'
 import { useRegisterMutation } from '@/queries/auth'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
@@ -107,6 +108,8 @@ export function RegisterPage() {
           {t('register.submit')}
         </Button>
       </form>
+
+      <OAuth42Button />
 
       {/* already registered CTA */}
       <p className="text-text-mid mt-6 text-center text-sm">

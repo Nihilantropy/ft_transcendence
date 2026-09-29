@@ -1,8 +1,8 @@
 import { Brand } from '@/components/layout/Brand'
 import { LanguageToggle } from '@/components/layout/LanguageToggle'
-import { LogoutButton } from '@/components/layout/LogoutButton'
 import { NavDrawer } from '@/components/layout/NavDrawer'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { UserAvatar } from '@/components/layout/UserAvatar'
 import { AUTHED_NAV } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
 import { useIsAuthenticated } from '@/stores/auth'
@@ -50,13 +50,12 @@ export function Header({ bordered = false }: HeaderProps) {
             </nav>
           )}
         </div>
-        {/* right: toggles, logout button, mobile only burger */}
         <div className="-mr-3 flex items-center gap-1">
           <LanguageToggle />
           <ThemeToggle />
           {isAuthenticated && (
             <>
-              <LogoutButton className="hidden lg:inline-flex" />
+              <UserAvatar />
               <NavDrawer items={AUTHED_NAV} />
             </>
           )}

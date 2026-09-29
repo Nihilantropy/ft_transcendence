@@ -9,6 +9,9 @@ export type User = {
   last_name?: string
   role?: string
   is_verified?: boolean
+  two_factor_enabled?: boolean
+  // false for an account created through 42 until the user sets a password
+  has_password?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -28,9 +31,38 @@ export type RegisterPayload = {
 }
 
 export type ChangePasswordPayload = {
-  old_password: string
+  current_password?: string
   new_password: string
-  password_confirm: string
+  new_password_confirm: string
+  code?: string
+}
+
+// POST /auth/login answers with a session, or with a 2FA challenge when 2FA is on
+export type LoginResult = { user: User } | { mfa_required: true; mfa_token: string }
+
+export type TwoFactorLoginPayload = {
+  mfa_token: string
+  code: string
+}
+
+// PATCH /auth/me: an email change needs current_password (+ code when 2FA is on)
+export type UpdateProfilePayload = {
+  first_name?: string
+  last_name?: string
+  email?: string
+  current_password?: string
+  code?: string
+}
+
+export type TwoFactorSetup = {
+  secret: string
+  otpauth_uri: string
+}
+
+// 2fa/enable and 2fa/disable: current password + a code
+export type TwoFactorConfirmPayload = {
+  current_password: string
+  code: string
 }
 
 // ---------------------------------------------------------------------------

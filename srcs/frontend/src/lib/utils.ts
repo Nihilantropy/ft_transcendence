@@ -1,3 +1,4 @@
+import type { User } from '@/api/types'
 import i18n from '@/i18n/i18n'
 import { clsx, type ClassValue } from 'clsx'
 import type { TFunction } from 'i18next'
@@ -24,21 +25,33 @@ function asString(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined
 }
 
-// pull code + human-readable message out of an HTTP error body
-export function extractError(parsed: unknown): { code?: string; message?: string } {
-  const obj = parsed as Record<string, unknown> | null
+export type ApiErrorDetails = Record<string, string[]>
+
+// pull code + human-readable message (+ per-field details) out of an HTTP error body
+export function extractError(parsed: unknown): {
+  code?: string
+  message?: string
+  details?: ApiErrorDetails
+} {
+  const raw = parsed as Record<string, unknown> | null
+  const obj = (raw?.detail as Record<string, unknown> | undefined) ?? raw
   const nested = obj?.error as Record<string, unknown> | undefined
   const src = nested ?? obj ?? {}
-  return { code: asString(src.code), message: asString(src.message) }
+  const details = src.details
+  return {
+    code: asString(src.code),
+    message: asString(src.message),
+    details: details && typeof details === 'object' ? (details as ApiErrorDetails) : undefined,
+  }
 }
 
 // map a thrown API error to a localized message
 export function getApiErrorMessage(error: unknown, namespace: string, t: TFunction): string {
-  const e = error as { code?: string; detail?: string }
-  if (e.code && i18n.exists(`${namespace}:errors.${e.code}`)) {
-    return t(`errors.${e.code}`)
+  const { code } = error as { code?: string }
+  if (code && i18n.exists(`${namespace}:errors.${code}`)) {
+    return t(`errors.${code}`)
   }
-  return e.detail ?? t('errors.generic')
+  return t('errors.generic')
 }
 
 // read a sanitized ?next= redirect target from search params, falling back to fallback when missing or unsafe (anything but a same-origin path is rejected to guard against open-redirect attacks)
@@ -62,6 +75,16 @@ export function getTimeOfDay(date: Date = new Date()): TimeOfDay {
   if (h >= 5 && h < 12) return 'morning'
   if (h >= 12 && h < 18) return 'afternoon'
   return 'evening'
+}
+
+// "Mario Rossi" -> "MR"
+// "Mario" -> "M"
+// no name -> first letter of the email
+export function getInitials(user: Pick<User, 'first_name' | 'last_name' | 'email'>): string {
+  const initials = [user.first_name, user.last_name]
+    .map((part) => part?.trim().charAt(0) ?? '')
+    .join('')
+  return (initials || user.email.charAt(0)).toUpperCase()
 }
 
 // combine class names safely for Tailwind components filtering out falsy values and resolving conflicts

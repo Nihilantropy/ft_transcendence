@@ -1,5 +1,4 @@
 import { Brand } from '@/components/layout/Brand'
-import { LogoutButton } from '@/components/layout/LogoutButton'
 import { Button } from '@/components/ui/Button'
 import type { NavItem } from '@/lib/navigation'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
@@ -75,12 +74,6 @@ export function NavDrawer({ items }: NavDrawerProps) {
                 {t(labelKey)}
               </Link>
             ))}
-            <LogoutButton
-              variant="text"
-              onLogoutClick={() => {
-                setOpen(false)
-              }}
-            />
           </nav>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

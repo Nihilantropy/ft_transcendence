@@ -7,7 +7,6 @@ interface AuthState {
   // true once the initial verify() call has completed
   isReady: boolean
   setUser: (user: User | null) => void
-  clearUser: () => void
   setReady: (ready: boolean) => void
 }
 
@@ -16,9 +15,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   isReady: false,
   setUser: (user) => {
     set({ user })
-  },
-  clearUser: () => {
-    set({ user: null })
   },
   setReady: (isReady) => {
     set({ isReady })

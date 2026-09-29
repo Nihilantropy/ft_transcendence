@@ -1,13 +1,18 @@
 import { unwrap, type ApiResponse } from '@/lib/utils'
-import { api } from './ky'
+import { api, BASE_URL } from './ky'
 import type {
   AnalysisPayload,
   ChangePasswordPayload,
   LoginPayload,
+  LoginResult,
   Pet,
   PetAnalysis,
   PetPayload,
   RegisterPayload,
+  TwoFactorConfirmPayload,
+  TwoFactorLoginPayload,
+  TwoFactorSetup,
+  UpdateProfilePayload,
   User,
   VisionAnalysisData,
 } from './types'
@@ -16,9 +21,19 @@ import type {
 /*                                    Auth                                    */
 /* -------------------------------------------------------------------------- */
 
-export async function login(data: LoginPayload): Promise<User> {
+// "Log in with 42": a full-page navigation, the backend redirects to the intra and back to / (or /login?oauth=… on failure)
+export const OAUTH_42_START_URL = `${BASE_URL}/v1/auth/oauth/42/start`
+
+// with 2FA on, the password alone returns a challenge instead of a session
+export async function login(data: LoginPayload): Promise<LoginResult> {
+  const response: ApiResponse<LoginResult> = await api.post('v1/auth/login', { json: data }).json()
+  return unwrap(response)
+}
+
+// second login step: the challenge token + a TOTP or recovery code
+export async function loginTwoFactor(data: TwoFactorLoginPayload): Promise<User> {
   const response: ApiResponse<{ user: User }> = await api
-    .post('v1/auth/login', { json: data })
+    .post('v1/auth/login/2fa', { json: data })
     .json()
   return unwrap(response).user
 }
@@ -45,6 +60,31 @@ export async function refresh(): Promise<void> {
 
 export async function changePassword(data: ChangePasswordPayload): Promise<void> {
   await api.put('v1/auth/change-password', { json: data })
+}
+
+export async function updateProfile(data: UpdateProfilePayload): Promise<User> {
+  const response: ApiResponse<{ user: User }> = await api.patch('v1/auth/me', { json: data }).json()
+  return unwrap(response).user
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         Two-factor authentication                          */
+/* -------------------------------------------------------------------------- */
+
+export async function setupTwoFactor(): Promise<TwoFactorSetup> {
+  const response: ApiResponse<TwoFactorSetup> = await api.post('v1/auth/2fa/setup').json()
+  return unwrap(response)
+}
+
+export async function enableTwoFactor(data: TwoFactorConfirmPayload): Promise<string[]> {
+  const response: ApiResponse<{ recovery_codes: string[] }> = await api
+    .post('v1/auth/2fa/enable', { json: data })
+    .json()
+  return unwrap(response).recovery_codes
+}
+
+export async function disableTwoFactor(data: TwoFactorConfirmPayload): Promise<void> {
+  await api.post('v1/auth/2fa/disable', { json: data })
 }
 
 /* -------------------------------------------------------------------------- */
