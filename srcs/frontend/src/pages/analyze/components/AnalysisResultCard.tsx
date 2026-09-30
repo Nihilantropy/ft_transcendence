@@ -1,4 +1,4 @@
-import { ANALYSIS_IMAGE_PLACEHOLDER, type VisionAnalysisData } from '@/api/types'
+import type { VisionAnalysisData } from '@/api/types'
 import { BreedBadge } from '@/components/pet/BreedBadge'
 import { renderSpeciesIcon } from '@/components/pet/speciesIcon'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +18,7 @@ import { MarkdownLite } from '@/components/ui/MarkdownLite'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { toast } from '@/components/ui/Toast'
 import { useLocalizedReport } from '@/hooks/useLocalizedReport'
+import { detectedSpecies, toAnalysisPayload, type NewPetFromAnalysisState } from '@/lib/analysis'
 import { breedDisplayName } from '@/lib/breeds'
 import { cn, getApiErrorMessage } from '@/lib/utils'
 import { useCreateAnalysisMutation, useListPets, useUpdatePetMutation } from '@/queries/pets'
@@ -208,36 +209,23 @@ function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
   const updatePetMutation = useUpdatePetMutation()
 
   const detectedBreed = data.breed_analysis.primary_breed
-  // the AI only answers for dogs and cats
-  const detectedSpecies = data.species === 'cat' || data.species === 'dog' ? data.species : null
   const savedPet = (pets ?? []).find((p) => p.id === petId)
 
   const handleSave = () => {
     if (!petId || !user) return
-    saveMutation.mutate(
-      {
-        pet_id: petId,
-        user_id: user.id,
-        image_url: ANALYSIS_IMAGE_PLACEHOLDER,
-        breed_detected: detectedBreed,
-        confidence: data.breed_analysis.confidence,
-        traits: data.traits,
-        raw_response: data,
+    saveMutation.mutate(toAnalysisPayload(data, petId, user.id), {
+      onSuccess: () => {
+        if (!savedPet) return
+        // propose the update only when it would change something
+        const breedDiffers = savedPet.breed !== detectedBreed
+        if (breedDiffers || photo) {
+          // a pet without a photo gets this one by default; an existing photo stays
+          setUsePhoto(Boolean(photo) && !savedPet.photo)
+          setAskUpdate(true)
+        }
       },
-      {
-        onSuccess: () => {
-          if (!savedPet) return
-          // propose the update only when it would change something
-          const breedDiffers = savedPet.breed !== detectedBreed
-          if (breedDiffers || photo) {
-            // a pet without a photo gets this one by default; an existing photo stays
-            setUsePhoto(Boolean(photo) && !savedPet.photo)
-            setAskUpdate(true)
-          }
-        },
-        onError: (error) => toast.error(getApiErrorMessage(error, 'analyze', t)),
-      },
-    )
+      onError: (error) => toast.error(getApiErrorMessage(error, 'analyze', t)),
+    })
   }
 
   const handleUpdate = () => {
@@ -246,7 +234,7 @@ function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
       {
         id: savedPet.id,
         payload: {
-          species: detectedSpecies ?? savedPet.species,
+          species: detectedSpecies(data) ?? savedPet.species,
           breed: detectedBreed,
           breed_confidence: data.breed_analysis.confidence,
           ...(usePhoto && photo ? { photo } : {}),
@@ -348,7 +336,8 @@ function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
         </div>
       ) : petOptions.length === 0 ? (
         <Button variant="ghost" size="sm" asChild className="mt-3 -ml-2">
-          <Link to="/pets/new">
+          {/* the new pet's form saves this analysis on it once created */}
+          <Link to="/pets/new" state={{ analysis: data, photo } satisfies NewPetFromAnalysisState}>
             <Plus size={14} aria-hidden />
             {t('analyze:save.noPets')}
           </Link>

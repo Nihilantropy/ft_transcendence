@@ -9,21 +9,24 @@ import { Button } from '@/components/ui/Button'
 import type { DropdownOption } from '@/components/ui/Dropdown'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { toast } from '@/components/ui/Toast'
+import { applyAnalysisToPet, toAnalysisPayload, type NewPetFromAnalysisState } from '@/lib/analysis'
 import { getBreedsForSpecies } from '@/lib/breeds'
 import { HEALTH_CONDITION_CODES } from '@/lib/healthConditions'
 import { getApiErrorMessage, titleCase } from '@/lib/utils'
 import {
+  useCreateAnalysisMutation,
   useCreatePetMutation,
   useDeletePetMutation,
   useGetPet,
   useUpdatePetMutation,
 } from '@/queries/pets'
+import { useUser } from '@/stores/auth'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
 import { DeletePetDialog } from './components/DeletePetDialog'
 
@@ -34,7 +37,14 @@ function Form({ pet }: { pet?: Pet }) {
 
   const createMutation = useCreatePetMutation()
   const updateMutation = useUpdatePetMutation()
-  const isSubmitting = createMutation.isPending || updateMutation.isPending
+  const saveAnalysisMutation = useCreateAnalysisMutation()
+  const isSubmitting =
+    createMutation.isPending || updateMutation.isPending || saveAnalysisMutation.isPending
+
+  // opened from the analysis chat with no pet to save the analysis to: it goes on the new one
+  const user = useUser()
+  const location = useLocation()
+  const fromAnalysis = pet ? null : (location.state as NewPetFromAnalysisState | null)
 
   const deleteMutation = useDeletePetMutation()
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -110,14 +120,13 @@ function Form({ pet }: { pet?: Pet }) {
     [species, t],
   )
 
-  // when species changes, drop any breed that's not in the new list
+  // a breed belongs to one species: any change of species empties it
+  const previousSpecies = useRef(species)
   useEffect(() => {
-    if (species === 'other') return
-    const current = form.getValues('breed')
-    if (!current) return
-    const valid = breedOptions.some((o) => o.value === current)
-    if (!valid) form.setValue('breed', '')
-  }, [species, breedOptions, form])
+    if (previousSpecies.current === species) return
+    previousSpecies.current = species
+    form.setValue('breed', '')
+  }, [species, form])
 
   // normalize user-typed proper nouns, then create or update based on mode
   const handleSubmit = (values: PetPayload) => {
@@ -136,8 +145,19 @@ function Form({ pet }: { pet?: Pet }) {
         },
       )
     } else {
-      createMutation.mutate(payload, {
-        onSuccess: (created) => void navigate(`/pets/${created.id}`),
+      const onCreated = (created: Pet) => {
+        if (!fromAnalysis || !user) {
+          void navigate(`/pets/${created.id}`)
+          return
+        }
+        saveAnalysisMutation.mutate(toAnalysisPayload(fromAnalysis.analysis, created.id, user.id), {
+          // the pet exists either way: land on it, and say so if the analysis did not stick
+          onSettled: () => void navigate(`/pets/${created.id}`),
+          onError: (error) => toast.error(getApiErrorMessage(error, 'analyze', t)),
+        })
+      }
+      createMutation.mutate(fromAnalysis ? applyAnalysisToPet(payload, fromAnalysis) : payload, {
+        onSuccess: onCreated,
         onError: (error) => toast.error(getApiErrorMessage(error, 'pets', t)),
       })
     }

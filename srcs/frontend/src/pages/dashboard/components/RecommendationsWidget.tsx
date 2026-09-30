@@ -48,7 +48,9 @@ export function RecommendationsWidget() {
           </p>
         </div>
       ) : picks.length === 0 ? (
-        <p className="text-text-mid text-sm">{t('blocks.recommendations.noProducts')}</p>
+        <p className="text-text-mid my-auto text-center text-sm leading-relaxed lg:-translate-y-[22px]">
+          {t('blocks.recommendations.noProducts')}
+        </p>
       ) : (
         <ScrollableRow>
           <ul className="flex gap-3">
