@@ -1,5 +1,6 @@
 {
   "title": "My pets",
+  "subtitle": "Profiles, health and analyses of your animals.",
   "newPet": "Add pet",
   "search": "Search by name",
   "clearSearch": "Clear search",

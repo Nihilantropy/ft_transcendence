@@ -43,6 +43,7 @@
     "cta": "保存",
     "success": "分析結果を保存しました",
     "noPets": "分析結果を保存するには、まずペットを登録してください",
+    "newPet": "ペットを追加",
     "updateTitle": "{{name}}の情報を更新しますか？",
     "updateMessage": "分析の結果、{{breed}}（{{confidence}}%）と判定されました。この結果で{{name}}のプロフィールを更新しますか？",
     "updateCta": "{{name}}を更新",

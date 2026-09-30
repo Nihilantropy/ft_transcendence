@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyList } from '@/components/ui/EmptyList'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useListPets } from '@/queries/pets'
-import { PawPrint, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 import { PetChips } from './components/PetChips'
@@ -29,7 +29,6 @@ export function RecommendationsPage() {
         <div className="mt-10">
           {/* user has no pets */}
           <EmptyList
-            icon={PawPrint}
             title={t('empty.noPets.title')}
             message={t('empty.noPets.message')}
             size="lg"

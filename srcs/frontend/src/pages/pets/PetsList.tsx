@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyList } from '@/components/ui/EmptyList'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useListPets } from '@/queries/pets'
-import { PawPrint, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -33,7 +33,10 @@ export function PetsList() {
   return (
     <div className="page-container">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-text-hi text-3xl font-bold tracking-tight">{t('title')}</h1>
+        <div>
+          <h1 className="text-text-hi text-3xl font-bold tracking-tight">{t('title')}</h1>
+          <p className="text-text-mid mt-2 text-sm">{t('subtitle')}</p>
+        </div>
         {hasPets && (
           <Button asChild>
             <Link to="/pets/new">
@@ -50,7 +53,6 @@ export function PetsList() {
         <div className="mt-10">
           {/* user has no pets */}
           <EmptyList
-            icon={PawPrint}
             title={t('empty.title')}
             message={t('empty.message')}
             size="lg"
