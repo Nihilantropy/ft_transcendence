@@ -1,7 +1,7 @@
 # smartbreeds.
 
 AI-powered pet insights. One photo of your pet and the AI tells you its breed,
-traits and health notes, then suggests products that suits it best.
+traits and health notes, then suggests products that suit it best.
 
 ## Features
 
