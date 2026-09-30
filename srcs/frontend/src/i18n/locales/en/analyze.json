@@ -43,6 +43,7 @@
     "cta": "Save",
     "success": "Analysis saved",
     "noPets": "Create a pet to save the analysis",
+    "newPet": "Add a pet",
     "updateTitle": "Update {{name}}?",
     "updateMessage": "The analysis detected {{breed}} ({{confidence}}%). Do you want to update {{name}}'s profile with this result?",
     "updateCta": "Update {{name}}",

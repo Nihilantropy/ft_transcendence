@@ -26,7 +26,7 @@ import { useUser } from '@/stores/auth'
 import { Check, Plus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
 interface AnalysisResultCardProps {
   data: VisionAnalysisData
@@ -38,6 +38,9 @@ interface AnalysisResultCardProps {
   hideSave?: boolean
   analysisId?: string
 }
+
+// the first entry of the pet picker: creates a pet and saves the analysis on it
+const NEW_PET_OPTION = '__new_pet__'
 
 const TRAIT_VALUE_KEYS = {
   size: 'sizes',
@@ -198,6 +201,7 @@ interface SaveSectionProps {
 // save-to-pet: pet picker + save button
 function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
   const { t } = useTranslation(['analyze', 'pets', 'breeds'])
+  const navigate = useNavigate()
   const user = useUser()
   const { data: pets } = useListPets()
   const [petId, setPetId] = useState(initialPetId ?? '')
@@ -310,7 +314,26 @@ function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
     )
   }
 
+  // the same hand-off as the "create a pet" link shown when there are no pets
+  const newPetState: NewPetFromAnalysisState = { analysis: data, photo }
   const petOptions: DropdownOption[] = (pets ?? []).map((p) => ({ value: p.id, label: p.name }))
+  const pickerOptions: DropdownOption[] = [
+    {
+      value: NEW_PET_OPTION,
+      label: t('analyze:save.newPet'),
+      render: (
+        <span className="text-accent flex items-center gap-2 font-medium">
+          <Plus size={14} aria-hidden />
+          {t('analyze:save.newPet')}
+        </span>
+      ),
+    },
+    ...petOptions,
+  ]
+  const onPick = (value: string) => {
+    if (value === NEW_PET_OPTION) void navigate('/pets/new', { state: newPetState })
+    else setPetId(value)
+  }
   const initialPet = (pets ?? []).find((p) => p.id === initialPetId)
 
   return (
@@ -337,7 +360,7 @@ function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
       ) : petOptions.length === 0 ? (
         <Button variant="ghost" size="sm" asChild className="mt-3 -ml-2">
           {/* the new pet's form saves this analysis on it once created */}
-          <Link to="/pets/new" state={{ analysis: data, photo } satisfies NewPetFromAnalysisState}>
+          <Link to="/pets/new" state={newPetState}>
             <Plus size={14} aria-hidden />
             {t('analyze:save.noPets')}
           </Link>
@@ -347,8 +370,8 @@ function SaveSection({ data, photo, initialPetId }: SaveSectionProps) {
           <div className="sm:w-56">
             <Dropdown
               value={petId}
-              onChange={setPetId}
-              options={petOptions}
+              onChange={onPick}
+              options={pickerOptions}
               placeholder={t('analyze:save.selectPet')}
               searchPlaceholder={t('analyze:save.selectPet')}
             />
