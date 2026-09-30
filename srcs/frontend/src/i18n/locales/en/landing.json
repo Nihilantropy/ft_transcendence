@@ -1,0 +1,39 @@
+{
+  "hero": {
+    "titleLine1": "One photo is",
+    "titleHighlight": "the whole story.",
+    "subtitle": "Turn a single photo of your pet into tailored insight: our AI analyses their unique traits to give you a complete picture of their health, wellbeing, and everyday needs. Discover a curated selection of products and advice designed for their unique needs. For a deeply personal care experience."
+  },
+  "cta": {
+    "start": "Let's begin",
+    "login": "Log in"
+  },
+  "howItWorks": {
+    "label": "How it works",
+    "step1": {
+      "title": "Upload",
+      "body": "Upload a photo of your pet. A few seconds is enough: one clear, well-lit shot showing face and build. We'll take care of the rest."
+    },
+    "step2": {
+      "title": "Recognize",
+      "body": "Our AI analyzes the photo and identifies breed, distinctive traits, hereditary tendencies, and early signs of discomfort."
+    },
+    "step3": {
+      "title": "Care",
+      "body": "Get food, product, and lifestyle recommendations shaped by what makes your pet unique. Because the right care begins with truly knowing them."
+    }
+  },
+  "stats": {
+    "label": "Technology",
+    "item1": { "label": "breeds identified" },
+    "item2": { "label": "traits considered per analysis" },
+    "item3": { "label": "specialized AI models" }
+  },
+  "contact": {
+    "label": "For business",
+    "title": "Let's work together",
+    "body": "For veterinarians, pet food brands, breeders, and pet shops. We bring our intelligence into your work, with bespoke solutions for those who put animals first.",
+    "cta": "Get in touch",
+    "email": "partner@smartbreeds.com"
+  }
+}

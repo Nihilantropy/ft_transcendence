@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,12 +35,16 @@ class VisionOrchestrator:
             f"breed_threshold={config.BREED_MIN_CONFIDENCE}"
         )
 
-    async def analyze_image(self, image: str, language: str = "en") -> Dict[str, Any]:
+    async def analyze_image(
+        self, image: str, language: str = "en", user_context: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Execute full vision analysis pipeline with early rejection.
 
         Args:
             image: Base64-encoded image (with or without data URI prefix)
-            language: Language of the free-text report fields ("en", "it" or "es")
+            language: Language of the free-text report fields ("en", "it", "es", "de" or "ja")
+            user_context: Optional owner notes. Only the descriptive LLM stage sees them —
+                never the NSFW/species/breed gates, so text cannot talk its way past them.
 
         Returns:
             Dict with species, breed_analysis, description, traits,
@@ -52,11 +56,13 @@ class VisionOrchestrator:
                        BREED_DETECTION_FAILED)
             ConnectionError: If classification or Ollama service unavailable
         """
-        logger.info("Starting vision analysis pipeline")
+        logger.info(
+            f"Starting vision analysis pipeline (owner notes: {len(user_context) if user_context else 0} chars)"
+        )
 
         # Cloud/no-GPU mode: no classification service → the vision LLM does everything.
         if not self.config.CLASSIFICATION_ENABLED:
-            return await self._analyze_vlm_only(image, language)
+            return await self._analyze_vlm_only(image, language, user_context)
 
         # Stage 1: Content safety (strict)
         safety = await self.classification.check_content(image)
@@ -117,7 +123,8 @@ class VisionOrchestrator:
             species=species_result["species"],
             breed_analysis=breed_result["breed_analysis"],
             rag_context=rag_context,
-            language=language
+            language=language,
+            user_context=user_context
         )
 
         # Assemble final response
@@ -133,7 +140,9 @@ class VisionOrchestrator:
         logger.info("Vision analysis pipeline completed successfully")
         return result
 
-    async def _analyze_vlm_only(self, image: str, language: str = "en") -> Dict[str, Any]:
+    async def _analyze_vlm_only(
+        self, image: str, language: str = "en", user_context: Optional[str] = None
+    ) -> Dict[str, Any]:
         """VLM-only pipeline used when the classification service is disabled.
 
         The vision LLM performs species + breed (and crossbreed) detection directly.
@@ -179,6 +188,7 @@ class VisionOrchestrator:
             breed_analysis=breed_analysis,
             rag_context=rag_context,
             language=language,
+            user_context=user_context,
         )
 
         return {

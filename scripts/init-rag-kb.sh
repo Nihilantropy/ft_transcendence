@@ -18,6 +18,25 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     exit 1
 fi
 
+# The container can be up before uvicorn finishes starting (embedder model load,
+# RAG service init) — 'make init' chains straight from 'up' into 'rag' with no
+# wait, so poll the same endpoint the compose healthcheck uses instead of
+# racing it.
+echo "⏳ Waiting for AI Service to be ready..."
+READY=false
+for _ in $(seq 1 75); do
+    if docker exec "${CONTAINER_NAME}" curl -sf http://localhost:3003/health >/dev/null 2>&1; then
+        READY=true
+        break
+    fi
+    sleep 2
+done
+
+if [ "$READY" != "true" ]; then
+    echo "❌ Error: AI Service did not become ready within 150s"
+    exit 1
+fi
+
 # Call the initialization endpoint
 echo "📡 Calling initialization endpoint..."
 RESPONSE=$(docker exec "${CONTAINER_NAME}" curl -s -w "\n%{http_code}" -X POST "${ENDPOINT}")

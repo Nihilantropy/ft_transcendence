@@ -9,6 +9,11 @@ from utils.responses import error_response
 # Redis client for rate limiting
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
+# The SPA calls verify once per page load to find out whether a session exists; a 429 there
+# cannot be told apart from "logged out", so a few quick reloads used to sign the user out.
+# It is a cheap read-only check, and nginx's per-IP limit still caps it.
+EXEMPT_PATHS = {"/api/v1/auth/verify"}
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     Middleware to enforce rate limiting using Redis.
@@ -25,6 +30,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window_seconds = 60
 
     async def dispatch(self, request: Request, call_next):
+        if request.url.path in EXEMPT_PATHS:
+            return await call_next(request)
+
         # Determine rate limit key (user_id or IP)
         user_id = getattr(request.state, "user_id", None)
 

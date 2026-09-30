@@ -1,9 +1,23 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // Dev loop: the browser only sees http://localhost:5173, so cookies stay same-origin.
-  server: { proxy: { '/api': { target: 'https://localhost:8443', secure: false, changeOrigin: true } } },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'https://localhost:8443',
+        changeOrigin: true,
+        secure: false, // nginx's self-signed certificate
+      },
+    },
+  },
 })

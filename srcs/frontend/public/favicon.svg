@@ -1,5 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#B4553A">
-  <ellipse cx="32" cy="42" rx="14" ry="12"/>
-  <ellipse cx="16" cy="26" rx="6" ry="8"/><ellipse cx="48" cy="26" rx="6" ry="8"/>
-  <ellipse cx="25" cy="14" rx="5" ry="7"/><ellipse cx="39" cy="14" rx="5" ry="7"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <text
+    x="16"
+    y="16"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="-apple-system, system-ui, 'Segoe UI', 'Helvetica Neue', sans-serif"
+    font-weight="800"
+    font-size="24"
+    letter-spacing="-1"
+    fill="#ce8a4d"
+  >sb</text>
 </svg>

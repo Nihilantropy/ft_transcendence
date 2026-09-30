@@ -250,3 +250,51 @@ async def test_generate_http_error_raises_connection_error(client):
         mock_cls.return_value = mock_instance
         with pytest.raises(ConnectionError, match="Failed to connect"):
             await client.generate("some prompt")
+
+
+# --- translate_texts ---
+
+@pytest.mark.asyncio
+async def test_translate_texts_returns_the_translations_in_order(client):
+    mock_http = _make_mock_http_client('{"texts": ["Un cane **calmo**", "", "Pelo lucido"]}')
+    with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
+        result = await client.translate_texts(["A **calm** dog", "", "Shiny coat"], "it")
+    assert result == ["Un cane **calmo**", "", "Pelo lucido"]
+    payload = mock_http.post.call_args[1]["json"]
+    assert payload["model"] == "text-model"
+    assert "Italian" in payload["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_translate_texts_skips_the_llm_when_nothing_to_translate(client):
+    with patch('src.services.ollama_client.httpx.AsyncClient') as mock_cls:
+        assert await client.translate_texts(["", "  "], "ja") == ["", "  "]
+    mock_cls.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_translate_texts_wrong_count_raises_runtime_error(client):
+    mock_http = _make_mock_http_client('{"texts": ["Un cane"]}')
+    with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
+        with pytest.raises(RuntimeError):
+            await client.translate_texts(["A dog", "Shiny coat"], "it")
+
+
+@pytest.mark.asyncio
+async def test_translate_texts_http_error_raises_connection_error(client):
+    with patch('src.services.ollama_client.httpx.AsyncClient') as mock_cls:
+        mock_instance = AsyncMock()
+        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_instance.__aexit__ = AsyncMock(return_value=None)
+        mock_instance.post = AsyncMock(side_effect=httpx.HTTPError("down"))
+        mock_cls.return_value = mock_instance
+        with pytest.raises(ConnectionError):
+            await client.translate_texts(["A dog"], "it")
+
+
+@pytest.mark.asyncio
+async def test_translate_texts_drops_bold_the_original_did_not_have(client):
+    mock_http = _make_mock_http_client('{"texts": ["**Un cane calmo**", "Un cane **molto** calmo"]}')
+    with patch('src.services.ollama_client.httpx.AsyncClient', return_value=mock_http):
+        result = await client.translate_texts(["A calm dog", "A **very** calm dog"], "it")
+    assert result == ["Un cane calmo", "Un cane **molto** calmo"]

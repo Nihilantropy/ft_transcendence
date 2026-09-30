@@ -1,0 +1,33 @@
+{
+  "title": "Raccomandazioni",
+  "subtitle": "Il cibo più adatto a ogni pet, in base a specie, età, peso e condizioni di salute.",
+  "petPicker": "Scegli il pet",
+  "score": "Affinità {{value}}%",
+  "forPet": "per {{name}}",
+  "nutrition": {
+    "protein": "Proteine {{value}}%",
+    "fat": "Grassi {{value}}%",
+    "calories": "{{value}} kcal/100 g"
+  },
+  "reasons": {
+    "jointHealth": "Articolazioni",
+    "sensitiveStomach": "Stomaco sensibile"
+  },
+  "empty": {
+    "noPets": {
+      "title": "Non hai ancora pet",
+      "message": "Aggiungi il tuo primo pet per ricevere consigli sul cibo più adatto.",
+      "cta": "Aggiungi il primo pet"
+    },
+    "noProducts": {
+      "title": "Nessun consiglio per {{name}}",
+      "message": "Nessun prodotto del catalogo è abbastanza adatto: prova ad aggiungere età, peso o condizioni di salute.",
+      "unsupportedSpecies": "Per ora i consigli sono disponibili solo per cani e gatti."
+    }
+  },
+  "errors": {
+    "generic": "Non è stato possibile caricare i consigli. Riprova.",
+    "PET_NOT_FOUND": "Pet non trovato.",
+    "RATE_LIMIT_EXCEEDED": "Troppe richieste. Riprova tra qualche istante."
+  }
+}

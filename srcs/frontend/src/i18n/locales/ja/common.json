@@ -1,0 +1,30 @@
+{
+  "accessibility": {
+    "switchToLight": "ライトテーマに切り替え",
+    "switchToDark": "ダークテーマに切り替え",
+    "switchLanguage": "言語を切り替え",
+    "openNav": "ナビゲーションメニューを開く",
+    "closeNav": "ナビゲーションメニューを閉じる"
+  },
+  "nav": {
+    "dashboard": "ダッシュボード",
+    "pets": "ペット",
+    "analyze": "分析",
+    "recommendations": "おすすめ",
+    "profile": "プロフィール"
+  },
+  "auth": {
+    "logout": "ログアウト"
+  },
+  "errors": {
+    "goHome": "ホームに戻る",
+    "page": {
+      "title": "問題が発生しました",
+      "message": "予期しないエラーが発生しました。もう一度お試しいただくか、ホームページに戻ってください。"
+    },
+    "notFound": {
+      "title": "ページが見つかりません",
+      "message": "お探しのページは存在しないか、移動した可能性があります。"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "accessibility": {
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme",
+    "switchLanguage": "Change language",
+    "openNav": "Open navigation menu",
+    "closeNav": "Close navigation menu"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "pets": "Pets",
+    "analyze": "Analysis",
+    "recommendations": "Recommendations",
+    "profile": "Profile"
+  },
+  "auth": {
+    "logout": "Log out"
+  },
+  "errors": {
+    "goHome": "Back to home",
+    "page": {
+      "title": "Something went wrong",
+      "message": "An unexpected error occurred. Please try again or return to the home page."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "message": "The page you're looking for doesn't exist or has been moved."
+    }
+  }
+}

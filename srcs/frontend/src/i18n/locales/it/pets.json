@@ -1,0 +1,126 @@
+{
+  "title": "I miei pet",
+  "newPet": "Aggiungi pet",
+  "search": "Cerca per nome",
+  "clearSearch": "Pulisci ricerca",
+  "filterSpecies": "Tutte le specie",
+  "species": {
+    "dog": "Cane",
+    "cat": "Gatto",
+    "other": "Altro"
+  },
+  "age": {
+    "years_one": "{{count}} anno",
+    "years_other": "{{count}} anni",
+    "months_one": "{{count}} mese",
+    "months_other": "{{count}} mesi"
+  },
+  "weight": "{{value}} kg",
+  "empty": {
+    "title": "Non hai ancora pet",
+    "message": "Aggiungi il tuo primo pet per cominciare a tracciarne razza, salute e bisogni.",
+    "cta": "Aggiungi il primo pet"
+  },
+  "noResults": "Nessun risultato per questa ricerca.",
+  "form": {
+    "title": {
+      "create": "Nuovo pet",
+      "edit": "Modifica pet"
+    },
+    "name": "Nome",
+    "namePlaceholder": "Come si chiama?",
+    "species": "Specie",
+    "breed": "Razza",
+    "breedPlaceholder": "Es. Labrador (opzionale)",
+    "age": "Età",
+    "weight": "Peso",
+    "weightPlaceholder": "Kg",
+    "healthConditions": "Condizioni di salute",
+    "healthConditionsPlaceholder": "Es. allergie, diabete (separate da virgola)",
+    "healthConditionsSuggestions": "Condizioni comuni:",
+    "submit": {
+      "create": "Crea pet",
+      "edit": "Salva modifiche"
+    },
+    "cancel": "Annulla",
+    "ageYears": "Anni",
+    "ageMonths": "Mesi",
+    "speciesPlaceholder": "Cane, gatto o altro",
+    "clearSpecies": "Togli la specie",
+    "clearBreed": "Togli la razza"
+  },
+  "errors": {
+    "nameRequired": "Il nome è obbligatorio.",
+    "speciesRequired": "La specie è obbligatoria.",
+    "ageInvalid": "L'età deve essere un numero positivo.",
+    "weightInvalid": "Il peso deve essere un numero positivo.",
+    "generic": "Qualcosa è andato storto. Riprova.",
+    "NOT_FOUND": "Pet non trovato.",
+    "VALIDATION_ERROR": "Dati non validi. Controlla i campi e riprova.",
+    "INTERNAL_ERROR": "Errore del server. Riprova più tardi.",
+    "nameTooLong": "Il nome non può superare i 100 caratteri.",
+    "breedTooLong": "La razza non può superare i 100 caratteri.",
+    "ageTooLarge": "L'età non può superare i 150 anni.",
+    "weightTooLarge": "Il peso non può superare i 500 kg.",
+    "monthsRange": "I mesi vanno da 0 a 11."
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Panoramica",
+      "health": "Salute",
+      "analyses": "Analisi"
+    },
+    "edit": "Modifica",
+    "delete": "Elimina",
+    "deleteConfirm": {
+      "title": "Eliminare {{name}}?",
+      "message": "Questa azione non può essere annullata. Tutte le analisi associate andranno perse.",
+      "confirm": "Elimina",
+      "cancel": "Annulla"
+    },
+    "loadError": "Non è stato possibile caricare il pet.",
+    "analyzeAgain": "Analizza",
+    "recommendations": "Consigli"
+  },
+  "overview": {
+    "title": "Anagrafica",
+    "species": "Specie",
+    "breed": "Razza",
+    "breedUnknown": "Non specificata",
+    "age": "Età",
+    "ageUnknown": "Non specificata",
+    "weight": "Peso",
+    "weightUnknown": "Non specificato",
+    "createdAt": "Aggiunto il"
+  },
+  "health": {
+    "title": "Stato di salute",
+    "conditions": "Condizioni note",
+    "noConditions": "Nessuna condizione registrata."
+  },
+  "healthConditionCodes": {
+    "joint_health": "Problemi articolari",
+    "sensitive_stomach": "Stomaco sensibile",
+    "weight_management": "Sovrappeso",
+    "skin_allergies": "Allergie cutanee",
+    "dental_health": "Problemi dentali",
+    "kidney_health": "Problemi renali"
+  },
+  "analyses": {
+    "title": "Storico analisi",
+    "empty": {
+      "title": "Nessuna analisi ancora",
+      "message": "Carica una foto per cominciare.",
+      "cta": "Analizza una foto"
+    },
+    "loadError": "Non è stato possibile caricare le analisi.",
+    "reportTitle": "Referto analisi"
+  },
+  "photo": {
+    "upload": "Carica foto",
+    "change": "Cambia foto",
+    "remove": "Rimuovi foto",
+    "alt": "Foto profilo del pet",
+    "invalid": "Non riesco a leggere questa immagine: usa una foto JPEG, PNG o WebP."
+  }
+}

@@ -2,10 +2,17 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#FBF6EF" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>SmartBreeds</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- resolve theme before first paint to prevent FOUC -->
+    <script>document.documentElement.dataset.theme=['light','dark'].includes(localStorage.theme)?localStorage.theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'</script>
+    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0e1a" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>smartbreeds</title>
+    <meta
+      name="description"
+      content="AI-powered breed identification and health monitoring for your pet."
+    />
   </head>
   <body>
     <div id="root"></div>

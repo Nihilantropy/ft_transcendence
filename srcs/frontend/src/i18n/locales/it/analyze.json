@@ -1,0 +1,74 @@
+{
+  "input": {
+    "placeholder": "Allega una foto, se vuoi aggiungi un messaggio",
+    "notePlaceholder": "Aggiungi una nota (facoltativa): età, sintomi, domande…",
+    "dragActive": "Rilascia qui la foto"
+  },
+  "actions": {
+    "repeat": "Ripeti analisi",
+    "new": "Nuova analisi"
+  },
+  "attachment": {
+    "remove": "Rimuovi allegato",
+    "alt": "Foto allegata"
+  },
+  "phases": {
+    "uploading": "Sto caricando la foto…",
+    "classifying": "Sto riconoscendo la razza…",
+    "searching": "Sto cercando informazioni sulla razza…",
+    "generating": "Sto preparando il referto…"
+  },
+  "result": {
+    "crossbreed": "Probabile incrocio",
+    "mix": "Incrocio",
+    "mixReason": "Due razze con probabilità simili: {{first}}% e {{second}}%.",
+    "size": "Taglia",
+    "energy_level": "Energia",
+    "temperament": "Temperamento",
+    "health": "Osservazioni sulla salute",
+    "sizes": {
+      "small": "Piccola",
+      "medium": "Media",
+      "large": "Grande"
+    },
+    "energy": {
+      "low": "Bassa",
+      "medium": "Media",
+      "high": "Alta"
+    }
+  },
+  "save": {
+    "title": "Salva l'analisi su un pet",
+    "selectPet": "Scegli un pet…",
+    "cta": "Salva",
+    "success": "Analisi salvata",
+    "noPets": "Crea un pet per salvare l'analisi",
+    "updateTitle": "Aggiornare {{name}}?",
+    "updateMessage": "L'analisi ha rilevato {{breed}} ({{confidence}}%). Vuoi aggiornare la scheda di {{name}} con questo risultato?",
+    "updateCta": "Aggiorna {{name}}",
+    "updateSkip": "No, lascia com'è",
+    "updated": "Scheda di {{name}} aggiornata",
+    "usePhoto": "Usa questa foto come foto profilo di {{name}}",
+    "ctaFor": "Salva su {{name}}",
+    "pickAnother": "Scegli un altro pet"
+  },
+  "errors": {
+    "generic": "Qualcosa è andato storto. Riprova.",
+    "imageType": "Formato non supportato: usa JPEG, PNG o WebP.",
+    "imageTooLarge": "La foto supera i 5 MB.",
+    "imageTooSmall": "La foto è troppo piccola: servono almeno 224px per lato.",
+    "RATE_LIMITED": "Troppe richieste: aspetta un minuto e riprova.",
+    "CONTENT_POLICY_VIOLATION": "Questa immagine non può essere analizzata.",
+    "UNSUPPORTED_SPECIES": "Al momento analizzo solo cani e gatti.",
+    "SPECIES_DETECTION_FAILED": "Non riesco a riconoscere un animale nella foto. Prova con un'inquadratura più chiara.",
+    "BREED_DETECTION_FAILED": "Non sono riuscito a identificare la razza. Prova con un'altra foto.",
+    "VISION_SERVICE_UNAVAILABLE": "Il servizio di analisi non è disponibile ora. Riprova tra poco.",
+    "INTERNAL_ERROR": "Errore interno del servizio di analisi. Riprova.",
+    "SERVICE_UNAVAILABLE": "Il servizio di analisi non è disponibile ora. Riprova tra qualche minuto.",
+    "RATE_LIMIT_EXCEEDED": "Troppe richieste: aspetta un minuto e riprova.",
+    "IMAGE_TOO_LARGE": "La foto supera i 5 MB.",
+    "IMAGE_TOO_SMALL": "La foto è troppo piccola: servono almeno 224px per lato.",
+    "INVALID_IMAGE_FORMAT": "Formato non supportato: usa JPEG, PNG o WebP."
+  },
+  "linkedGreeting": "Analizziamo {{name}}: mandami una sua foto."
+}

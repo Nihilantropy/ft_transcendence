@@ -79,7 +79,7 @@ GET /api/v1/users/me  (Cookie: access_token=…)
  5 proxy_handler   full_path = "/api/" + path
                 get_backend_service_url → first SERVICE_ROUTES prefix that `startswith`  (proxy.py:63-70)
                 forward_request: headers minus host and client-sent x-user-*/x-request-id, cookie stripped (non-/api/v1/auth),
-                                 + backend_headers, body only for POST/PUT/PATCH,
+                                 + backend_headers, body for every method,
                                  timeout 300s under /api/v1/vision else 30s             (proxy.py:94-127)
                 httpx.RequestError ⇒ HTTPException(503, dict detail)
                 HTML 404 / HTML 500 normalised to the JSON envelope                     (proxy.py:188-241)
@@ -165,7 +165,9 @@ nginx's real-client header, or `request.client.host` if absent — see Gotchas),
   that needs to read a cookie downstream must live under that prefix, or the stripping rule must change.
 - **Query parameters are flattened**: `params=dict(request.query_params)` (`proxy.py:125`) keeps only the
   last value of a repeated key.
-- **`DELETE` bodies are dropped** — the body is only read for `POST`/`PUT`/`PATCH` (`proxy.py:109-110`).
+- **The body is forwarded for every method.** It used to be read only for `POST`/`PUT`/`PATCH` while the
+  client's `Content-Length` was still forwarded, so a `DELETE` with a body died in h11 ("Too little data for
+  declared Content-Length") and returned 500 after the backend had already acted.
 - **Backend response headers are copied raw** (`proxy.py:247`), including `Content-Length` and
   `Content-Encoding`, while `raw_response.content` has already been transparently decoded by httpx. No
   backend enables gzip today (neither Django service lists `GZipMiddleware`), but enabling one would ship

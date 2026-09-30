@@ -4,6 +4,7 @@ from apps.profiles.views import UserProfileViewSet, PetViewSet, PetAnalysisViewS
 from apps.profiles.models import UserProfile, Pet, PetAnalysis
 import uuid
 import json
+from datetime import timedelta
 
 
 @pytest.mark.django_db
@@ -171,6 +172,23 @@ class TestPetViewSet:
         assert response.status_code == 200
         assert len(response.data['data']) == 1
         assert response.data['data'][0]['name'] == 'MyPet'
+
+    def test_list_pets_is_ordered_by_creation_not_row_position(self):
+        """An edited pet must not move: the list follows created_at, not the physical row order
+        (an UPDATE rewrites the row elsewhere). Rows are inserted in the opposite order of their
+        created_at so that only an explicit ORDER BY returns them right."""
+        factory = RequestFactory()
+        user_id = uuid.uuid4()
+        second = Pet.objects.create(user_id=user_id, name='Second', species='cat')
+        first = Pet.objects.create(user_id=user_id, name='First', species='dog')
+        Pet.objects.filter(pk=first.pk).update(created_at=second.created_at - timedelta(days=1))
+
+        request = factory.get('/api/v1/pets/')
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        response = PetViewSet.as_view({'get': 'list'})(request)
+
+        assert [p['name'] for p in response.data['data']] == ['First', 'Second']
 
     def test_create_pet_sets_user_id_from_header(self):
         """Test POST /pets sets user_id from request"""
@@ -860,3 +878,69 @@ class TestPetAnalysisViewSetAdditional:
         
         assert response.status_code == 404
         assert response.data['error']['code'] == 'NOT_FOUND'
+
+
+@pytest.mark.django_db
+class TestAnalysisTranslations:
+    def _post(self, analysis_id, user_id, data):
+        request = RequestFactory().post(
+            f'/api/v1/analyses/{analysis_id}/translations',
+            data=json.dumps(data), content_type='application/json'
+        )
+        request.user_id = str(user_id)
+        request.user_role = 'user'
+        view = PetAnalysisViewSet.as_view({'post': 'translations'})
+        return view(request, pk=str(analysis_id))
+
+    def _analysis(self, user_id, raw_response):
+        return PetAnalysis.objects.create(
+            pet_id=uuid.uuid4(), user_id=user_id, image_url='/x.jpg',
+            breed_detected='Lab', confidence=0.9, traits={}, raw_response=raw_response
+        )
+
+    def test_translation_is_stored_next_to_the_original(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, {'description': 'Un cane', 'language': 'it'})
+
+        response = self._post(analysis.id, user_id, {
+            'language': 'ja', 'description': '犬', 'temperament': '穏やか',
+            'health_observations': ['健康'],
+        })
+
+        assert response.status_code == 200
+        analysis.refresh_from_db()
+        assert analysis.raw_response['description'] == 'Un cane'
+        assert analysis.raw_response['translations']['ja'] == {
+            'description': '犬', 'temperament': '穏やか', 'health_observations': ['健康'],
+        }
+
+    def test_a_second_language_keeps_the_first(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, {'description': 'Un cane'})
+        self._post(analysis.id, user_id, {'language': 'ja', 'description': '犬'})
+        self._post(analysis.id, user_id, {'language': 'en', 'description': 'A dog'})
+
+        analysis.refresh_from_db()
+        assert set(analysis.raw_response['translations']) == {'ja', 'en'}
+
+    def test_another_users_analysis_is_not_found(self):
+        analysis = self._analysis(uuid.uuid4(), {'description': 'Un cane'})
+        response = self._post(analysis.id, uuid.uuid4(), {'language': 'ja', 'description': '犬'})
+
+        assert response.status_code == 404
+        analysis.refresh_from_db()
+        assert 'translations' not in analysis.raw_response
+
+    def test_unknown_language_is_rejected(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, {'description': 'Un cane'})
+        response = self._post(analysis.id, user_id, {'language': 'xx', 'description': 'x'})
+
+        assert response.status_code == 422
+
+    def test_analysis_without_report_is_a_conflict(self):
+        user_id = uuid.uuid4()
+        analysis = self._analysis(user_id, None)
+        response = self._post(analysis.id, user_id, {'language': 'ja', 'description': '犬'})
+
+        assert response.status_code == 409

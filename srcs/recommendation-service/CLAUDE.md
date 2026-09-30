@@ -46,7 +46,7 @@ make migration
 
 | Path | Responsibility |
 |---|---|
-| `src/main.py` | FastAPI app; includes both routers; defines `GET /health`. No lifespan, no middleware, no CORS. |
+| `src/main.py` | FastAPI app; includes both routers; defines `GET /health`; mounts `static/products/` (catalog photos) at `/api/v1/recommendations/images`, the path `products.yaml` puts in `image_url`, with `Cache-Control: private, max-age=86400` on successful responses (`CachedStaticFiles`). No lifespan, no middleware, no CORS. |
 | `src/config.py` | `Settings` (pydantic-settings) + module-level `WEIGHT_VECTOR` / threshold / limit constants. |
 | `src/routes/recommendations.py` | `GET /api/v1/recommendations/food` — the whole pipeline lives inline in this handler. |
 | `src/routes/admin.py` | Product CRUD under `/api/v1/admin/products`. |

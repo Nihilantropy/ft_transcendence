@@ -1,0 +1,74 @@
+{
+  "input": {
+    "placeholder": "Attach a photo, add a message if you like",
+    "notePlaceholder": "Add a note (optional): age, symptoms, questions…",
+    "dragActive": "Drop the photo here"
+  },
+  "actions": {
+    "repeat": "Repeat analysis",
+    "new": "New analysis"
+  },
+  "attachment": {
+    "remove": "Remove attachment",
+    "alt": "Attached photo"
+  },
+  "phases": {
+    "uploading": "Uploading the photo…",
+    "classifying": "Recognizing the breed…",
+    "searching": "Looking up breed information…",
+    "generating": "Preparing the report…"
+  },
+  "result": {
+    "crossbreed": "Likely crossbreed",
+    "mix": "Mix",
+    "mixReason": "Two breeds with similar probabilities: {{first}}% and {{second}}%.",
+    "size": "Size",
+    "energy_level": "Energy",
+    "temperament": "Temperament",
+    "health": "Health observations",
+    "sizes": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "energy": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
+  },
+  "save": {
+    "title": "Save this analysis to a pet",
+    "selectPet": "Pick a pet…",
+    "cta": "Save",
+    "success": "Analysis saved",
+    "noPets": "Create a pet to save the analysis",
+    "updateTitle": "Update {{name}}?",
+    "updateMessage": "The analysis detected {{breed}} ({{confidence}}%). Do you want to update {{name}}'s profile with this result?",
+    "updateCta": "Update {{name}}",
+    "updateSkip": "No, keep it",
+    "updated": "{{name}}'s profile updated",
+    "usePhoto": "Use this photo as {{name}}'s profile photo",
+    "ctaFor": "Save to {{name}}",
+    "pickAnother": "Choose another pet"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "imageType": "Unsupported format: use JPEG, PNG or WebP.",
+    "imageTooLarge": "The photo exceeds 5 MB.",
+    "imageTooSmall": "The photo is too small: at least 224px per side.",
+    "RATE_LIMITED": "Too many requests: wait a minute and try again.",
+    "CONTENT_POLICY_VIOLATION": "This image cannot be analyzed.",
+    "UNSUPPORTED_SPECIES": "I can only analyze dogs and cats for now.",
+    "SPECIES_DETECTION_FAILED": "I can't spot an animal in this photo. Try a clearer shot.",
+    "BREED_DETECTION_FAILED": "I couldn't identify the breed. Try another photo.",
+    "VISION_SERVICE_UNAVAILABLE": "The analysis service is unavailable right now. Try again soon.",
+    "INTERNAL_ERROR": "Internal analysis error. Please try again.",
+    "SERVICE_UNAVAILABLE": "The analysis service is unavailable right now. Try again in a few minutes.",
+    "RATE_LIMIT_EXCEEDED": "Too many requests: wait a minute and try again.",
+    "IMAGE_TOO_LARGE": "The photo is larger than 5 MB.",
+    "IMAGE_TOO_SMALL": "The photo is too small: at least 224px per side.",
+    "INVALID_IMAGE_FORMAT": "Unsupported format: use JPEG, PNG or WebP."
+  },
+  "linkedGreeting": "Let's analyze {{name}}: send me a photo of them."
+}

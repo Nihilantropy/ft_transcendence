@@ -1,0 +1,48 @@
+#!/usr/bin/env sh
+
+# skip entirely if no frontend files are staged
+# so that backend-only commits don't have to wait for frontend checks
+FRONTEND_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '^srcs/frontend/' || true)
+if [ -z "$FRONTEND_STAGED" ]; then
+  exit 0
+fi
+
+YELLOW='\033[33m'
+RED='\033[31m'
+GREEN='\033[32m'
+NC='\033[0m'
+
+echo "${YELLOW}Running frontend pre-commit checks...${NC}"
+
+# 1. lint-staged: eslint --fix + prettier --write on staged frontend files
+(cd srcs/frontend && pnpm lint-staged) || {
+  echo "${RED}Linting failed. Please fix the issues before committing.${NC}"
+  exit 1
+}
+
+# 2. typecheck full
+(cd srcs/frontend && pnpm typecheck) || {
+  echo "${RED}TypeScript found some issues. Please fix them before committing.${NC}"
+  exit 1
+}
+
+# 3. block console.log / debugger in staged TS/TSX (ignore if eslint-disable on previous line)
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^srcs/frontend/.*\.(ts|tsx)$' | grep -v 'eslint\.config' || true)
+if [ -n "$STAGED_TS" ]; then
+  VIOLATIONS=$(echo "$STAGED_TS" | xargs git diff --cached | awk '
+    /^\+.*eslint-disable/ { prev_disabled=1; next }
+    /^\+.*console\.log|^\+.*debugger/ {
+      if (!prev_disabled) print;
+      prev_disabled=0;
+      next
+    }
+    { prev_disabled=0 }
+  ')
+  if [ -n "$VIOLATIONS" ]; then
+    echo "${RED}Found 'console.log' or 'debugger' in staged changes. Please remove them.${NC}"
+    exit 1
+  fi
+fi
+
+echo "${GREEN}Your code is pipeline-proof. It's now safe to push ♡${NC}"
+exit 0

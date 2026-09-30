@@ -46,6 +46,7 @@ SERVICE_ROUTES = {
     "/api/v1/auth": settings.AUTH_SERVICE_URL,
     "/api/v1/users": settings.USER_SERVICE_URL,
     "/api/v1/pets": settings.USER_SERVICE_URL,
+    "/api/v1/analyses": settings.USER_SERVICE_URL,  # pet analyses persistence (user-service)
     "/api/v1/vision": settings.AI_SERVICE_URL,
     # "/api/v1/rag": Intentionally not exposed - internal use only
     "/api/v1/recommendations": settings.RECOMMENDATION_SERVICE_URL,
@@ -113,10 +114,9 @@ async def forward_request(
     # Build full backend URL
     full_url = f"{backend_url}{path}"
 
-    # Get request body if present
-    body = None
-    if method in ["POST", "PUT", "PATCH"]:
-        body = await request.body()
+    # Forward the body for every method: the client's Content-Length is forwarded too, and
+    # dropping a DELETE body made httpx fail with "Too little data for declared Content-Length".
+    body = await request.body()
 
     # Determine timeout for this path (use longer timeout for slow services)
     timeout = next(

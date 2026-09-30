@@ -26,3 +26,23 @@ def test_analyze(edge_user, name, species):
     assert data["species"] == species
     assert data["breed_analysis"]["primary_breed"]
     assert data["description"].strip()
+
+
+def test_analyze_with_owner_notes(edge_user):
+    """Owner text rides along with the photo through the real pipeline (content not asserted:
+    the LLM output is not deterministic)."""
+    with open("/test_data/golden_retriever_1.jpg", "rb") as f:
+        uri = "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
+    body = ok(edge_user["client"].post("/api/v1/vision/analyze", json={
+        "image": uri, "language": "it",
+        "user_context": "Ha 12 anni e zoppica dalla zampa posteriore sinistra",
+    }))
+    data = body["data"]
+    assert data["species"] == "dog"
+    assert data["description"].strip()
+
+
+def test_text_without_photo_is_rejected(edge_user):
+    """No text-only chat: the photo is mandatory."""
+    r = edge_user["client"].post("/api/v1/vision/analyze", json={"user_context": "Is my dog healthy?"})
+    assert r.status_code == 422

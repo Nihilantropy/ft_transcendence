@@ -108,3 +108,29 @@ def test_rate_limit_uses_user_id_when_authenticated(mock_redis):
         # Verify Redis was called with user-based key
         calls = [str(call) for call in mock_redis.get.call_args_list]
         assert any("rate_limit:user:user123" in str(call) for call in calls)
+
+
+def test_rate_limit_does_not_apply_to_verify(mock_redis):
+    """verify must never answer 429: the SPA would read it as a logout"""
+    token = create_test_token("user123", "user")
+
+    with patch("middleware.rate_limit.redis_client", mock_redis):
+        mock_redis.get.return_value = "1000000"  # far past any configured limit
+
+        mock_backend_response = Response(200, json={"success": True, "data": {}})
+        with patch("routes.proxy.httpx_client.request", new=AsyncMock(return_value=mock_backend_response)):
+            response = client.get("/api/v1/auth/verify", cookies={"access_token": token})
+
+    assert response.status_code == 200
+    mock_redis.incr.assert_not_called()
+
+
+def test_rate_limit_still_applies_to_other_paths_over_limit(mock_redis):
+    """The exemption is exact: a sibling auth path over the limit still gets 429"""
+    token = create_test_token("user123", "user")
+
+    with patch("middleware.rate_limit.redis_client", mock_redis):
+        mock_redis.get.return_value = "1000000"
+        response = client.get("/api/v1/auth/me", cookies={"access_token": token})
+
+    assert response.status_code == 429

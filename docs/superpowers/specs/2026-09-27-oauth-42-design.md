@@ -16,7 +16,7 @@ browser ── (user approves on intra) ── GET /api/v1/auth/oauth/42/callbac
           auth-service: state == cookie? → POST https://api.intra.42.fr/oauth/token (code → access token)
                         → GET https://api.intra.42.fr/v2/me → {id, email, login, first_name, last_name}
                         → find/link/create user → session cookies (or a 2FA challenge)
-          ◄── 302 /analyze   (or /login?oauth=mfa#<mfa_token>, or /login?oauth=error|unavailable)
+          ◄── 302 /?oauth=ok   (or /login?oauth=mfa#<mfa_token>, or /login?oauth=error|unavailable)
 ```
 
 ## Rulings (each with its cost if wrong)
@@ -36,10 +36,10 @@ browser ── (user approves on intra) ── GET /api/v1/auth/oauth/42/callbac
    account over — acceptable for 42 (school-issued addresses), documented, not for arbitrary providers.
 4. **2FA still applies**: if the user has 2FA on (B), the callback issues the same challenge token as
    `/login` and redirects to `/login?oauth=mfa#<mfa_token>` (fragment: never sent to a server nor logged);
-   the Log in page reads it and shows the code step from B.
+   the Log in page reads it and asks for the code.
 5. **Users without a password** (created through 42): `change-password` accepts a missing
    `current_password` **only** when the user has no usable password ("Set a password"); 2FA enable/disable
-   and email change keep requiring a password, so Profile shows "Set a password first" there.
+   and email change keep requiring a password.
    `UserSerializer` gains `has_password`.
 6. **Config**: `OAUTH_42_CLIENT_ID`, `OAUTH_42_CLIENT_SECRET`, `OAUTH_42_REDIRECT_URI` (default
    `https://localhost:8443/api/v1/auth/oauth/42/callback`) in `srcs/auth-service/.env` (placeholders in
@@ -47,15 +47,6 @@ browser ── (user approves on intra) ── GET /api/v1/auth/oauth/42/callbac
    app works without credentials. The user must create the app on intra and fill `.env`.
 7. **HTTP to intra with httpx** (already a dependency), 10 s timeout, no retries; any failure →
    `/login?oauth=error` plus a log line with the reason (never the code or tokens).
-
-## Frontend
-
-- "Log in with 42" button on Log in and Register (plain text + a Tabler icon — the 42 logo is a
-  trademark), a normal link to `/api/v1/auth/oauth/42/start` (full-page navigation).
-- `/login` reads `?oauth=error|unavailable|mfa` (+ fragment token) and shows translated copy or B's
-  2FA step; the fragment is removed from the URL after reading (`history.replaceState`).
-- Profile: `has_password === false` → the change-password card becomes "Set a password" (no current
-  password field); 2FA and email change show "Set a password first".
 
 ## Tests
 
@@ -66,8 +57,6 @@ browser ── (user approves on intra) ── GET /api/v1/auth/oauth/42/callbac
 - **Gate e2e** (no real intra): `/start` through nginx → 302 to `api.intra.42.fr/oauth/authorize` with
   `client_id`, `redirect_uri`, `state` when configured, or to `/login?oauth=unavailable` when not;
   callback with a forged state → error redirect.
-- **UI**: the button exists on both pages and points at the start URL; the three `?oauth=` states show
-  their copy; axe/CSP watchdogs as always.
 
 ## Out of scope
 
@@ -75,14 +64,13 @@ Other providers, unlinking a 42 account, importing the intra avatar.
 
 ## Plan-time amendments (2026-09-27, from the planner's review of the code)
 
-- **Success redirect is `/analyze?oauth=ok`**, not `/analyze`: the frontend skips `/auth/verify` without the
-  `session` localStorage hint (sub-project A), which a first 42 login never has. `auth.tsx` runs the
-  session check when it sees the marker. Covered by a UI test.
+- **Success redirect is the dashboard, `/?oauth=ok`**: the marker tells the frontend a 42 login
+  has just completed, so it checks the session.
 - **Cancel on intra** (`?error=access_denied`, no code) → `/login?oauth=error`.
 - **`state` comparison on bytes** (`secrets.compare_digest` raises on non-ASCII str → a crafted state
   would 500).
 - `/login?oauth=mfa` without a `#token` → the failure copy; disabled accounts refused; a lost linking
-  race → error redirect, not 500; email field read-only for accounts without a password.
+  race → error redirect, not 500.
 - Session cookies stay `SameSite=Strict`: the final HTML load after the intra redirect doesn't carry
   them, but the SPA's own `/auth/verify` does — no gate test can prove it, so the docs task includes a
   manual check with real credentials.

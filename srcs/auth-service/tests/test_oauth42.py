@@ -327,7 +327,7 @@ class TestCallbackLinking:
         response = callback(client)
 
         assert response.status_code == 302
-        assert response['Location'] == '/analyze?oauth=ok'
+        assert response['Location'] == '/?oauth=ok'
         user = User.objects.get(email='marvin@student.42.fr')  # lower-cased
         assert (user.first_name, user.last_name) == ('Marvin', 'Paranoid')
         assert user.has_usable_password() is False
@@ -361,7 +361,7 @@ class TestCallbackLinking:
 
         response = callback(client)
 
-        assert response['Location'] == '/analyze?oauth=ok'
+        assert response['Location'] == '/?oauth=ok'
         assert User.objects.count() == 1
         assert OAuthAccount.objects.get(provider_user_id='4242').user == existing
         existing.refresh_from_db()

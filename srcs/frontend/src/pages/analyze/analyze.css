@@ -1,0 +1,13 @@
+/* chat typing indicator */
+@keyframes chat-dot {
+  0%,
+  55%,
+  100% {
+    transform: translateY(0.5px) scale(0.7);
+    opacity: 0.35;
+  }
+  25% {
+    transform: translateY(-1.5px) scale(1);
+    opacity: 1;
+  }
+}

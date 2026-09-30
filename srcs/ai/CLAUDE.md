@@ -11,7 +11,7 @@ there is no direct Ollama call anywhere in this codebase, despite the file and t
 ## Essential Commands
 
 ```bash
-# tests (107). run --rm is fine: everything is mocked, no cross-service hostname needed.
+# tests (131). run --rm is fine: everything is mocked, no cross-service hostname needed.
 docker compose run --rm ai-service python -m pytest tests/ -v
 docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py -v
 docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=term  # pytest-cov is in the image
@@ -51,7 +51,7 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 | `src/utils/logger.py` | JSON log formatter, mutes uvicorn/fastapi/httpx to WARNING |
 | `data/knowledge_base/spiecies/` | 34 markdown docs (dogs/cats × purebreeds/crossbreeds/health). Mounted read-only. Directory name misspelled on purpose-by-accident — do not rename |
 | `data/chroma/` | ChromaDB persistence mount point (`ai-chroma-data` volume) |
-| `tests/` | 107 unit tests, no conftest.py |
+| `tests/` | 131 unit tests, no conftest.py |
 
 ## Request / Data Flow
 
@@ -59,13 +59,14 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 POST /api/v1/vision/analyze
   routes/vision.py:analyze_image
     image_processor.process_image(request.image)            # ValueError → 422
-    vision_orchestrator.analyze_image(processed)
+    vision_orchestrator.analyze_image(processed, language, user_context)
       if not config.CLASSIFICATION_ENABLED → _analyze_vlm_only
       classification.check_content   → ValueError CONTENT_POLICY_VIOLATION
       classification.detect_species  → UNSUPPORTED_SPECIES | SPECIES_DETECTION_FAILED
       classification.detect_breed(top_k=5) → BREED_DETECTION_FAILED
       rag.get_breed_context | get_crossbreed_context   # try/except → None on any failure
-      ollama.analyze_with_context(image_base64=, species=, breed_analysis=, rag_context=)
+      ollama.analyze_with_context(image_base64=, species=, breed_analysis=, rag_context=,
+                                  language=, user_context=)   # owner notes: this stage ONLY
     VisionAnalysisData(**result) → VisionAnalysisResponse   # 200
 ```
 
@@ -183,7 +184,7 @@ tolerate it being `None` before startup.
 - `Embedder` tests patch `src.services.embedder.SentenceTransformer`; never let a test download a
   model.
 - `scripts/run-unit-tests.sh:119-121` still claims 37 tests for this service; the real collection is
-  107. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
+  131. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
 
 ## Config & Thresholds
 
