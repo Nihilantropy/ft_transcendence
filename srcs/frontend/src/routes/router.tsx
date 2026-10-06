@@ -4,6 +4,7 @@ import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { ErrorPage } from '@/pages/error/ErrorPage'
 import { NotFoundPage } from '@/pages/error/NotFoundPage'
+import { LegalPage } from '@/pages/legal/LegalPage'
 import { PetDetail } from '@/pages/pets/PetDetail'
 import { PetForm } from '@/pages/pets/PetForm'
 import { PetsList } from '@/pages/pets/PetsList'
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
     children: [
       // at '/' level HomePage decides at render time whether to show landing or dashboard based on auth state
       { index: true, element: <HomePage /> },
+
+      // legal pages, reachable whether logged in or not
+      { path: 'privacy', element: <LegalPage doc="privacy" /> },
+      { path: 'terms', element: <LegalPage doc="terms" /> },
 
       // protected pages
       {

@@ -1,0 +1,110 @@
+{
+  "eyebrow": "Legal",
+  "updated": "Last updated: {{date}}",
+  "toc": "On this page",
+  "seeAlso": "See also",
+  "privacy": {
+    "title": "Privacy Policy",
+    "intro": "This policy explains which personal data SmartBreeds collects, why, how long we keep it, who we share it with and how you can exercise your rights. We collect only what the service needs to work, and we never sell your data or use it for advertising.",
+    "sections": [
+      {
+        "title": "Who we are",
+        "body": "SmartBreeds is a pet companion platform developed by a student team as part of the ft_transcendence project at 42. The team acts as **data controller** for the personal data processed through the application.\nFor any privacy question or request, write to **privacy@smartbreeds.com**."
+      },
+      {
+        "title": "Data we collect",
+        "body": "**Account data**, which you provide when you register or edit your profile:\n- email address, first and last name;\n- password, stored only as an argon2 hash: nobody, us included, can read it;\n- if you enable two-factor authentication, the TOTP secret (encrypted at rest) and your recovery codes (stored as hashes).\n**Log in with 42**: if you choose it, 42 sends us your intra identifier, email address and name. We never receive your 42 password.\n**Pet data**: what you enter in your pets' profiles, such as name, species, breed, age, weight, health conditions and photo.\n**Analyses**: the photos you upload for analysis, any notes you add, and the results we produce (breed, confidence score, traits, the written report).\n**Technical data**: IP address, date and time, requested address, response code and duration of each request, and your user identifier when you are logged in."
+      },
+      {
+        "title": "Why we use it and on what legal basis",
+        "body": "- **To provide the service** (account, pet profiles, photo analysis, recommendations): performance of the contract you accept with the Terms of Service, art. 6(1)(b) GDPR.\n- **To keep the platform secure** (session management, two-factor authentication, rate limiting, abuse prevention, troubleshooting): our legitimate interest in protecting users and the service, art. 6(1)(f) GDPR.\n- **To comply with legal obligations**, when a law requires it, art. 6(1)(c) GDPR.\nWe make no automated decisions that produce legal or similarly significant effects on you: AI results only describe your pet."
+      },
+      {
+        "title": "How the AI analysis works",
+        "body": "When you analyze a photo, it goes through three steps:\n- **Classification**, on our own servers: a content-safety filter, then species and breed recognition. Photos with inappropriate content are rejected.\n- **Knowledge base**: we look up breed information in an internal knowledge base. No personal data leaves our servers in this step.\n- **Report generation**: the photo, the classification results and any notes you added are sent to an external language model, **Mistral AI** (Paris, France, EU), which writes the report and sends it back to us.\nThe report is saved in your pet's history so you can consult it later. Please do not include personal information about yourself or other people in notes or photos."
+      },
+      {
+        "title": "Who we share data with",
+        "body": "We share data only with the providers strictly needed to run the service:\n- **Mistral AI SAS** (France, EU), which generates the analysis reports and receives only the data described in the previous section;\n- **42**, only if you use \"Log in with 42\", to authenticate you.\nWe do not sell, rent or share your data for marketing purposes. Product links in the recommendations take you to third-party shops: once there, their own privacy policies apply. We disclose data to public authorities only when the law requires it."
+      },
+      {
+        "title": "International transfers",
+        "body": "Your data is stored and processed within the European Union, and we do not transfer it outside the EU/EEA. Should this ever change, we will only rely on providers offering adequate safeguards under Chapter V of the GDPR, and we will update this policy first."
+      },
+      {
+        "title": "How long we keep it",
+        "body": "- **Account, pets and analyses**: as long as your account exists. When the account is deleted, the profile, the pets and every saved analysis are deleted with it.\n- **Sessions**: the access cookie lasts 15 minutes, the refresh token 7 days; logging out revokes all your sessions.\n- **Technical logs**: up to 30 days, then deleted automatically.\n- **Rate-limiting counters**: 60 seconds."
+      },
+      {
+        "title": "Cookies and local storage",
+        "body": "We use only **technical cookies**, strictly necessary to keep you logged in, which is why there is no consent banner:\n- **access_token**: your session, 15 minutes;\n- **refresh_token**: renews the session, 7 days, sent only to the renewal endpoint.\nBoth are HttpOnly (JavaScript cannot read them), Secure and SameSite. Your browser's local storage also keeps your **language** and **theme** (light or dark) preferences. We use no analytics, advertising or third-party profiling cookies."
+      },
+      {
+        "title": "Security",
+        "body": "- every connection is encrypted with HTTPS (TLS 1.2 or higher);\n- passwords are hashed with argon2, two-factor secrets are encrypted, recovery codes are hashed;\n- optional two-factor authentication works with any authenticator app, with an automatic lockout after repeated failed attempts;\n- internal services live on an isolated private network and are reachable only through an authenticated gateway.\nNo system is perfectly secure: if a breach affects your data, we will notify you and the competent authority as the GDPR requires."
+      },
+      {
+        "title": "Your rights",
+        "body": "Under the GDPR you have the right to:\n- **access** your data and receive a copy of it;\n- **rectify** it: name and email can be edited directly from your profile;\n- **erasure**, deleting your account and all associated data;\n- **restrict** or **object to** processing based on legitimate interest;\n- **data portability**, receiving your data in a structured, machine-readable format.\nTo exercise them, write to **privacy@smartbreeds.com** from the email address linked to your account: we will reply within 30 days. You can also lodge a complaint with a supervisory authority; in Italy, the Garante per la protezione dei dati personali (garanteprivacy.it)."
+      },
+      {
+        "title": "Children",
+        "body": "SmartBreeds is not intended for people under 16. We do not knowingly collect data from minors: if you believe a minor has registered, contact us and we will delete the account."
+      },
+      {
+        "title": "Changes to this policy",
+        "body": "We may update this policy when the service changes. The date at the top of the page always shows the current version, and we will announce significant changes in the application before they take effect."
+      }
+    ]
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "intro": "These terms govern your use of SmartBreeds. Please read them carefully: by creating an account or using the service you accept them. If you do not agree, please do not use SmartBreeds.",
+    "sections": [
+      {
+        "title": "The service",
+        "body": "SmartBreeds lets you create profiles for your dogs and cats, analyze their photos with artificial intelligence to recognize breed and traits, and receive an informative report and personalized product recommendations.\nThe service is developed by a student team as part of the ft_transcendence project at 42. It is offered **free of charge** and may change, be suspended or end at any time."
+      },
+      {
+        "title": "Your account",
+        "body": "- You must be at least 16 years old to create an account.\n- The information you provide must be accurate and kept up to date.\n- You are responsible for keeping your credentials confidential and for any activity on your account. We recommend enabling two-factor authentication.\n- The account is personal: do not share it, and do not create accounts on behalf of others without their permission.\n- If you suspect unauthorized access, change your password immediately and contact us."
+      },
+      {
+        "title": "Acceptable use",
+        "body": "When using SmartBreeds you agree not to:\n- upload content that is illegal, violent, sexually explicit or offensive, or that violates the rights of others; an automatic filter rejects inappropriate images;\n- upload photos you have no rights to, or photos of people;\n- try to access other users' accounts or data, or circumvent security measures and rate limits;\n- send bulk requests with bots, scrapers or other automated tools, or overload the infrastructure;\n- reverse engineer the service or use it to build a competing product;\n- use the service for any unlawful purpose."
+      },
+      {
+        "title": "Your content",
+        "body": "The photos, notes and data you upload remain **yours**. You grant us a limited, non-exclusive, free license to store and process them **only** to provide the service to you, for example to analyze them and show you the results. We never use your content for advertising, and we stop processing it as soon as you delete it or delete your account.\nBy uploading content you confirm you have the right to do so."
+      },
+      {
+        "title": "AI analyses are not veterinary advice",
+        "body": "The results produced by artificial intelligence (breed, traits, health insights and suggestions) are **for information only**. They are probabilistic estimates and may be inaccurate or incomplete, especially for mixed breeds or low-quality photos.\nThey are **not** a diagnosis and do **not** replace a visit to a veterinarian. For any health concern, and always in an emergency, contact a veterinarian. Never delay or disregard professional advice because of something you read on SmartBreeds."
+      },
+      {
+        "title": "Recommendations and third-party shops",
+        "body": "Product recommendations are generated automatically from your pet's profile. We do not sell products: links take you to independent shops with their own terms, prices and policies. We are not responsible for their products, availability or service, and we earn no commission on purchases. Ask a veterinarian before changing your pet's diet."
+      },
+      {
+        "title": "Intellectual property",
+        "body": "The application, its design, code, texts, logo and knowledge base belong to the SmartBreeds team or its licensors. You may use them only to use the service as these terms allow; any other reproduction or distribution requires our written permission."
+      },
+      {
+        "title": "Suspension and termination",
+        "body": "You can stop using SmartBreeds at any time and ask for your account to be deleted, which removes all associated data as described in the Privacy Policy.\nWe may suspend or close accounts that seriously or repeatedly violate these terms, or to protect the security of the service and its users, informing you whenever possible."
+      },
+      {
+        "title": "Availability and liability",
+        "body": "The service is provided \"as is\" and \"as available\": we do our best to keep it working and secure, but we cannot guarantee that it will be uninterrupted or error-free, nor that AI results will be accurate.\nTo the extent permitted by law, we are not liable for indirect damages or for decisions made on the basis of the analyses. Nothing in these terms limits liability that the law does not allow us to exclude, nor your rights as a consumer."
+      },
+      {
+        "title": "Changes to these terms",
+        "body": "We may update these terms to reflect changes to the service or to the law. The date at the top of the page shows the current version, and we will announce significant changes in the application before they take effect. If you keep using SmartBreeds afterwards, you accept the new terms."
+      },
+      {
+        "title": "Governing law and contact",
+        "body": "These terms are governed by Italian law. If you are a consumer, you keep the protection of the mandatory rules of your country of residence and may bring proceedings before the court of your place of residence.\nFor any question about these terms, write to **legal@smartbreeds.com**."
+      }
+    ]
+  }
+}

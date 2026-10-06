@@ -1,0 +1,110 @@
+{
+  "eyebrow": "Note legali",
+  "updated": "Ultimo aggiornamento: {{date}}",
+  "toc": "In questa pagina",
+  "seeAlso": "Vedi anche",
+  "privacy": {
+    "title": "Informativa sulla privacy",
+    "intro": "Questa informativa spiega quali dati personali raccoglie SmartBreeds, perché, per quanto tempo li conserviamo, con chi li condividiamo e come puoi esercitare i tuoi diritti. Raccogliamo solo ciò che serve al funzionamento del servizio, e non vendiamo né usiamo i tuoi dati per pubblicità.",
+    "sections": [
+      {
+        "title": "Chi siamo",
+        "body": "SmartBreeds è una piattaforma dedicata agli animali domestici sviluppata da un team di studenti nell'ambito del progetto ft_transcendence di 42. Il team è **titolare del trattamento** dei dati personali trattati attraverso l'applicazione.\nPer qualsiasi domanda o richiesta sulla privacy scrivi a **privacy@smartbreeds.com**."
+      },
+      {
+        "title": "Quali dati raccogliamo",
+        "body": "**Dati dell'account**, che ci fornisci quando ti registri o modifichi il profilo:\n- indirizzo email, nome e cognome;\n- password, conservata solo come hash argon2: nessuno, noi compresi, può leggerla;\n- se attivi l'autenticazione a due fattori, il segreto TOTP (cifrato) e i codici di recupero (conservati come hash).\n**Accesso con 42**: se lo scegli, 42 ci invia il tuo identificativo intra, l'indirizzo email e il nome. Non riceviamo mai la tua password di 42.\n**Dati dei tuoi animali**: ciò che inserisci nei loro profili, come nome, specie, razza, età, peso, condizioni di salute e foto.\n**Analisi**: le foto che carichi per l'analisi, le eventuali note che aggiungi e i risultati che produciamo (razza, punteggio di confidenza, caratteristiche, report testuale).\n**Dati tecnici**: indirizzo IP, data e ora, indirizzo richiesto, codice e durata di ogni richiesta, e il tuo identificativo utente quando hai effettuato l'accesso."
+      },
+      {
+        "title": "Perché li usiamo e su quale base giuridica",
+        "body": "- **Per fornirti il servizio** (account, profili degli animali, analisi delle foto, raccomandazioni): esecuzione del contratto che accetti con i Termini di servizio, art. 6(1)(b) GDPR.\n- **Per proteggere la piattaforma** (gestione delle sessioni, autenticazione a due fattori, limiti di frequenza, prevenzione degli abusi, risoluzione dei problemi): nostro legittimo interesse a tutelare utenti e servizio, art. 6(1)(f) GDPR.\n- **Per adempiere a obblighi di legge**, quando una norma lo richiede, art. 6(1)(c) GDPR.\nNon prendiamo decisioni automatizzate che producano effetti giuridici o altrettanto significativi su di te: i risultati dell'IA descrivono soltanto il tuo animale."
+      },
+      {
+        "title": "Come funziona l'analisi con l'IA",
+        "body": "Quando analizzi una foto, questa attraversa tre fasi:\n- **Classificazione**, sui nostri server: un filtro per i contenuti inappropriati, poi il riconoscimento di specie e razza. Le foto con contenuti inappropriati vengono rifiutate.\n- **Base di conoscenza**: cerchiamo le informazioni sulla razza in una base di conoscenza interna. In questa fase nessun dato personale lascia i nostri server.\n- **Generazione del report**: la foto, i risultati della classificazione e le eventuali note vengono inviati a un modello linguistico esterno, **Mistral AI** (Parigi, Francia, UE), che scrive il report e ce lo restituisce.\nIl report viene salvato nello storico del tuo animale, così puoi consultarlo in seguito. Ti chiediamo di non inserire informazioni personali tue o di altre persone nelle note o nelle foto."
+      },
+      {
+        "title": "Con chi condividiamo i dati",
+        "body": "Condividiamo i dati solo con i fornitori strettamente necessari al funzionamento del servizio:\n- **Mistral AI SAS** (Francia, UE), che genera i report delle analisi e riceve solo i dati descritti nella sezione precedente;\n- **42**, solo se usi \"Accedi con 42\", per autenticarti.\nNon vendiamo, non affittiamo e non condividiamo i tuoi dati per finalità di marketing. I link ai prodotti nelle raccomandazioni ti portano su negozi di terze parti: lì si applicano le loro informative. Comunichiamo dati alle autorità pubbliche solo quando la legge lo impone."
+      },
+      {
+        "title": "Trasferimenti internazionali",
+        "body": "I tuoi dati sono conservati e trattati all'interno dell'Unione Europea e non li trasferiamo fuori dallo Spazio Economico Europeo. Se un giorno dovesse cambiare, ci affideremo solo a fornitori che offrono garanzie adeguate ai sensi del Capo V del GDPR, e aggiorneremo prima questa informativa."
+      },
+      {
+        "title": "Per quanto tempo li conserviamo",
+        "body": "- **Account, animali e analisi**: finché il tuo account esiste. Quando l'account viene eliminato, il profilo, gli animali e tutte le analisi salvate vengono eliminati insieme a esso.\n- **Sessioni**: il cookie di accesso dura 15 minuti, il token di rinnovo 7 giorni; il logout revoca tutte le tue sessioni.\n- **Log tecnici**: fino a 30 giorni, poi vengono cancellati automaticamente.\n- **Contatori dei limiti di frequenza**: 60 secondi."
+      },
+      {
+        "title": "Cookie e archiviazione locale",
+        "body": "Usiamo solo **cookie tecnici**, strettamente necessari per mantenere l'accesso, per questo non c'è un banner di consenso:\n- **access_token**: la tua sessione, 15 minuti;\n- **refresh_token**: rinnova la sessione, 7 giorni, inviato solo all'indirizzo di rinnovo.\nEntrambi sono HttpOnly (JavaScript non può leggerli), Secure e SameSite. L'archiviazione locale del browser conserva inoltre le tue preferenze di **lingua** e **tema** (chiaro o scuro). Non usiamo cookie analitici, pubblicitari o di profilazione di terze parti."
+      },
+      {
+        "title": "Sicurezza",
+        "body": "- ogni connessione è cifrata con HTTPS (TLS 1.2 o superiore);\n- le password sono protette con hash argon2, i segreti a due fattori sono cifrati, i codici di recupero sono conservati come hash;\n- l'autenticazione a due fattori, facoltativa, funziona con qualsiasi app di autenticazione e blocca automaticamente l'accesso dopo ripetuti tentativi falliti;\n- i servizi interni si trovano su una rete privata isolata e sono raggiungibili solo attraverso un gateway autenticato.\nNessun sistema è perfettamente sicuro: se una violazione dovesse riguardare i tuoi dati, informeremo te e l'autorità competente come previsto dal GDPR."
+      },
+      {
+        "title": "I tuoi diritti",
+        "body": "Il GDPR ti riconosce il diritto di:\n- **accedere** ai tuoi dati e riceverne una copia;\n- **rettificarli**: nome ed email si modificano direttamente dal tuo profilo;\n- **cancellarli**, eliminando l'account e tutti i dati collegati;\n- **limitare** il trattamento od **opporti** a quello basato sul legittimo interesse;\n- **portabilità**, ricevendo i tuoi dati in un formato strutturato e leggibile da dispositivo automatico.\nPer esercitarli scrivi a **privacy@smartbreeds.com** dall'indirizzo email associato al tuo account: ti risponderemo entro 30 giorni. Puoi inoltre proporre reclamo al Garante per la protezione dei dati personali (garanteprivacy.it)."
+      },
+      {
+        "title": "Minori",
+        "body": "SmartBreeds non è destinato a persone con meno di 16 anni. Non raccogliamo consapevolmente dati di minori: se ritieni che un minore si sia registrato, contattaci ed elimineremo l'account."
+      },
+      {
+        "title": "Modifiche a questa informativa",
+        "body": "Possiamo aggiornare questa informativa quando il servizio cambia. La data in cima alla pagina indica sempre la versione in vigore, e annunceremo le modifiche rilevanti nell'applicazione prima che abbiano effetto."
+      }
+    ]
+  },
+  "terms": {
+    "title": "Termini di servizio",
+    "intro": "Questi termini regolano l'uso di SmartBreeds. Leggili con attenzione: creando un account o usando il servizio li accetti. Se non sei d'accordo, ti chiediamo di non usare SmartBreeds.",
+    "sections": [
+      {
+        "title": "Il servizio",
+        "body": "SmartBreeds ti permette di creare i profili dei tuoi cani e gatti, analizzarne le foto con l'intelligenza artificiale per riconoscerne razza e caratteristiche, e ricevere un report informativo e raccomandazioni di prodotti personalizzate.\nIl servizio è sviluppato da un team di studenti nell'ambito del progetto ft_transcendence di 42. È offerto **gratuitamente** e può cambiare, essere sospeso o terminare in qualsiasi momento."
+      },
+      {
+        "title": "Il tuo account",
+        "body": "- Per creare un account devi avere almeno 16 anni.\n- Le informazioni che fornisci devono essere corrette e aggiornate.\n- Sei responsabile della riservatezza delle tue credenziali e di ogni attività svolta con il tuo account. Ti consigliamo di attivare l'autenticazione a due fattori.\n- L'account è personale: non condividerlo e non creare account per conto di altri senza il loro permesso.\n- Se sospetti un accesso non autorizzato, cambia subito la password e contattaci."
+      },
+      {
+        "title": "Uso consentito",
+        "body": "Usando SmartBreeds ti impegni a non:\n- caricare contenuti illegali, violenti, sessualmente espliciti, offensivi o che violino i diritti altrui; un filtro automatico rifiuta le immagini inappropriate;\n- caricare foto su cui non hai diritti, o foto di persone;\n- tentare di accedere ad account o dati di altri utenti, o di aggirare le misure di sicurezza e i limiti di frequenza;\n- inviare richieste massive con bot, scraper o altri strumenti automatici, o sovraccaricare l'infrastruttura;\n- decodificare il servizio o usarlo per costruire un prodotto concorrente;\n- usare il servizio per scopi illeciti."
+      },
+      {
+        "title": "I tuoi contenuti",
+        "body": "Le foto, le note e i dati che carichi restano **tuoi**. Ci concedi una licenza limitata, non esclusiva e gratuita per conservarli e trattarli **solo** per fornirti il servizio, per esempio per analizzarli e mostrarti i risultati. Non usiamo mai i tuoi contenuti per pubblicità e smettiamo di trattarli appena li elimini o elimini l'account.\nCaricando un contenuto confermi di averne il diritto."
+      },
+      {
+        "title": "Le analisi dell'IA non sono un parere veterinario",
+        "body": "I risultati prodotti dall'intelligenza artificiale (razza, caratteristiche, indicazioni sulla salute e suggerimenti) hanno **solo valore informativo**. Sono stime probabilistiche e possono essere imprecise o incomplete, specialmente per i meticci o con foto di bassa qualità.\n**Non** sono una diagnosi e **non** sostituiscono una visita veterinaria. Per qualsiasi dubbio sulla salute, e sempre in caso di emergenza, rivolgiti a un veterinario. Non rimandare né ignorare un parere professionale per qualcosa che hai letto su SmartBreeds."
+      },
+      {
+        "title": "Raccomandazioni e negozi di terze parti",
+        "body": "Le raccomandazioni di prodotti sono generate automaticamente a partire dal profilo del tuo animale. Non vendiamo prodotti: i link portano a negozi indipendenti con propri termini, prezzi e politiche. Non siamo responsabili dei loro prodotti, della disponibilità o del servizio, e non riceviamo commissioni sugli acquisti. Prima di cambiare l'alimentazione del tuo animale, chiedi a un veterinario."
+      },
+      {
+        "title": "Proprietà intellettuale",
+        "body": "L'applicazione, il design, il codice, i testi, il logo e la base di conoscenza appartengono al team SmartBreeds o ai suoi licenzianti. Puoi usarli solo per utilizzare il servizio come consentito da questi termini; qualsiasi altra riproduzione o distribuzione richiede il nostro permesso scritto."
+      },
+      {
+        "title": "Sospensione e chiusura",
+        "body": "Puoi smettere di usare SmartBreeds in qualsiasi momento e chiedere l'eliminazione del tuo account, che rimuove tutti i dati collegati come descritto nell'Informativa sulla privacy.\nPossiamo sospendere o chiudere gli account che violano questi termini in modo grave o ripetuto, o per proteggere la sicurezza del servizio e dei suoi utenti, avvisandoti quando possibile."
+      },
+      {
+        "title": "Disponibilità e responsabilità",
+        "body": "Il servizio è fornito \"così com'è\" e \"come disponibile\": facciamo del nostro meglio per mantenerlo funzionante e sicuro, ma non possiamo garantire che sia sempre disponibile o privo di errori, né che i risultati dell'IA siano esatti.\nNei limiti consentiti dalla legge, non rispondiamo dei danni indiretti né delle decisioni prese sulla base delle analisi. Nulla in questi termini limita la responsabilità che la legge non consente di escludere, né i tuoi diritti di consumatore."
+      },
+      {
+        "title": "Modifiche ai termini",
+        "body": "Possiamo aggiornare questi termini per riflettere cambiamenti del servizio o della normativa. La data in cima alla pagina indica la versione in vigore, e annunceremo le modifiche rilevanti nell'applicazione prima che abbiano effetto. Se continui a usare SmartBreeds dopo l'aggiornamento, accetti i nuovi termini."
+      },
+      {
+        "title": "Legge applicabile e contatti",
+        "body": "Questi termini sono regolati dalla legge italiana. Se sei un consumatore, mantieni la tutela delle norme inderogabili del tuo Paese di residenza e puoi rivolgerti al giudice del luogo in cui risiedi.\nPer qualsiasi domanda su questi termini scrivi a **legal@smartbreeds.com**."
+      }
+    ]
+  }
+}

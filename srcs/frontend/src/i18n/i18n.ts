@@ -9,6 +9,7 @@ import enBreeds from './locales/en/breeds.json'
 import enCommon from './locales/en/common.json'
 import enDashboard from './locales/en/dashboard.json'
 import enLanding from './locales/en/landing.json'
+import enLegal from './locales/en/legal.json'
 import enPets from './locales/en/pets.json'
 import enProfile from './locales/en/profile.json'
 import enRecommendations from './locales/en/recommendations.json'
@@ -19,6 +20,7 @@ import itBreeds from './locales/it/breeds.json'
 import itCommon from './locales/it/common.json'
 import itDashboard from './locales/it/dashboard.json'
 import itLanding from './locales/it/landing.json'
+import itLegal from './locales/it/legal.json'
 import itPets from './locales/it/pets.json'
 import itProfile from './locales/it/profile.json'
 import itRecommendations from './locales/it/recommendations.json'
@@ -29,6 +31,7 @@ import jaBreeds from './locales/ja/breeds.json'
 import jaCommon from './locales/ja/common.json'
 import jaDashboard from './locales/ja/dashboard.json'
 import jaLanding from './locales/ja/landing.json'
+import jaLegal from './locales/ja/legal.json'
 import jaPets from './locales/ja/pets.json'
 import jaProfile from './locales/ja/profile.json'
 import jaRecommendations from './locales/ja/recommendations.json'
@@ -48,6 +51,7 @@ void i18n
       it: {
         common: itCommon,
         landing: itLanding,
+        legal: itLegal,
         auth: itAuth,
         pets: itPets,
         profile: itProfile,
@@ -60,6 +64,7 @@ void i18n
       en: {
         common: enCommon,
         landing: enLanding,
+        legal: enLegal,
         auth: enAuth,
         pets: enPets,
         profile: enProfile,
@@ -72,6 +77,7 @@ void i18n
       ja: {
         common: jaCommon,
         landing: jaLanding,
+        legal: jaLegal,
         auth: jaAuth,
         pets: jaPets,
         profile: jaProfile,
@@ -88,6 +94,7 @@ void i18n
     ns: [
       'common',
       'landing',
+      'legal',
       'auth',
       'pets',
       'dashboard',

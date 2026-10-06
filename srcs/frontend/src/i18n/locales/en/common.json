@@ -26,5 +26,11 @@
       "title": "Page not found",
       "message": "The page you're looking for doesn't exist or has been moved."
     }
+  },
+  "footer": {
+    "rights": "smartbreeds © 2026. All rights reserved.",
+    "legal": "Legal",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
   }
 }
