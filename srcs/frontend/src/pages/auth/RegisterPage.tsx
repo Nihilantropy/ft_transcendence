@@ -10,9 +10,11 @@ import { OAuth42Button } from '@/pages/auth/components/OAuth42Button'
 import { useRegisterMutation } from '@/queries/auth'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { z } from 'zod'
+
+const LEGAL_LINK = 'text-text-mid hover:text-accent underline underline-offset-4 transition-colors'
 
 export function RegisterPage() {
   const { t } = useTranslation(['auth', 'common'])
@@ -110,6 +112,18 @@ export function RegisterPage() {
       </form>
 
       <OAuth42Button />
+
+      {/* legal consent, covers both the form and the 42 button above */}
+      <p className="text-text-lo mt-6 text-center text-xs leading-relaxed">
+        <Trans
+          t={t}
+          i18nKey="register.legalConsent"
+          components={{
+            terms: <Link to="/terms" className={LEGAL_LINK} />,
+            privacy: <Link to="/privacy" className={LEGAL_LINK} />,
+          }}
+        />
+      </p>
 
       {/* already registered CTA */}
       <p className="text-text-mid mt-6 text-center text-sm">

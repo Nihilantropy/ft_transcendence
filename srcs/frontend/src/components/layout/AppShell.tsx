@@ -1,13 +1,11 @@
 import { Footer } from '@/components/layout/Footer'
 import { Header } from '@/components/layout/Header'
-import { useIsAuthenticated } from '@/stores/auth'
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router'
 
 export function AppShell() {
   const mainRef = useRef<HTMLElement>(null)
   const [isScrolled, setIsScrolled] = useState(false)
-  const isAuthenticated = useIsAuthenticated()
 
   // the header gets a border when the main content is scrolled, to visually
   // separate it from the content
@@ -35,7 +33,7 @@ export function AppShell() {
           <div className="flex-1 pt-6 pb-12 lg:pt-10 lg:pb-16">
             <Outlet />
           </div>
-          {!isAuthenticated && <Footer />}
+          <Footer />
         </div>
       </main>
     </div>
