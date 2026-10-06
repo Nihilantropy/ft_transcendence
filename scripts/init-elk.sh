@@ -73,6 +73,12 @@ echo -e "${GREEN}✓ Credentials ready${NC}"
 
 echo -e "${YELLOW}[2/3] Starting ELK services...${NC}"
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-cloud},elk"
+# Vector reads container logs from the Docker API: mount the socket of the daemon we are actually
+# talking to (rootless Docker: /run/user/<uid>/docker.sock), not blindly /var/run/docker.sock.
+if [ -z "${DOCKER_SOCK:-}" ]; then
+  DOCKER_SOCK="$(docker context inspect -f '{{.Endpoints.docker.Host}}' 2>/dev/null | sed -n 's|^unix://||p')"
+  export DOCKER_SOCK="${DOCKER_SOCK:-/var/run/docker.sock}"
+fi
 cd "$ROOT_DIR"
 docker compose -f docker-compose.yml up -d elasticsearch logstash kibana vector elk-setup
 

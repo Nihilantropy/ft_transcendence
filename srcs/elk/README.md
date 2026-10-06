@@ -32,9 +32,9 @@ untouched — which switching to the `gelf` log driver would not.
                            │ newline-delimited JSON over TCP, TLS
                            ▼
                     ┌─────────────┐
-                    │  Logstash   │  json filter (api-gateway, ai-service,
-                    │             │  nginx already emit JSON) + grok
-                    │             │  fallback for plain-text loggers
+                    │  Logstash   │  normalises every service onto one
+                    │             │  schema (service, level, http.*, url.*)
+                    │             │  and redacts OAuth/token query params
                     └──────┬──────┘
                            │ HTTPS, logstash_writer user
                            ▼
@@ -47,7 +47,7 @@ untouched — which switching to the `gelf` log driver would not.
                            ▼
                     ┌─────────────┐
                     │   Kibana    │  https://localhost:5601
-                    │             │  data view + a starter saved search
+                    │             │  data view, 4 dashboards, 4 saved searches
                     └─────────────┘
 ```
 
@@ -175,12 +175,80 @@ docker exec ft_transcendence_elasticsearch curl -s --cacert config/certs/ca/ca.c
 ```
 
 Open `https://localhost:5601` (self-signed cert, same as nginx), log in with
-`elastic` / the password `make elk` printed, and check **Discover** — the
-"All Logs" saved search is pre-created against the `logs-smartbreeds-*` data
-view.
+`elastic` / the password `make elk` printed, and open **Dashboards** — the four
+`SmartBreeds · …` dashboards below are pre-created. **Discover** has the saved
+searches against the `logs-smartbreeds-*` data view.
+
+## Dashboards
+
+Provisioned by `elk-setup` on every run (`overwrite=true`), from
+`kibana/dashboard.ndjson`. That file is **generated** — edit
+`kibana/build_dashboards.py` (stdlib Python) and re-run it, never the ndjson:
+
+```bash
+python3 srcs/elk/kibana/build_dashboards.py   # rewrites kibana/dashboard.ndjson
+make elk                                       # re-imports
+```
+
+| Dashboard | Answers | Filter controls |
+|---|---|---|
+| SmartBreeds · Platform Overview | volume, errors and warnings per service; latest problem lines | service, level |
+| SmartBreeds · HTTP Traffic | edge requests by status class, latency p50/p95/p99, top endpoints and clients, slowest gateway routes | method, status class, path |
+| SmartBreeds · Security & Auth | login successes/failures, 401/403/429 over time, routes and clients that get rejected, active users | status, client IP |
+| SmartBreeds · AI Pipeline | vision analyses by outcome (422 = image rejected), latency, classification stages, LLM calls via LiteLLM | service |
+
+Saved searches (Discover, also embedded in the dashboards): *All Logs*,
+*Errors & Warnings*, *Security Events*, *AI Pipeline Problems*. Status colours
+are fixed across every panel: 2xx green, 3xx grey, 4xx amber, 5xx red; levels
+INFO grey, WARNING amber, ERROR orange, CRITICAL red.
+
+### The log schema the dashboards query
+
+Every service logs in its own shape (JSON from nginx and the gateway, uvicorn
+and Django access lines, Python logging, PostgreSQL, Redis). `logstash/pipeline.conf`
+maps them all onto these fields — its header comment is the reference:
+
+| Field | Values |
+|---|---|
+| `service` | compose name from the container: `api-gateway`, `nginx`, `db`, … |
+| `level` | `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL`. For access lines it is derived from the status (5xx → ERROR, 4xx → WARNING), whatever the logger printed |
+| `log_type` | `access` (one line per HTTP request) or `app` |
+| `http.layer` | `edge` (nginx), `gateway` (the gateway's JSON request log), `service` (a backend's own access line) |
+| `http.method` `http.status` `http.status_class` `http.duration_ms` | `http.duration_ms` is set for `edge` and `gateway` only |
+| `url.path` / `url.original` | path without / with the query string |
+| `client.ip` `user.id` `healthcheck` | `healthcheck: true` for `/health*` probes |
+
+One request is logged once **per layer it crosses** — nginx, then the
+gateway, then the backend — so a panel that counts requests must pin one
+`http.layer`, or it counts the same request two or three times. The
+dashboards use `edge` for user-facing traffic and `gateway` for per-route
+latency and user IDs, and exclude `healthcheck:true`.
+
+Query strings are scrubbed before storage: `code`, `state`, `token`,
+`access_token`, `refresh_token` and `mfa_token` values become `[REDACTED]`
+(the 42 OAuth callback carries a one-time code and the CSRF state).
 
 ## Gotchas
 
+- **Logstash waits for its own credentials before starting.** Elasticsearch
+  being healthy does not mean `logstash_writer` exists: `elk-setup` creates it
+  only after Elasticsearch is up, at the same time Logstash starts. A Logstash
+  that won that race got a 401, exited, crash-looped into Docker's restart
+  backoff, and `vector` failed with "dependency failed to start". The compose
+  `entrypoint` now polls Elasticsearch as `logstash_writer` and only then
+  `exec`s the image's own `docker-entrypoint`.
+- **Disk watermarks are absolute (2gb / 1gb / 512mb free).** The default 85/90/95 %
+  thresholds hit on any dev disk that is 90 % full even with gigabytes free.
+  Past the high watermark Elasticsearch refuses to allocate the `.security`
+  index, every user/password call answers `unavailable_shards_exception`, and
+  provisioning used to hang for ~12 minutes before failing with a misleading
+  "password out of sync" message. `setup/entrypoint.sh` now detects an
+  unassignable shard, prints Elasticsearch's own allocation explanation and
+  exits.
+- **Vector mounts the socket of the daemon in use** (`DOCKER_SOCK`, set by
+  `scripts/init-elk.sh` from `docker context inspect`). Under rootless Docker
+  that is `/run/user/<uid>/docker.sock`; `/var/run/docker.sock` would belong
+  to a different daemon running none of these containers.
 - **`elk-setup` never exits — this is deliberate.** Elasticsearch's
   `depends_on: elk-setup: condition: service_healthy` re-verifies that
   condition on every `docker compose up`, and Compose can race a container
@@ -210,8 +278,32 @@ view.
   calls. `put_es_json()` in `setup/entrypoint.sh` now fails loudly instead.
 - **Kibana saved-object ndjson is fragile across versions.** The
   `migrationVersion` field (present in older exports) is rejected outright
-  by Kibana 8.17's saved-objects index mapping. `kibana/dashboard.ndjson`
-  uses only `coreMigrationVersion`/`typeMigrationVersion`. The import is
-  best-effort — a failure logs a warning but does not fail `make elk`; the
-  data view (created via a separate, more stable API call) is what actually
-  matters for using Kibana.
+  by Kibana 8.17's saved-objects index mapping. The generated ndjson uses only
+  `coreMigrationVersion`/`typeMigrationVersion`, set to what 8.17 stamps
+  (dashboard 10.2.0, lens 8.9.0, search 10.5.0). The import now **fails
+  `make elk`** when Kibana reports any per-object error: curl only fails on
+  transport errors, so the old "best-effort" import reported success no
+  matter what Kibana answered.
+- **Lens panels are by reference, not by value.** Lens embedded by value in
+  an imported dashboard stayed on "loading" forever in 8.17 — no error
+  anywhere — while the identical state opened fine in the Lens editor. Each
+  chart is therefore its own `lens` saved object (`<dashboard-id>-pN`, also
+  listed in the Visualize Library) that the dashboard references.
+- **"Something went wrong while fetching SLOs — Forbidden".** SLOs are a
+  Platinum feature and this cluster runs the free basic license, so the SLO
+  API answers 403 "Platinum license or higher is needed". `elk-setup` hides
+  the `slo` feature in the default space. Not `xpack.slo.enabled: false`:
+  the Logs Explorer plugin lists `slo` as a required plugin, so disabling it
+  takes Logs Explorer down too.
+- **A mapping change needs a rollover, and the probe is `_meta.schema_version`.**
+  The index template only applies to indices created after it. `elk-setup`
+  rolls the data stream over when the write index's `_meta.schema_version`
+  differs from `setup/index-template.json` — **bump it with every mapping
+  change**. Probing for a field instead raced: Logstash, restarted with the
+  new pipeline, had already written the new fields into the old index with
+  dynamic `text` mappings. Those documents stay behind in the old backing
+  index, and since Kibana merges the mappings of every index behind the data
+  view, a field that is `keyword` in one index and `text` in another can no
+  longer be aggregated until that index ages out (30 days). On a dev cluster
+  delete the old backing index (`DELETE .ds-logs-smartbreeds-default-…-000001`)
+  or `make downv`; a fresh install never meets this.

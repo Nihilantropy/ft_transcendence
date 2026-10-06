@@ -20,6 +20,12 @@ services:
     networks:
       - proxy           # External access
       - backend-network # To reach API Gateway (production-like)
+    # nginx resolves `api-gateway` once, at startup, and exits ("host not found in upstream") if it
+    # does not exist yet. The gateway waits for auth/user to be healthy, so without this nginx
+    # crash-loops on a fresh start and `up --wait` reports it unhealthy.
+    depends_on:
+      api-gateway:
+        condition: service_healthy
     restart: on-failure
     healthcheck:
       test: ["CMD", "nginx", "-t"]
@@ -400,6 +406,14 @@ services:
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=basic
       - path.repo=/usr/share/elasticsearch/snapshots
+      # Disk watermarks as absolute free space instead of the 85/90/95 % defaults. On a dev disk the
+      # percentages bite long before space is actually short (90 % of 70 GB still leaves 7 GB free):
+      # past the high watermark Elasticsearch silently refuses to allocate any shard, so the
+      # .security index is never created, elk-setup cannot set a single password, and Kibana and
+      # Logstash wait forever. All three must use the same unit.
+      - cluster.routing.allocation.disk.watermark.low=2gb
+      - cluster.routing.allocation.disk.watermark.high=1gb
+      - cluster.routing.allocation.disk.watermark.flood_stage=512mb
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     mem_limit: 1g
     volumes:
@@ -428,6 +442,22 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+    # Elasticsearch being healthy is not enough: elk-setup creates the logstash_writer user only
+    # AFTER Elasticsearch comes up, concurrently with this container starting. A Logstash that wins
+    # that race gets a 401, exits ("Could not read Elasticsearch. Please check the credentials"),
+    # crash-loops into Docker's restart backoff, and `vector` (which waits for this to be healthy)
+    # fails with "dependency failed to start". So wait until our own credentials actually work —
+    # that is the precise condition, whatever the timing or the state of the volumes — then hand
+    # over to the image's normal entrypoint.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until curl -sf -o /dev/null --cacert config/certs/ca/ca.crt -u "logstash_writer:$${LOGSTASH_WRITER_PASSWORD}" https://elasticsearch:9200/; do
+          echo "Waiting for elk-setup to create the logstash_writer user..."
+          sleep 3
+        done
+        exec /usr/local/bin/docker-entrypoint
     environment:
       - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:-}
       - LS_JAVA_OPTS=-Xms256m -Xmx256m
@@ -509,7 +539,10 @@ services:
       - elk-certs:/certs:ro
       - ./srcs/elk/vector/vector.toml:/etc/vector/vector.toml:ro
       - vector-data:/var/lib/vector
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # The daemon's socket on the host. scripts/init-elk.sh sets DOCKER_SOCK from the active docker
+      # context: under rootless Docker it is /run/user/<uid>/docker.sock, and mounting the system
+      # socket there would point Vector at a different daemon that runs none of these containers.
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
     networks:
       - backend-network
     restart: unless-stopped

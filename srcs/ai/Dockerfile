@@ -12,6 +12,13 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# CPU-only PyTorch, installed BEFORE requirements.txt so sentence-transformers finds it already
+# satisfied. Left to plain pip, it pulled the PyPI default — the CUDA build, with ~3.2 GB of nvidia
+# libraries and ~0.9 GB of triton — which made this image 10.5 GB. Nothing here uses a GPU: torch
+# only runs the small all-MiniLM-L6-v2 embedder (src/services/embedder.py), on the CPU already.
+# Same version as classification-service; pinned because the index is not the PyPI resolver.
+RUN pip install --no-cache-dir torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+
 # Copy and install requirements (baked into image)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

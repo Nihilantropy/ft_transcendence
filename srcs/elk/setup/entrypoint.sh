@@ -1,6 +1,7 @@
 #!/bin/bash
 # ELK zero-config bootstrap: CA + per-node certs, elastic/kibana_system/logstash_writer
-# credentials, ILM + SLM + index template + snapshot repo, Kibana data view.
+# credentials, ILM + SLM + index template + snapshot repo, Kibana data view,
+# saved searches and dashboards.
 # Idempotent: safe to re-run against an existing certs/data volume.
 set -e
 
@@ -118,12 +119,26 @@ echo "[3/6] Setting kibana_system password..."
 # ELASTIC_PASSWORD answers 401 forever, and an unbounded loop here hung the
 # whole provisioning run silently.
 attempt=0
-until ${CURL_ES} -X POST "${ES_URL}/_security/user/kibana_system/_password" \
+until response=$(${CURL_ES} -X POST "${ES_URL}/_security/user/kibana_system/_password" \
     -H 'Content-Type: application/json' \
-    -d "{\"password\":\"${KIBANA_SYSTEM_PASSWORD}\"}" | grep -q '^{}'; do
+    -d "{\"password\":\"${KIBANA_SYSTEM_PASSWORD}\"}") && echo "$response" | grep -q '^{}'; do
+  # An unassignable .security shard never heals by waiting: every retry burns the full 1 min
+  # shard timeout, and the 401 hint below would blame the password. Ask Elasticsearch why and
+  # stop with that reason (in practice: the Docker disk is past the disk watermark).
+  if echo "$response" | grep -q 'unavailable_shards_exception'; then
+    explain=$(${CURL_ES} "${ES_URL}/_cluster/allocation/explain" 2>/dev/null || true)
+    if echo "$explain" | grep -q '"can_allocate":"no"'; then
+      echo "✗ Elasticsearch cannot allocate the .security index, so no user can be created."
+      echo "$explain" | grep -o '"explanation":"[^"]*"' | sort -u | sed 's/^/  /'
+      echo "  If the reason mentions disk usage / watermark: free space in Docker's data root"
+      echo "  ('docker info -f {{.DockerRootDir}}'; 'docker builder prune -af' is usually the big one),"
+      echo "  then run 'make elk' again."
+      exit 1
+    fi
+  fi
   attempt=$((attempt + 1))
   if [ $attempt -ge $max_attempts ]; then
-    echo "✗ Could not set the kibana_system password."
+    echo "✗ Could not set the kibana_system password. Last response: ${response}"
     echo "  The 'elastic' password is most likely out of sync with the es-data"
     echo "  volume — that happens when the root .env was regenerated against an"
     echo "  existing cluster. Either restore the old ELASTIC_PASSWORD, or wipe"
@@ -172,6 +187,20 @@ echo "[4/6] Installing index template..."
 put_es_json "/_index_template/smartbreeds-logs" --data-binary "@${SETUP_DIR}/index-template.json"
 echo "✓ Snapshot repo + SLM + ILM + template installed"
 
+# A template only applies to indices created after it. When the mapping changes, roll the
+# data stream over so the new write index uses it — otherwise an existing cluster keeps the
+# old mapping until the next daily rollover. The probe is the template's `_meta.schema_version`
+# (bump it in index-template.json with every mapping change), NOT the presence of a field:
+# Logstash may already have written the new fields into the old index, dynamically mapped.
+schema_version=$(grep -o '"schema_version": *[0-9]*' "${SETUP_DIR}/index-template.json" | grep -o '[0-9]*$')
+write_index=$(${CURL_ES} "${ES_URL}/_data_stream/logs-smartbreeds-default" 2>/dev/null \
+  | grep -o '"index_name":"[^"]*"' | tail -1 | cut -d'"' -f4)
+if [ -n "$write_index" ] && ! ${CURL_ES} "${ES_URL}/${write_index}/_mapping" \
+    | grep -q "\"schema_version\":${schema_version}[,}]"; then
+  ${CURL_ES} -X POST "${ES_URL}/logs-smartbreeds-default/_rollover" >/dev/null
+  echo "✓ Data stream rolled over onto the updated template"
+fi
+
 # --- 5. Wait for Kibana ------------------------------------------------------
 echo "[5/6] Waiting for Kibana..."
 attempt=0
@@ -187,7 +216,7 @@ echo "✓ Kibana reachable"
 
 CURL_KB="curl -k -s -u elastic:${ELASTIC_PASSWORD} -H kbn-xsrf:true"
 
-# --- 6. Kibana data view + best-effort dashboard import ---------------------
+# --- 6. Kibana data view, space features, dashboards ----------------------
 echo "[6/6] Creating Kibana data view..."
 kb_response=$(${CURL_KB} -X POST "${KIBANA_URL}/api/data_views/data_view" \
   -H 'Content-Type: application/json' -d '{
@@ -205,13 +234,37 @@ if echo "$kb_response" | grep -q '"statusCode"'; then
 fi
 echo "✓ Data view ready"
 
-if [ -f "/kibana/dashboard.ndjson" ]; then
-  echo "[6/6] Importing dashboard (best-effort)..."
-  ${CURL_KB} -X POST "${KIBANA_URL}/api/saved_objects/_import?overwrite=true" \
-    -F "file=@/kibana/dashboard.ndjson" -o /tmp/import-result.json \
-    && echo "✓ Dashboard imported" \
-    || echo "⚠ Dashboard import failed (non-fatal, data view still usable)"
+# SLOs are a Platinum feature; this cluster runs the free basic license, so every
+# Observability page that lists SLOs showed "Something went wrong while fetching SLOs /
+# Forbidden" (the API answers 403 "Platinum license or higher is needed"). Hide the
+# feature in the default space. Not `xpack.slo.enabled: false` in kibana.yml: the Logs
+# Explorer plugin requires the slo plugin, so that would take Logs Explorer down too.
+echo "[6/6] Disabling the Platinum-only SLO feature in the default space..."
+kb_response=$(${CURL_KB} -X PUT "${KIBANA_URL}/api/spaces/space/default" \
+  -H 'Content-Type: application/json' -d '{
+    "id": "default",
+    "name": "Default",
+    "description": "This is your default space!",
+    "color": "#00bfb3",
+    "disabledFeatures": ["slo"]
+  }')
+if echo "$kb_response" | grep -q '"statusCode"'; then
+  echo "✗ Updating the default space failed: ${kb_response}"
+  exit 1
 fi
+echo "✓ SLO feature hidden"
+
+# Saved searches + dashboards, generated by /kibana/build_dashboards.py. A failed import
+# used to be swallowed (curl only fails on transport errors, never on Kibana's per-object
+# errors), so check Kibana's own verdict.
+echo "[6/6] Importing saved searches and dashboards..."
+import_result=$(${CURL_KB} -X POST "${KIBANA_URL}/api/saved_objects/_import?overwrite=true" \
+  -F "file=@/kibana/dashboard.ndjson")
+if ! echo "$import_result" | grep -q '"success":true'; then
+  echo "✗ Dashboard import failed: ${import_result}"
+  exit 1
+fi
+echo "✓ Dashboards imported: $(echo "$import_result" | grep -o '"successCount":[0-9]*' | cut -d: -f2) saved objects"
 
 touch "${CERTS_DIR}/.setup-complete"
 echo "✓ ELK setup complete"

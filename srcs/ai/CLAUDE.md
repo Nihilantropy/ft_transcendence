@@ -135,6 +135,10 @@ tolerate it being `None` before startup.
 - **Chunk IDs are `f"chunk_{i}_{hash(content) % 10000}"`** (`rag_service.py:180`). String hashing
   is salted per process, so re-ingesting the same file after a restart duplicates it, and two
   chunks can collide within one run.
+- **torch is installed from the PyTorch CPU index in the Dockerfile, before `requirements.txt`.**
+  Do not move it into `requirements.txt` or drop the `--index-url`: plain pip resolves the CUDA
+  build (+3.2 GB `nvidia/`, +0.9 GB `triton`) and the image grows from ~2.9 GB to 10.5 GB for a
+  GPU nothing here uses — torch only runs the MiniLM embedder.
 - **`uvicorn --workers 2`** (Dockerfile:35): the lifespan runs twice, so two SentenceTransformer
   instances load and two `chromadb.PersistentClient` handles open the same directory.
 - **`detect_species` accepts a `top_k` argument that the orchestrator never passes**

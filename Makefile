@@ -35,7 +35,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up keys show stop start down restart re clean fclean help test test-coverage gate elk elk-creds $(TEST_FLAGS)
+.PHONY: all setup build up keys env trash show stop start down restart re clean fclean help test test-coverage gate elk elk-creds $(TEST_FLAGS)
 
 # Default target
 all: build up elk show logs
@@ -62,6 +62,10 @@ build-%:
 ## build-zero-%: Build specific service with no cache
 build-zero-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache $*
+
+## env: Create every missing .env from its .env.example, with consistent random secrets (never overwrites)
+env:
+	@scripts/bootstrap-env.sh
 
 ## keys: Generate the JWT key pair if it is missing (idempotent; `make up` runs it for you)
 keys:
@@ -161,16 +165,19 @@ logs-%:
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f $*
 
 ## purge: Full cleanup of containers, images, volumes, networks
+# PURGE_RMI=local (default) removes only the images compose built; `make trash` passes
+# PURGE_RMI=all to also remove the pulled ones (postgres, redis, litellm, elastic, ...).
+PURGE_RMI ?= local
 purge:
 	@echo "Full cleanup of ft_transcendence resources..."
 	@echo "Stopping and removing containers, volumes and locally built images..."
-	@# --rmi local removes exactly the images compose built for this project,
+	@# --rmi local (the default) removes exactly the images compose built for this project,
 	@# whatever they are tagged. The previous loop guessed tag names (and got
 	@# them wrong), then fell back to `docker rmi -f $$service` on bare names
 	@# like `redis` and `nginx` — which deleted the host's unrelated
 	@# redis:latest / nginx:latest. Errors are no longer sent to /dev/null:
 	@# hiding them is what let a failed teardown look like a successful one.
-	@COMPOSE_PROFILES=$(DOWN_PROFILES) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v --rmi local --remove-orphans || true
+	@COMPOSE_PROFILES=$(DOWN_PROFILES) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v --rmi $(PURGE_RMI) --remove-orphans || true
 	@echo "Removing any leftover ft_transcendence containers..."
 	@for container in $(TRANSCENDENCE_CONTAINERS); do \
 		docker rm -f $$container 2>/dev/null || true; \
@@ -186,6 +193,48 @@ purge:
 	@echo "Removing dangling images and build cache..."
 	@docker image prune -f --filter "label=project=$(PROJECT_NAME)" 2>/dev/null || true
 	@echo "✅ Full cleanup completed!"
+
+## trash: From-scratch start: cloud (Mistral) profile + ELK. Checks MISTRAL_API_KEY, then deletes
+##        every volume, image and the build cache, checks free disk, creates missing .env files and
+##        JWT keys, rebuilds, seeds, starts ELK
+# The profile is forced: this target is defined as "the Mistral stack", whatever the
+# command line or .env says. The key is checked BEFORE the purge, so a missing key
+# never costs you your data.
+trash: override COMPOSE_PROFILES := cloud
+trash:
+	@echo "[1/9] .env files"
+	@scripts/bootstrap-env.sh
+	@echo "[2/9] Prerequisites and MISTRAL_API_KEY"
+	@scripts/preflight.sh
+	@echo "[3/9] Deleting every ft_transcendence container, volume, network and image"
+	@$(MAKE) --no-print-directory purge PURGE_RMI=all
+	@# --no-cache builds still WRITE a full set of cache layers that nothing reuses; left alone they
+	@# piled up to 40+ GB, filled the disk, and Elasticsearch then refused to allocate any shard.
+	@echo "      Pruning the Docker build cache"
+	@docker builder prune -af
+	@scripts/preflight.sh --disk
+	@echo "[4/9] JWT keys"
+	@$(MAKE) --no-print-directory keys
+	@echo "[5/9] Building images from scratch (no cache, fresh base images)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache --pull
+	@# The build just wrote ~13 GB of cache that only a later incremental `make build` could reuse;
+	@# `make trash` is a cold start by definition, so drop it rather than leave it on the disk.
+	@docker builder prune -af
+	@echo "[6/9] Starting the stack and waiting for healthchecks (first boot downloads ~1.3 GB of models)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --wait --wait-timeout 900
+	@echo "[7/9] Migrations, product catalog, admin account"
+	@scripts/run-migrations.sh
+	@scripts/seed-db.sh
+	@scripts/create-superuser.sh
+	@echo "[8/9] RAG knowledge base"
+	@scripts/init-rag-kb.sh
+	@echo "[9/9] Observability (Elasticsearch, Logstash, Kibana, Vector)"
+	@scripts/init-elk.sh
+	@echo ""
+	@echo "✅ SmartBreeds is running from scratch (cloud profile + ELK)"
+	@echo "   App:    https://localhost:8443   (self-signed certificate: accept the browser warning)"
+	@echo "   Admin:  test_admin@example.com / Password123!"
+	@echo "   Kibana: https://localhost:5601   (user 'elastic', password: make elk-creds)"
 
 ## re: Rebuild everything soft
 re: down all

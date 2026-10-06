@@ -8,15 +8,58 @@
       "index.lifecycle.name": "smartbreeds-logs"
     },
     "mappings": {
+      "_meta": { "schema_version": 2 },
+      "dynamic_templates": [
+        {
+          "strings_as_keyword": {
+            "match_mapping_type": "string",
+            "mapping": { "type": "keyword", "ignore_above": 1024 }
+          }
+        }
+      ],
       "properties": {
         "@timestamp": { "type": "date" },
         "message": { "type": "text" },
         "level": { "type": "keyword" },
         "service": { "type": "keyword" },
+        "log_type": { "type": "keyword" },
+        "logger": { "type": "keyword" },
+        "stream": { "type": "keyword" },
+        "request_id": { "type": "keyword" },
+        "healthcheck": { "type": "boolean" },
+        "tags": { "type": "keyword" },
         "container": {
           "properties": {
             "name": { "type": "keyword" },
             "image": { "properties": { "name": { "type": "keyword" } } }
+          }
+        },
+        "http": {
+          "properties": {
+            "layer": { "type": "keyword" },
+            "method": { "type": "keyword" },
+            "status": { "type": "short" },
+            "status_class": { "type": "keyword" },
+            "duration_ms": { "type": "float" },
+            "response_bytes": { "type": "long" },
+            "referrer": { "type": "keyword", "ignore_above": 2048 },
+            "upstream": { "type": "keyword" }
+          }
+        },
+        "url": {
+          "properties": {
+            "path": { "type": "keyword", "ignore_above": 2048 },
+            "original": { "type": "keyword", "ignore_above": 2048 }
+          }
+        },
+        "client": { "properties": { "ip": { "type": "ip", "ignore_malformed": true } } },
+        "user": { "properties": { "id": { "type": "keyword" } } },
+        "user_agent": { "properties": { "original": { "type": "keyword", "ignore_above": 2048 } } },
+        "data_stream": {
+          "properties": {
+            "type": { "type": "constant_keyword" },
+            "dataset": { "type": "constant_keyword" },
+            "namespace": { "type": "constant_keyword" }
           }
         }
       }

@@ -27,6 +27,13 @@ if [ -d "$PUBLIC" ] || [ -d "$PRIVATE" ]; then
   exit 1
 fi
 
+# The private key is 644, not 600: auth-service reads it through a bind mount as container uid 1000,
+# which is a different host uid whenever your user is not uid 1000, and always under rootless Docker
+# (container uid 1000 maps to a subordinate uid). Only the "other" bit reaches that uid; 600 made the
+# service crash at startup with PermissionError. This is a dev key: keep the directory private
+# (your home is usually 700) and use a real secret store in production.
+PRIVATE_MODE=644
+
 write_public_key() {
   openssl rsa -in "$PRIVATE" -pubout -out "$PUBLIC" 2>/dev/null
   chmod 644 "$PUBLIC"
@@ -38,11 +45,11 @@ if [ "${1:-}" = "--force" ] || [ ! -f "$PRIVATE" ]; then
   TMP="$(mktemp "$KEYS_DIR/.jwt-private.XXXXXX")"
   trap 'rm -f "$TMP"' EXIT
   openssl genrsa -out "$TMP" 4096 2>/dev/null || { echo "openssl failed to generate the private key" >&2; exit 1; }
-  chmod 600 "$TMP"
+  chmod "$PRIVATE_MODE" "$TMP"
   mv -f "$TMP" "$PRIVATE"
   write_public_key
   echo "Keys generated:"
-  echo "   Private key: $PRIVATE (600, auth-service only)"
+  echo "   Private key: $PRIVATE ($PRIVATE_MODE, auth-service only)"
   echo "   Public key:  $PUBLIC (644, mounted read-only into the API Gateway)"
   exit 0
 fi
@@ -52,6 +59,9 @@ if ! EXPECTED="$(openssl rsa -in "$PRIVATE" -pubout 2>/dev/null)"; then
   echo "$PRIVATE is not a valid RSA private key. Replace it with: $0 --force" >&2
   exit 1
 fi
+
+# Also repairs keys created as 600 by earlier versions of this script
+chmod "$PRIVATE_MODE" "$PRIVATE"
 
 if [ -f "$PUBLIC" ] && [ "$EXPECTED" = "$(cat "$PUBLIC")" ]; then
   echo "JWT keys present and consistent."

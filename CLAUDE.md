@@ -30,6 +30,10 @@ make all           # build + up + show + logs (Makefile:25) — ends tailing log
 make build         # Build Docker images (bakes in requirements)
 make up            # Generate the JWT keys if missing (make keys), then start — HTTPS only, via nginx on 8443
 make up-dev        # Same, plus the gateway on http://127.0.0.1:8001 (notebooks / curl debugging)
+make trash         # From-scratch start (README "Getting started"): fails unless MISTRAL_API_KEY is set, then
+                   # purges every volume + image, `make env`, keys, no-cache build, up --wait, migrate/seed/
+                   # superuser, rag, elk. Profile forced to cloud. Destroys all data
+make env           # Create missing .env files from .env.example with consistent random secrets (scripts/bootstrap-env.sh)
 make keys          # Generate the JWT RS256 key pair if missing — idempotent, never rotates an existing key
 make down          # Stop and remove containers
 make downv         # Stop and remove containers + volumes
@@ -102,7 +106,13 @@ fallback is a genuine escape from a 429. **Before switching to another model, ch
 profile — `make up` never touches it, so the default dev loop stays light. It is fully
 zero-config: a one-shot `elk-setup` container generates TLS certs, per-component credentials
 (random, printed to the terminal and stored in the gitignored root `.env`), an ILM retention
-policy, an SLM archiving policy and a Kibana data view on first run. Vector ships every
+policy, an SLM archiving policy, a Kibana data view and four pre-built dashboards
+(Overview, HTTP Traffic, Security & Auth, AI Pipeline) on first run. The dashboards are
+**generated**: edit `srcs/elk/kibana/build_dashboards.py` and re-run it, never
+`dashboard.ndjson`. They query the normalised fields Logstash writes (`service`, `level`,
+`http.layer`, `http.status`, `url.path`, …) — a new log format needs a matching rule in
+`srcs/elk/logstash/pipeline.conf`, and a mapping change a bump of `_meta.schema_version`
+in `srcs/elk/setup/index-template.json`. Vector ships every
 container's stdout/stderr automatically — no per-service wiring needed. It reads them over
 the Docker API rather than from `/var/lib/docker/containers`, which is empty under Docker
 Desktop; the json-file driver stays in place, so `docker logs` and `make logs` keep working. Kibana is at
