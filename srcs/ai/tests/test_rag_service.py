@@ -1,3 +1,5 @@
+import hashlib
+
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -261,13 +263,100 @@ def test_add_documents_with_chunks(rag_service, mock_embedder):
     ]
     count = rag_service.add_documents(chunks)
     assert count == 2
-    rag_service._collection.add.assert_called_once()
+    rag_service._collection.upsert.assert_called_once()
+    rag_service._collection.add.assert_not_called()
 
 
 def test_add_documents_empty_list_returns_zero(rag_service):
     count = rag_service.add_documents([])
     assert count == 0
-    rag_service._collection.add.assert_not_called()
+    rag_service._collection.upsert.assert_not_called()
+
+
+def test_add_documents_ids_are_source_file_and_index(rag_service, mock_embedder):
+    """IDs must be reproducible across processes: no salted hash() in them."""
+    mock_embedder.embed_batch = Mock(return_value=[[0.1] * 384, [0.2] * 384])
+    chunks = [
+        Chunk(content="First chunk", metadata={"source_file": "dogs/beagle.md"}),
+        Chunk(content="Second chunk", metadata={"source_file": "dogs/beagle.md"}),
+    ]
+    rag_service.add_documents(chunks)
+    ids = rag_service._collection.upsert.call_args.kwargs["ids"]
+    assert ids == ["dogs/beagle.md::0", "dogs/beagle.md::1"]
+
+
+def test_add_documents_ids_without_source_file_use_content_digest(rag_service, mock_embedder):
+    mock_embedder.embed_batch = Mock(return_value=[[0.1] * 384, [0.2] * 384])
+    chunks = [Chunk(content="same", metadata={}), Chunk(content="same", metadata={})]
+    rag_service.add_documents(chunks)
+    ids = rag_service._collection.upsert.call_args.kwargs["ids"]
+    digest = hashlib.sha256(b"same").hexdigest()[:16]
+    assert ids == [f"{digest}::0", f"{digest}::1"]
+
+
+# --- real ChromaDB on tmp_path: re-ingest, index listing, delete ---
+
+@pytest.fixture
+def chroma_rag_service(tmp_path, mock_ollama):
+    """RAG service on a real, throwaway ChromaDB with a fake embedder."""
+    settings = Settings(CHROMA_PERSIST_DIR=str(tmp_path / "chroma"))
+    embedder = Mock()
+    embedder.embed_batch = Mock(side_effect=lambda texts: [[0.1] * 384 for _ in texts])
+    return RAGService(settings, embedder, mock_ollama)
+
+
+def _kb_chunks(source_file, content_hash, n):
+    return [
+        Chunk(
+            content=f"{source_file} chunk {i}",
+            metadata={
+                "source_file": source_file,
+                "source_type": "knowledge_base",
+                "content_hash": content_hash,
+                "chunk_index": i,
+            },
+        )
+        for i in range(n)
+    ]
+
+
+def test_reingesting_same_chunks_does_not_duplicate(chroma_rag_service):
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 3))
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 3))
+    assert chroma_rag_service.get_stats()["document_count"] == 3
+
+
+def test_get_indexed_files_maps_source_file_to_hash(chroma_rag_service):
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 2))
+    chroma_rag_service.add_documents(_kb_chunks("dogs/b.md", "h2", 1))
+    assert chroma_rag_service.get_indexed_files() == {"a.md": "h1", "dogs/b.md": "h2"}
+
+
+def test_get_indexed_files_empty_collection(chroma_rag_service):
+    assert chroma_rag_service.get_indexed_files() == {}
+
+
+def test_get_indexed_files_ignores_other_source_types(chroma_rag_service):
+    chroma_rag_service.add_documents(
+        [Chunk(content="manual", metadata={"source_file": "manual.md", "source_type": "document"})]
+    )
+    assert chroma_rag_service.get_indexed_files() == {}
+
+
+def test_get_indexed_files_reports_chunks_without_hash_as_empty(chroma_rag_service):
+    """Chunks ingested before content_hash existed must look 'changed'."""
+    chroma_rag_service.add_documents(
+        [Chunk(content="old", metadata={"source_file": "old.md", "source_type": "knowledge_base"})]
+    )
+    assert chroma_rag_service.get_indexed_files() == {"old.md": ""}
+
+
+def test_delete_document_removes_only_that_file(chroma_rag_service):
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 3))
+    chroma_rag_service.add_documents(_kb_chunks("b.md", "h2", 2))
+    chroma_rag_service.delete_document("a.md")
+    assert chroma_rag_service.get_stats()["document_count"] == 2
+    assert chroma_rag_service.get_indexed_files() == {"b.md": "h2"}
 
 
 # --- get_stats ---

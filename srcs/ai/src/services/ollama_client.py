@@ -505,9 +505,37 @@ Common health considerations: {rag_context['health_info']}"""
                 context_section = f"""BREED CONTEXT (from database):
 {rag_context['description']}
 Common health considerations: {rag_context['health_info']}"""
+            # Retrieved knowledge has to change the answer, or the knowledge base is
+            # decoration: without this rule the model described the image and ignored it.
+            context_section += """
+
+HOW TO USE THE BREED CONTEXT: it comes from the knowledge base and is authoritative for this breed.
+- When something you SEE matches a fact in it (a coat colour, a marking, a body feature, a condition), say what the context says it means, in "description" or "health_observations".
+- When it contains a notice for owners of this breed (conservation status, a registration or legal requirement, a specific care duty), report it as the last sentence of "description".
+Mention a fact only when this animal actually shows the feature: never write that something is absent or does not apply. State the notice once. Write these as plain information, without naming the breed context or the database.
+Do not copy the rest of the context: everything else must come from what you SEE."""
+            focus = "Focus on describing what you SEE; use the breed context only as described above."
+            # Small hosted models follow the output schema more closely than a rule
+            # in prose, so the same requirement is repeated where the answer is shaped.
+            task_extra = (
+                "\n- What the BREED CONTEXT says about any feature you see, "
+                "and any notice it has for owners of this breed"
+            )
+            description_hint = (
+                f"detailed visual description of this specific {species}, followed by what the "
+                "BREED CONTEXT says the features you see mean and by its notice for owners (if any)"
+            )
+            health_hint = (
+                '"visible observation 1", '
+                '"what the BREED CONTEXT says a feature you see indicates (if it says so)"'
+            )
         else:
             breed_name = breed_analysis["primary_breed"].replace("_", " ").title()
             context_section = "BREED CONTEXT: (unavailable)"
+            focus = "Focus on describing what you SEE, not general breed knowledge."
+            task_extra = ""
+            description_hint = f"detailed visual description of this specific {species}"
+            health_hint = '"visible observation 1", "visible observation 2"'
 
         owner_section = ""
         if user_context:
@@ -528,19 +556,19 @@ YOUR TASK: Describe THIS SPECIFIC {species} based on what you SEE in the image:
 - Physical appearance and condition (coat quality, body condition, visible features)
 - Estimated age range based on visual cues
 - Any notable characteristics or features specific to this individual
-- Visible health indicators (if any)
+- Visible health indicators (if any){task_extra}
 
 Return ONLY valid JSON:
 {{
-  "description": "detailed visual description of this specific {species}",
+  "description": "{description_hint}",
   "traits": {{
     "size": "small/medium/large (based on visual proportions)",
     "energy_level": "low/medium/high (inferred from posture/expression)",
     "temperament": "brief description based on expression and body language"
   }},
-  "health_observations": ["visible observation 1", "visible observation 2"]
+  "health_observations": [{health_hint}]
 }}
 
-Focus on describing what you SEE, not general breed knowledge.
+{focus}
 
 LANGUAGE: Write "description", "temperament" and every "health_observations" entry in {LANGUAGE_NAMES[language]}. Keep the JSON keys, the "size" and "energy_level" values, and breed names exactly as specified above, in English."""

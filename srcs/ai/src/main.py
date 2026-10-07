@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from src.config import Settings
 from src.routes import vision, rag
@@ -10,6 +11,7 @@ from src.services.ollama_client import OllamaVisionClient
 from src.services.embedder import Embedder
 from src.services.document_processor import DocumentProcessor
 from src.services.rag_service import RAGService
+from src.services.knowledge_sync import start_periodic_sync
 from src.services.classification_client import ClassificationClient
 from src.services.vision_orchestrator import VisionOrchestrator
 from src.utils.logger import setup_logging
@@ -58,12 +60,21 @@ async def lifespan(app: FastAPI):
     logger.info(f"Vision model: {settings.LLM_VISION_MODEL} | Text model: {settings.LLM_TEXT_MODEL}")
     logger.info(f"Classification enabled: {settings.CLASSIFICATION_ENABLED}")
     logger.info(f"RAG Collection: {settings.CHROMA_COLLECTION_NAME}")
+
+    # Keep ChromaDB aligned with the knowledge base directory: once now, then
+    # every RAG_SYNC_INTERVAL_MINUTES.
+    rag_sync_task = start_periodic_sync(settings, rag_service, document_processor)
+
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 
     yield
 
     # Shutdown
     logger.info(f"Shutting down {settings.SERVICE_NAME}...")
+    if rag_sync_task is not None:
+        rag_sync_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await rag_sync_task
 
 # Create FastAPI app
 app = FastAPI(

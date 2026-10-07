@@ -1,5 +1,6 @@
 """RAG service for retrieval-augmented generation."""
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
@@ -176,11 +177,12 @@ Answer concisely and cite sources by number when applicable."""
         texts = [c.content for c in chunks]
         embeddings = self.embedder.embed_batch(texts)
 
-        # Generate IDs
-        ids = [f"chunk_{i}_{hash(c.content) % 10000}" for i, c in enumerate(chunks)]
+        # Deterministic IDs: the same file always maps to the same IDs, in any
+        # process, so re-ingesting it overwrites instead of duplicating.
+        ids = [self._chunk_id(c, i) for i, c in enumerate(chunks)]
 
         # Add to collection
-        self._collection.add(
+        self._collection.upsert(
             ids=ids,
             embeddings=embeddings,
             documents=texts,
@@ -189,6 +191,49 @@ Answer concisely and cite sources by number when applicable."""
 
         logger.info(f"Added {len(chunks)} chunks to collection")
         return len(chunks)
+
+    @staticmethod
+    def _chunk_id(chunk: Chunk, index: int) -> str:
+        """Build a chunk ID that is stable across processes and restarts.
+
+        Args:
+            chunk: The chunk to identify
+            index: Position of the chunk in its document
+
+        Returns:
+            "<source_file>::<index>", or a content digest when the chunk has no source_file
+        """
+        source = chunk.metadata.get("source_file")
+        if not source:
+            source = hashlib.sha256(chunk.content.encode("utf-8")).hexdigest()[:16]
+        return f"{source}::{index}"
+
+    def get_indexed_files(self) -> Dict[str, str]:
+        """List the knowledge base files currently stored in the collection.
+
+        Returns:
+            Dict mapping source_file to its content_hash ("" for chunks stored without one)
+        """
+        results = self._collection.get(
+            where={"source_type": "knowledge_base"},
+            include=["metadatas"]
+        )
+
+        indexed = {}
+        for metadata in results.get("metadatas") or []:
+            source_file = metadata.get("source_file")
+            if source_file:
+                indexed[source_file] = metadata.get("content_hash", "")
+        return indexed
+
+    def delete_document(self, source_file: str) -> None:
+        """Remove every chunk of a document from the collection.
+
+        Args:
+            source_file: Source file whose chunks must be removed
+        """
+        self._collection.delete(where={"source_file": source_file})
+        logger.info(f"Deleted chunks of {source_file}")
 
     def get_stats(self) -> Dict[str, Any]:
         """Get collection statistics.

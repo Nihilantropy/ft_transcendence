@@ -349,3 +349,60 @@ def test_contextual_prompt_german_and_japanese(ollama_client, sample_breed_analy
     """German and Japanese are supported report languages."""
     prompt = ollama_client._build_contextual_prompt("dog", sample_breed_analysis_purebred, None, code)
     assert f"in {name}" in prompt
+
+
+# --- knowledge base facts must reach the analysis ---
+
+def test_contextual_prompt_applies_breed_context_to_what_is_seen(
+    ollama_client, sample_breed_analysis_purebred, sample_rag_context_purebred
+):
+    """Retrieved knowledge is not decoration: a visible feature the context explains, and a
+    notice for owners of the breed, must be reported in the analysis."""
+    prompt = ollama_client._build_contextual_prompt(
+        "dog", sample_breed_analysis_purebred, sample_rag_context_purebred, "en"
+    )
+    assert "HOW TO USE THE BREED CONTEXT" in prompt
+    assert "say what the context says it means" in prompt
+    assert "notice for owners" in prompt
+    assert prompt.index("BREED CONTEXT (from database)") < prompt.index("HOW TO USE THE BREED CONTEXT")
+    assert "never write that something is absent or does not apply" in prompt
+    # The requirement is repeated in the task list and in the output schema.
+    assert "any notice it has for owners of this breed" in prompt
+    assert "followed by what the BREED CONTEXT says the features you see mean" in prompt
+    assert "what the BREED CONTEXT says a feature you see indicates" in prompt
+    assert "not general breed knowledge" not in prompt
+
+
+def test_contextual_prompt_applies_breed_context_for_crossbreeds(ollama_client):
+    breed_analysis = {
+        "primary_breed": "goldendoodle",
+        "confidence": 0.41,
+        "is_likely_crossbreed": True,
+        "breed_probabilities": [],
+        "crossbreed_analysis": {
+            "detected_breeds": ["Golden Retriever", "Poodle"],
+            "common_name": "Goldendoodle",
+            "confidence_reasoning": "two breeds with close probabilities",
+        },
+    }
+    rag_context = {
+        "breed": None,
+        "parent_breeds": ["Golden Retriever", "Poodle"],
+        "description": "Friendly, low-shedding family dog.",
+        "care_summary": "Regular grooming.",
+        "health_info": "Hip dysplasia in both parent breeds.",
+        "sources": ["goldendoodle.md"],
+    }
+    prompt = ollama_client._build_contextual_prompt("dog", breed_analysis, rag_context, "en")
+    assert "HOW TO USE THE BREED CONTEXT" in prompt
+
+
+def test_contextual_prompt_without_breed_context_stays_visual_only(
+    ollama_client, sample_breed_analysis_purebred
+):
+    """No retrieved knowledge, nothing to apply: the model must not fall back on its own."""
+    prompt = ollama_client._build_contextual_prompt("dog", sample_breed_analysis_purebred, None, "en")
+    assert "HOW TO USE THE BREED CONTEXT" not in prompt
+    assert "not general breed knowledge" in prompt
+    assert '"description": "detailed visual description of this specific dog"' in prompt
+    assert '"health_observations": ["visible observation 1", "visible observation 2"]' in prompt

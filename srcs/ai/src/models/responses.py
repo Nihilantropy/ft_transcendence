@@ -94,4 +94,6 @@ class RAGBulkIngestResponse(BaseModel):
     files_processed: int
     total_chunks_created: int
     files_skipped: int
+    files_unchanged: int = 0
+    files_removed: int = 0
     errors: List[str]

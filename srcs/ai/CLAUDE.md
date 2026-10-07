@@ -11,7 +11,7 @@ there is no direct Ollama call anywhere in this codebase, despite the file and t
 ## Essential Commands
 
 ```bash
-# tests (131). run --rm is fine: everything is mocked, no cross-service hostname needed.
+# tests (168). run --rm is fine: everything is mocked, no cross-service hostname needed.
 docker compose run --rm ai-service python -m pytest tests/ -v
 docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py -v
 docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=term  # pytest-cov is in the image
@@ -22,7 +22,8 @@ make up COMPOSE_PROFILES=local     # ollama + classification-service
 make up COMPOSE_PROFILES=cloud     # LiteLLM → Mistral, no GPU
 make logs-ai-service       # compose service name
 make exec-ai_service       # NOTE the underscore: exec-% → ft_transcendence_$*
-make rag                   # scripts/init-rag-kb.sh → POST /api/v1/admin/rag/initialize
+make rag                   # scripts/init-rag-kb.sh → POST /api/v1/admin/rag/initialize (force a KB sync now; retries on 409)
+make test-rag              # e2e: probe .md added / modified / deleted at runtime (needs the stack up)
 
 # poke the internal-only endpoints (no host port exists)
 docker exec ft_transcendence_ai_service curl -s http://localhost:3003/api/v1/rag/status
@@ -40,7 +41,8 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 | `src/services/vision_orchestrator.py` | Pipeline coordinator; branches full vs VLM-only, owns the rejection gates |
 | `src/services/ollama_client.py` | `OllamaVisionClient` — OpenAI chat-completions client for LiteLLM; prompts, JSON parsing, crossbreed post-processing |
 | `src/services/classification_client.py` | httpx client for `POST /classify/{content,species,breed}` on classification-service |
-| `src/services/rag_service.py` | ChromaDB client, `query`, `add_documents`, `get_breed_context`, `get_crossbreed_context`, `enrich_breed`, `get_stats` |
+| `src/services/rag_service.py` | ChromaDB client, `query`, `add_documents` (upsert, stable IDs), `get_indexed_files`, `delete_document`, `get_breed_context`, `get_crossbreed_context`, `enrich_breed`, `get_stats` |
+| `src/services/knowledge_sync.py` | `sync_knowledge_base` (KB dir ↔ ChromaDB: new / modified / deleted files, file lock), `run_periodic_sync`, `start_periodic_sync` |
 | `src/services/document_processor.py` | Frontmatter parsing, header split, tiktoken chunking, ChromaDB metadata sanitisation |
 | `src/services/embedder.py` | sentence-transformers wrapper: `embed`, `embed_batch` |
 | `src/services/image_processor.py` | Data-URI parse, size/dimension validation, resize, re-encode |
@@ -51,7 +53,7 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 | `src/utils/logger.py` | JSON log formatter, mutes uvicorn/fastapi/httpx to WARNING |
 | `data/knowledge_base/spiecies/` | 34 markdown docs (dogs/cats × purebreeds/crossbreeds/health). Mounted read-only. Directory name misspelled on purpose-by-accident — do not rename |
 | `data/chroma/` | ChromaDB persistence mount point (`ai-chroma-data` volume) |
-| `tests/` | 131 unit tests, no conftest.py |
+| `tests/` | 168 unit tests, no conftest.py |
 
 ## Request / Data Flow
 
@@ -127,20 +129,34 @@ tolerate it being `None` before startup.
   uses `str(e)` as `error.code`, so the exception message IS the code. Undecodable base64 and
   unopenable image bytes (PIL `UnidentifiedImageError`/`OSError`) also map to
   `INVALID_IMAGE_FORMAT`. Keep new validation failures in this file raising a code, not a message.
-- **`error_response()` has no status argument.** `routes/rag.py:138-142`, `:198-202`, `:256-260`
+- **`error_response()` has no status argument.** `routes/rag.py:109-113`, `:169-173`, `:227-231`
   pass `status.HTTP_503_SERVICE_UNAVAILABLE` as the `details` parameter and `return` (not `raise`),
   so those branches answer **HTTP 200** with `success: false`.
 - **`require_localhost` accepts any `172.*` client**, i.e. every container on the Docker bridge —
   it is a network-boundary guard, not loopback-only.
-- **Chunk IDs are `f"chunk_{i}_{hash(content) % 10000}"`** (`rag_service.py:180`). String hashing
-  is salted per process, so re-ingesting the same file after a restart duplicates it, and two
-  chunks can collide within one run.
+- **Chunk IDs are `"<source_file>::<index>"`, written with `upsert`** (`RAGService._chunk_id`).
+  They must stay reproducible across processes — never put `hash()` (salted per process) in them.
+  `add_documents` is called once per document, so the index is the position inside that file.
+- **The knowledge base syncs itself** (`src/services/knowledge_sync.py`): once at startup, then
+  every `RAG_SYNC_INTERVAL_MINUTES`, and on `POST /api/v1/admin/rag/initialize`. All three run the
+  same `sync_knowledge_base`; the manifest is the `source_file` + `content_hash` metadata in
+  ChromaDB, never process memory. A non-blocking `flock` on `<CHROMA_PERSIST_DIR>/.ingest.lock`
+  keeps the timer and the endpoint from overlapping (and would hold across processes); the
+  endpoint turns a busy lock into 409 `INGESTION_IN_PROGRESS`, the timer skips the round. The run
+  goes through `asyncio.to_thread`; calling it straight from an `async def` blocks the only worker
+  for the whole ingestion (measured through the thread: 20 files ingested in 2 s, `/health` never
+  slower than 55 ms meanwhile).
 - **torch is installed from the PyTorch CPU index in the Dockerfile, before `requirements.txt`.**
   Do not move it into `requirements.txt` or drop the `--index-url`: plain pip resolves the CUDA
   build (+3.2 GB `nvidia/`, +0.9 GB `triton`) and the image grows from ~2.9 GB to 10.5 GB for a
   GPU nothing here uses — torch only runs the MiniLM embedder.
-- **`uvicorn --workers 2`** (Dockerfile:35): the lifespan runs twice, so two SentenceTransformer
-  instances load and two `chromadb.PersistentClient` handles open the same directory.
+- **`uvicorn --workers 1`, and it must stay 1** (Dockerfile). ChromaDB is embedded
+  (`PersistentClient`) and keeps its vector index in process memory. With 2 workers, the one that
+  did not ingest never saw the new vectors and kept returning the ones the other had deleted —
+  with no metadata, so `get_breed_context` / `query` died on `'NoneType' object has no attribute
+  'get'` (enrichment silently `null`, `/api/v1/rag/query` 500) until a restart. `count()` reads
+  SQLite and looked fine in both, which is why `/api/v1/rag/status` never showed it. More workers
+  need ChromaDB as a server (`HttpClient`), not a bigger `--workers`.
 - **`detect_species` accepts a `top_k` argument that the orchestrator never passes**
   (`vision_orchestrator.py:69`), so the classification default applies.
 - **Dead config**: `RAG_MIN_RELEVANCE` and `DEBUG` are never read. `LOW_CONFIDENCE_THRESHOLD` is
@@ -182,13 +198,18 @@ tolerate it being `None` before startup.
   `app.dependency_overrides[require_localhost] = ...` and cleared in the fixture teardown.
 - `test_initialize_service_not_initialized` sets `rag.rag_service = None` and never restores it —
   it relies on later fixtures re-assigning the globals. Keep new route tests fixture-driven.
+- **Sync and re-ingestion tests use a real ChromaDB on `tmp_path`** with a fake embedder
+  (`tests/test_knowledge_sync.py`, the `chroma_rag_service` fixture in `tests/test_rag_service.py`):
+  duplicates, orphans and deletions are properties of the store, a mocked collection cannot show
+  them. Route tests keep a `Mock` service; its fixture points `CHROMA_PERSIST_DIR` at `tmp_path`
+  because the endpoint takes the file lock there.
 - `RAGService` is constructed under `patch('chromadb.PersistentClient')`, then
   `rag_service._collection.query` is replaced per test with a hand-built ChromaDB result dict
   (`ids`/`documents`/`metadatas`/`distances`, each a list-of-lists).
 - `Embedder` tests patch `src.services.embedder.SentenceTransformer`; never let a test download a
   model.
 - `scripts/run-unit-tests.sh:119-121` still claims 37 tests for this service; the real collection is
-  131. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
+  168. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
 
 ## Config & Thresholds
 

@@ -209,12 +209,16 @@ Returns `{collection_name, document_count, embedding_model}`.
 
 No body. Guarded by `require_localhost` (`src/middleware/localhost.py`), which accepts
 `127.0.0.1`, `localhost`, `::1` **and any client IP starting with `172.`** — i.e. any container on
-the Docker bridge network, not strictly the loopback. Walks `KNOWLEDGE_BASE_DIR` recursively with
-`rglob("*.md")`, processes each file, and adds the chunks. Per-file failures are collected instead
-of aborting.
+the Docker bridge network, not strictly the loopback. Synchronises the collection with
+`KNOWLEDGE_BASE_DIR` (recursive `rglob("*.md")`): new files are ingested, files whose SHA-256
+changed are replaced, files no longer on disk are removed, unchanged files are skipped without
+any embedding. Per-file failures are collected instead of aborting. It is safe to call at any
+time and any number of times — see *Knowledge base auto-sync* below.
 
-Returns `{files_processed, total_chunks_created, files_skipped, errors[]}`.
+Returns `{files_processed, total_chunks_created, files_skipped, files_unchanged, files_removed,
+errors[]}` (`files_processed` = new + replaced).
 403 `FORBIDDEN` from a non-allowed IP, 404 `DIRECTORY_NOT_FOUND` if the directory is missing,
+409 `INGESTION_IN_PROGRESS` while another synchronisation holds the lock,
 503 `SERVICE_UNAVAILABLE` if the RAG singletons were never injected, 500 `INTERNAL_ERROR` otherwise.
 
 ### GET /health
@@ -238,8 +242,32 @@ the ChromaDB collection.
 | Volume | named volume `ai-chroma-data` (docker-compose.yml:92, :363) |
 | Collection | `CHROMA_COLLECTION_NAME`, default `pet_knowledge`, `get_or_create_collection` |
 | Embeddings | `all-MiniLM-L6-v2` via sentence-transformers, 384 dims |
-| Chunk ID | `f"chunk_{i}_{hash(content) % 10000}"` (`rag_service.py:180`) |
-| Chunk metadata | frontmatter keys + `source_file` (path relative to the KB root) + `source_type` + `chunk_index` |
+| Chunk ID | `"<source_file>::<index in the document>"` (`RAGService._chunk_id`), written with `upsert` — the same file always maps to the same IDs, in any process |
+| Chunk metadata | frontmatter keys + `source_file` (path relative to the KB root) + `source_type` + `content_hash` (SHA-256 of the file) + `chunk_index` |
+
+### Knowledge base auto-sync
+
+Drop, edit or delete a `.md` under `data/knowledge_base/` and ai-service picks it up by itself,
+without a restart: `src/services/knowledge_sync.py::sync_knowledge_base` runs once at startup and
+then every `RAG_SYNC_INTERVAL_MINUTES` (a background task started in the lifespan), and it is the
+same function behind `POST /api/v1/admin/rag/initialize` / `make rag`, which force a run now.
+
+- **State lives in ChromaDB**, not in memory: `source_file` + `content_hash` on every chunk are the
+  manifest, so a restart loses nothing and a round on an unchanged directory costs no embedding.
+- **One run at a time.** A non-blocking `flock` on `<CHROMA_PERSIST_DIR>/.ingest.lock` keeps the
+  timer and the endpoint from overlapping: the timer skips its round, the endpoint answers 409
+  and `scripts/init-rag-kb.sh` retries it.
+- **Off the event loop.** The run executes in `asyncio.to_thread`, so the service keeps answering
+  requests while it ingests.
+- **Single uvicorn worker, required.** ChromaDB runs embedded and each process keeps its own
+  in-memory vector index: with two workers, the one that did not ingest served stale or dangling
+  results until a restart. See the Dockerfile comment.
+- Only chunks with `source_type == "knowledge_base"` are ever removed; documents added through
+  `POST /api/v1/rag/ingest` are left alone.
+- A file that fails to parse is skipped with a warning and retried on the next round; if it was
+  already indexed, its previous chunks stay until a valid version replaces them.
+- An unchanged round logs at `debug` only. A round that changed something logs
+  `RAG sync: +N new, ~M updated, -K removed, U unchanged`.
 
 Metadata is sanitised for ChromaDB before storage: lists become comma-separated strings, other
 non-primitive types are dropped with a warning (`src/services/document_processor.py:38-61`).
@@ -300,7 +328,9 @@ container also receives `srcs/ai/.env` through compose `env_file`. `.env` is git
 | `CHUNK_OVERLAP` | `50` (:47) | no | Token overlap between chunks |
 | `RAG_TOP_K` | `5` (:50) | no | Default `n_results` for `/api/v1/rag/query` |
 | `RAG_MIN_RELEVANCE` | `0.3` (:51) | no | Declared but never read by the code |
-| `KNOWLEDGE_BASE_DIR` | `./data/knowledge_base` (:54) | no | Root for bulk ingestion |
+| `KNOWLEDGE_BASE_DIR` | `./data/knowledge_base` | no | Root for bulk ingestion |
+| `RAG_SYNC_ENABLED` | `true` | yes | Periodic knowledge base sync at startup and on a timer; `false` leaves only `make rag` |
+| `RAG_SYNC_INTERVAL_MINUTES` | `5` | yes | Minutes between two automatic sync rounds |
 
 Root-level compose variables that affect this service: `COMPOSE_PROFILES`, `LITELLM_MASTER_KEY`,
 `OLLAMA_BASE_URL`, `MISTRAL_API_KEY` (root `.env.example`). Switching to Mistral is config-only:
@@ -327,7 +357,7 @@ These are **not** environment-driven, contrary to the repo-wide threshold conven
 The service is built from `srcs/ai/Dockerfile`: `python:3.12.10-slim`, apt packages
 `curl gcc g++ build-essential libjpeg-dev zlib1g-dev`, `pip install -r requirements.txt`, non-root
 user `aiuser` (uid 1000), `EXPOSE 3003`,
-`CMD uvicorn src.main:app --host 0.0.0.0 --port 3003 --workers 2`. There is no `HEALTHCHECK` in the
+`CMD uvicorn src.main:app --host 0.0.0.0 --port 3003 --workers 1`. There is no `HEALTHCHECK` in the
 Dockerfile; the healthcheck is defined in compose.
 
 `src/` and `tests/` are bind-mounted (docker-compose.yml:89-90), so application and test edits are

@@ -43,6 +43,9 @@ services:
     volumes:
       - ./tests:/tests:ro
       - ./scripts/jupyter/test_data:/test_data:ro
+      # Read-write on purpose: e2e/test_rag_autoingest.py drops a probe document
+      # here and removes it. ai-service keeps its own mount of this directory :ro.
+      - ./srcs/ai/data/knowledge_base:/knowledge_base
       - nginx-ssl:/nginx-ssl:ro
     networks:
       - backend-network  # api-gateway:8001 (integration)

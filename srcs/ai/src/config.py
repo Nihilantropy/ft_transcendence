@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # RAG - Knowledge Base
     KNOWLEDGE_BASE_DIR: str = "./data/knowledge_base"
 
+    # RAG - Periodic synchronisation of the knowledge base directory
+    RAG_SYNC_ENABLED: bool = True
+    RAG_SYNC_INTERVAL_MINUTES: float = 5
+
     class Config:
         env_file = ".env"
         case_sensitive = False

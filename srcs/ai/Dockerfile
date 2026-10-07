@@ -39,4 +39,9 @@ USER aiuser
 
 EXPOSE 3003
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3003", "--workers", "2"]
+# One worker on purpose. ChromaDB runs embedded (PersistentClient) and keeps its
+# vector index in process memory: a second worker never sees what the first one
+# ingests or deletes, so its RAG queries return stale or dangling results until a
+# restart. Requests stay concurrent — the slow work is awaited (LLM, classification)
+# or runs in a thread (knowledge base sync).
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3003", "--workers", "1"]
