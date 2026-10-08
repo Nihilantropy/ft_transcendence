@@ -21,6 +21,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         # Endpoints that bypass authentication
         self.public_endpoints = {
             "/health",
+            "/health/ready",
             "/docs",
             "/openapi.json",
             "/api/v1/auth/login",

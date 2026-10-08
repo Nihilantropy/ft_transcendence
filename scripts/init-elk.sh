@@ -41,6 +41,7 @@ print_creds() {
   echo -e "${GREEN}  ELK Stack Ready${NC}"
   echo -e "${GREEN}════════════════════════════════════════════${NC}"
   echo "  Kibana:    https://localhost:5601"
+  echo "  Status:    Dashboards → \"SmartBreeds · Service Status\" (or Observability → Uptime)"
   echo "  Username:  elastic"
   echo "  Password:  ${elastic_pw}"
   echo ""
@@ -68,6 +69,7 @@ echo -e "${YELLOW}[1/3] Ensuring ELK credentials exist...${NC}"
 ensure_secret ELASTIC_PASSWORD 24
 ensure_secret KIBANA_SYSTEM_PASSWORD 24
 ensure_secret LOGSTASH_WRITER_PASSWORD 24
+ensure_secret HEARTBEAT_WRITER_PASSWORD 24
 ensure_secret KIBANA_ENCRYPTION_KEY 32
 echo -e "${GREEN}✓ Credentials ready${NC}"
 
@@ -80,7 +82,7 @@ if [ -z "${DOCKER_SOCK:-}" ]; then
   export DOCKER_SOCK="${DOCKER_SOCK:-/var/run/docker.sock}"
 fi
 cd "$ROOT_DIR"
-docker compose -f docker-compose.yml up -d elasticsearch logstash kibana vector elk-setup
+docker compose -f docker-compose.yml up -d elasticsearch logstash kibana vector heartbeat elk-setup
 
 echo -e "${YELLOW}[2/3] Waiting for provisioning (elk-setup) to finish...${NC}"
 # elk-setup stays running after it finishes (see srcs/elk/setup/entrypoint.sh

@@ -11,8 +11,10 @@
 
 data_dir = "/var/lib/vector"
 
+# Loopback only: it exists for the container healthcheck (GET /health), nothing else reaches it.
 [api]
-enabled = false
+enabled = true
+address = "127.0.0.1:8686"
 
 [sources.docker]
 type = "docker_logs"
@@ -24,6 +26,7 @@ exclude_containers = [
   "ft_transcendence_kibana",
   "ft_transcendence_elk_setup",
   "ft_transcendence_vector",
+  "ft_transcendence_heartbeat",
 ]
 
 # Reshape into the event layout the Logstash pipeline and the Elasticsearch
