@@ -77,3 +77,6 @@ build/
 # Git worktrees
 .worktrees/
 
+
+# Disaster-recovery backups (docker-compose.yml db-backup, srcs/elk SLM snapshots)
+backups/

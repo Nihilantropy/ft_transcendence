@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Backup hook (prodrigestivill/postgres-backup-local runs every file in /hooks via run-parts —
+# hence no extension) — "a backup isn't one until it has been restored".
+#
+#   post-backup  restore the dump just written into a scratch database and check it
+#   error        backup.sh died (pg_dump, disk, rotation): report it unless we already did
+#
+# One line per run, picked up by Vector → Kibana ("Service Status" dashboard, Backup runs):
+#   INFO: BACKUP_VERIFY OK <file> size=… schemas=3 tables=… users=…
+#   ERROR: BACKUP_VERIFY FAILED <reason>
+# The LEVEL: prefix is what the Logstash grok keys `level` on.
+#
+# Also run by hand / by `make backup-verify` / `make gate` against the latest existing dump:
+#   docker exec ft_transcendence_db_backup /hooks/50-verify post-backup
+set -uo pipefail
+
+SCRATCH=restore_check
+MARKER=/tmp/backup-verify-reported
+
+[ -n "${PGHOST:-}" ] || source /env.sh   # backup.sh exports PG*; a manual run must load them
+
+case "${1:-}" in
+  error)
+    if [ -f "$MARKER" ]; then rm -f "$MARKER"; exit 0; fi   # our own failure, already logged
+    echo "ERROR: BACKUP_VERIFY FAILED backup run aborted before verification (see the lines above)"
+    exit 0 ;;
+  post-backup) rm -f "$MARKER" ;;
+  *) exit 0 ;;
+esac
+
+file="${BACKUP_DIR}/last/${POSTGRES_DB}-latest${BACKUP_SUFFIX}"
+name=$(basename "$(readlink -f "$file")")
+
+drop_scratch() { psql -d postgres -qc "DROP DATABASE IF EXISTS ${SCRATCH} WITH (FORCE)" >/dev/null 2>&1; }
+fail() {
+  echo "ERROR: BACKUP_VERIFY FAILED ${name}: $1"
+  touch "$MARKER"
+  drop_scratch
+  exit 1
+}
+
+[ -s "$file" ] || fail "no dump at ${file}"
+gzip -t "$file" 2>/dev/null || fail "corrupt gzip"
+
+drop_scratch
+psql -d postgres -v ON_ERROR_STOP=1 -qc "CREATE DATABASE ${SCRATCH}" >/dev/null \
+  || fail "cannot create scratch database ${SCRATCH}"
+err=$(gunzip -c "$file" | psql -d "$SCRATCH" -v ON_ERROR_STOP=1 -q --single-transaction 2>&1 >/dev/null) \
+  || fail "restore errored: $(echo "$err" | grep -m1 ERROR)"
+
+# Schemas come from srcs/db/init-scripts; tables only once `make migration` has run, so a
+# pre-migration database is a legitimate (empty) backup — report the counts, require the schemas.
+q() { psql -d "$SCRATCH" -tAc "$1"; }
+schemas=$(q "SELECT count(*) FROM information_schema.schemata
+             WHERE schema_name IN ('auth_schema','user_schema','recommendation_schema')")
+[ "$schemas" = 3 ] || fail "expected 3 application schemas, restored ${schemas}"
+tables=$(q "SELECT count(*) FROM information_schema.tables
+            WHERE table_schema IN ('auth_schema','user_schema','recommendation_schema')")
+users=$(q "SELECT count(*) FROM auth_schema.users" 2>/dev/null || echo n/a)
+
+drop_scratch
+echo "INFO: BACKUP_VERIFY OK ${name} size=$(du -h "$(readlink -f "$file")" | cut -f1) schemas=${schemas} tables=${tables} users=${users}"

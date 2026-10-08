@@ -96,7 +96,8 @@ The `wait_for_snapshot` action in the delete phase is what makes this
 "retention *and* archiving" rather than two disconnected policies — an index
 is never deleted before it has been captured. The SLM policy
 `smartbreeds-logs-snapshots` (`setup/slm-policy.json`) runs daily at 01:30
-into a filesystem repository (`elk-snapshots` volume), retaining 60 days
+into a filesystem repository (`backups/elasticsearch/`, a host bind mount so `make downv`
+keeps it — see `docs/DISASTER_RECOVERY.md`), retaining 60 days
 (min 5 / max 50 snapshots).
 
 ```bash
@@ -228,6 +229,33 @@ Query strings are scrubbed before storage: `code`, `state`, `token`,
 `access_token`, `refresh_token` and `mfa_token` values become `[REDACTED]`
 (the 42 OAuth callback carries a one-time code and the CSRF state).
 
+## Status page (Heartbeat)
+
+`heartbeat` (same `elk` profile) probes every service on the schedule in
+`heartbeat/heartbeat.yml` and writes one document per check into `heartbeat-*`.
+The application services are probed on **`/health/ready`**, which round-trips to
+Postgres (`SELECT 1`; auth, user, recommendation) or Redis (`PING`; gateway) and
+answers 503 when it can't — the database heartbeat. Their Docker healthchecks
+deliberately stay on the shallow `/health`: a database blip must not mark every
+container unhealthy and wedge `depends_on` / `up --wait`.
+
+Two views over the same data:
+
+- **Dashboards → SmartBreeds · Service Status** (generated, `build_dashboards.py`):
+  availability, failed checks, p95 response time per monitor, and the Postgres
+  backup runs (`BACKUP_VERIFY OK/FAILED` lines from `db-backup`).
+- **Observability → Uptime**: Elastic's own app. Deprecated since 8.15 and
+  hidden without recent data, so elk-setup turns on
+  `observability:enableLegacyUptimeApp`. Elastic's successor, the Synthetics
+  app, needs Fleet Server + Elastic Agent private locations — not worth a
+  second agent system for the same up/down data.
+
+`elk-setup` provisions the `heartbeat_writer` user (publish + set up its own
+`heartbeat-*` template only), the `heartbeat` ILM policy (rollover daily, delete
+after 14 days — installed *before* Heartbeat starts, which waits for it, or
+Heartbeat would install its never-delete default) and the `heartbeat-*` data view.
+To add a monitor: edit `heartbeat.yml`, then `docker compose restart heartbeat`.
+
 ## Gotchas
 
 - **Logstash waits for its own credentials before starting.** Elasticsearch
@@ -263,8 +291,8 @@ Query strings are scrubbed before storage: `code`, `state`, `token`,
   validates both references at creation time, so installing them in any
   other order 400s. `setup/entrypoint.sh` installs repo → SLM → ILM → index
   template, in that order, on purpose.
-- **The `elk-snapshots` volume needs an explicit `chmod`.** A fresh named
-  Docker volume is root-owned; Elasticsearch runs as a non-root user and
+- **The snapshot directory needs an explicit `chmod`.** A bind-mount source
+  Docker creates is root-owned; Elasticsearch runs as a non-root user and
   can't write into it otherwise. `elk-setup` (which runs as root) fixes this
   during its cert-generation phase, every run — cheap and idempotent, so
   it's unconditional rather than gated on first-run state.

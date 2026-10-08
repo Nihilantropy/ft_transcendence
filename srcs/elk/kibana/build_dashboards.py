@@ -7,14 +7,16 @@ by hand, so the dashboards are described here and serialised. Edit this file, th
     python3 srcs/elk/kibana/build_dashboards.py      # rewrites dashboard.ndjson
     make elk                                          # re-imports (overwrite=true)
 
-Stdlib only. Every panel queries the normalised fields the Logstash pipeline writes
-(srcs/elk/logstash/pipeline.conf, header comment) — not the raw per-service ones.
+Stdlib only. Log panels query the normalised fields the Logstash pipeline writes
+(srcs/elk/logstash/pipeline.conf, header comment) — not the raw per-service ones. The Service
+Status dashboard reads Heartbeat's own ECS fields (monitor.*, summary.*) from heartbeat-*.
 Targets Kibana 8.17; the migration versions below are what that release stamps.
 """
 import json
 from pathlib import Path
 
 DATA_VIEW = "smartbreeds-logs-dataview"
+UPTIME_VIEW = "smartbreeds-heartbeat-dataview"  # heartbeat-*, created by elk-setup
 OUT = Path(__file__).with_name("dashboard.ndjson")
 
 # Reserved status colours: a level or status class always wears the same one, on every panel.
@@ -63,6 +65,12 @@ def terms(field, label, order_by, size=10, other=True, data_type="string"):
                        "orderDirection": "desc", "otherBucket": other, "missingBucket": False,
                        "parentFormat": {"id": "terms"}, "include": [], "exclude": [],
                        "includeIsRegex": False, "excludeIsRegex": False}}
+
+
+def last_value(field, label):
+    return {"label": label, "customLabel": True, "dataType": "string",
+            "operationType": "last_value", "isBucketed": False, "scale": "ordinal",
+            "sourceField": field, "params": {"sortField": "@timestamp", "showArrayValues": False}}
 
 
 # --- Lens visualisations (one layer each) ----------------------------------------
@@ -200,8 +208,9 @@ SEARCHES = [
 class Dashboard:
     """Lays panels out on Kibana's 48-column grid, left to right, wrapping rows."""
 
-    def __init__(self, id_, title, description, controls):
+    def __init__(self, id_, title, description, controls, data_view=DATA_VIEW, time_from="now-4h"):
         self.id, self.title, self.description, self.controls = id_, title, description, controls
+        self.data_view, self.time_from = data_view, time_from
         self.panels, self.references, self.visualizations = [], [], []
         self.x = self.y = self.row_h = 0
 
@@ -221,7 +230,7 @@ class Dashboard:
         self.references.append({"type": obj_type, "id": obj_id, "name": f"{pid}:panel_{pid}"})
         return pid
 
-    def lens(self, attrs, w, h):
+    def lens(self, attrs, w, h, data_view=None):
         hide_title = attrs["visualizationType"] == "lnsMetric"  # the tile prints its own title
         # By reference, as its own `lens` saved object (also listed in the Visualize Library).
         # Lens embedded BY VALUE in an imported dashboard stayed on "loading" forever in
@@ -233,7 +242,7 @@ class Dashboard:
         self.visualizations.append({
             "id": lens_id, "type": "lens", "coreMigrationVersion": "8.8.0",
             "typeMigrationVersion": "8.9.0", "attributes": attrs,
-            "references": [{"type": "index-pattern", "id": DATA_VIEW,
+            "references": [{"type": "index-pattern", "id": data_view or self.data_view,
                             "name": f"indexpattern-datasource-layer-{LAYER}"}]})
         return self
 
@@ -249,7 +258,7 @@ class Dashboard:
                              "type": "optionsListControl",
                              "explicitInput": {"id": cid, "fieldName": field, "title": title,
                                                "selectedOptions": [], "enhancements": {}}}
-            refs.append({"type": "index-pattern", "id": DATA_VIEW,
+            refs.append({"type": "index-pattern", "id": self.data_view,
                          "name": f"controlGroup_{cid}:optionsListDataView"})
         return {
             "id": self.id, "type": "dashboard", "coreMigrationVersion": "8.8.0",
@@ -260,7 +269,7 @@ class Dashboard:
                 "optionsJSON": json.dumps({"useMargins": True, "syncColors": False,
                                            "syncCursor": True, "syncTooltips": True,
                                            "hidePanelTitles": False}),
-                "timeRestore": True, "timeFrom": "now-4h", "timeTo": "now",
+                "timeRestore": True, "timeFrom": self.time_from, "timeTo": "now",
                 "refreshInterval": {"pause": False, "value": 30000},
                 "controlGroupInput": {
                     "chainingSystem": "HIERARCHICAL", "controlStyle": "oneLine",
@@ -399,7 +408,55 @@ ai = (
     .saved_search("smartbreeds-ai-problems-search", 48, 15)
 )
 
-DASHBOARDS = [overview, traffic, security, ai]
+# One Heartbeat document per monitor run; summary.up is 1 for a passing check, 0 for a failing one,
+# so its average is the availability. Durations are recorded in microseconds.
+UP, DOWN = "monitor.status:up", "monitor.status:down"
+PCT = {"id": "percent", "params": {"decimals": 2}}
+US = {"id": "number", "params": {"decimals": 0, "suffix": " µs"}}
+BACKUP_OK = 'service:db-backup and message:"BACKUP_VERIFY OK"'
+BACKUP_FAILED = 'service:db-backup and message:"BACKUP_VERIFY FAILED"'
+
+status = (
+    Dashboard("smartbreeds-status", "SmartBreeds · Service Status",
+              "Status page. Heartbeat probes every service every 30-60 s; the app services on "
+              "/health/ready, which round-trips to Postgres (or Redis for the gateway). Below: "
+              "the hourly Postgres backups, each restored into a scratch DB to prove it works.",
+              [("monitor.name", "Monitor"), ("tags", "Group")],
+              data_view=UPTIME_VIEW, time_from="now-24h")
+    .lens(stat("Monitors", metric("unique_count", "monitor.id", "Monitors")), 8, 6)
+    .lens(stat("Availability", metric("average", "summary.up", "Availability", PCT)), 8, 6)
+    .lens(stat("Failed checks", count("Failed checks", DOWN)), 8, 6)
+    .lens(stat("p95 response", metric("percentile", "monitor.duration.us", "p95", US,
+                                      percentile=95)), 8, 6)
+    .lens(stat("Backups verified", count("Verified", BACKUP_OK)), 8, 6, data_view=DATA_VIEW)
+    .lens(stat("Backup failures", count("Failures", BACKUP_FAILED)), 8, 6, data_view=DATA_VIEW)
+    .lens(table("Current status", {
+        "name": terms("monitor.name", "Monitor", "avail", size=30, other=False),
+        "last": last_value("monitor.status", "Last status"),
+        "avail": metric("average", "summary.up", "Availability", PCT),
+        "down": count("Failed checks", DOWN),
+        "p95": metric("percentile", "monitor.duration.us", "p95", US, percentile=95),
+    }), 48, 16)
+    .lens(over_time("Checks by outcome", {
+        "up": count("Up", UP),
+        "down": count("Down", DOWN),
+    }, colors={"up": GOOD, "down": CRITICAL}, y_title="Checks"), 24, 12)
+    .lens(by_term("Failed checks by monitor", "monitor.name", "Monitor",
+                  count("Failed checks"), DOWN), 24, 12)
+    .lens(xy("Response time p95 by monitor", "line",
+             {"x": date(), "s": terms("monitor.name", "Monitor", "m", size=15, other=False),
+              "m": metric("percentile", "monitor.duration.us", "p95", US, percentile=95)},
+             split="s", accessors=["m"], y_title="p95 (µs)"), 48, 13)
+    .saved_search("smartbreeds-backup-search", 48, 12)
+)
+
+SEARCHES.append(search(
+    "smartbreeds-backup-search", "Backup runs",
+    "One line per hourly Postgres backup: the dump was restored into a scratch database and "
+    "checked (BACKUP_VERIFY OK) or not (BACKUP_VERIFY FAILED, with the reason).",
+    'service:db-backup and message:"BACKUP_VERIFY"', ["level", "message"]))
+
+DASHBOARDS = [status, overview, traffic, security, ai]
 
 
 def main():

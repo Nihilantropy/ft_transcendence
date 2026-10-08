@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from datetime import datetime
+import time
+from redis.exceptions import RedisError
 from config import settings, JWT_PUBLIC_KEY
 from middleware.auth_middleware import JWTAuthMiddleware
-from middleware.rate_limit import RateLimitMiddleware
+from middleware.rate_limit import RateLimitMiddleware, redis_client
 from middleware.logging_middleware import LoggingMiddleware
 from routes import proxy
 from utils.responses import error_response
@@ -106,3 +108,22 @@ async def health_check():
         "service": "api-gateway",
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+@app.get("/health/ready")
+def readiness():
+    """Deep check for the status page: PING the Redis the rate limiter depends on.
+
+    Sync def on purpose: redis_client is the synchronous client, so FastAPI runs this in its
+    threadpool instead of blocking the event loop. 503 when Redis cannot answer.
+    """
+    start = time.monotonic()
+    try:
+        redis_client.ping()
+        check = {"ok": True, "latency_ms": round((time.monotonic() - start) * 1000, 2)}
+    except RedisError as exc:
+        check = {"ok": False, "error": exc.__class__.__name__}
+    return JSONResponse(
+        {"status": "ready" if check["ok"] else "unavailable", "checks": {"redis": check}},
+        status_code=200 if check["ok"] else 503,
+    )
