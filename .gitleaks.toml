@@ -12,3 +12,10 @@ useDefault = true
     '''yarn\.lock''',
     '''poetry\.lock''',
   ]
+  # A credential made only of an environment variable reference is not a secret:
+  # `curl -u "logstash_writer:$${LOGSTASH_WRITER_PASSWORD}"` in docker-compose.yml
+  # tripped curl-auth-user.
+  regexTarget = "match"
+  regexes = [
+    '''-u\s+["']?[A-Za-z0-9_.-]+:\$\$?\{[A-Z0-9_]+\}["']?''',
+  ]

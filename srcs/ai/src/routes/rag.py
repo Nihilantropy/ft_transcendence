@@ -1,8 +1,8 @@
 """RAG API endpoints."""
 
 from fastapi import APIRouter, HTTPException, status, Depends
+import asyncio
 import logging
-from pathlib import Path
 
 from src.models.requests import RAGQueryRequest, RAGIngestRequest
 from src.models.responses import (
@@ -14,6 +14,7 @@ from src.models.responses import (
 )
 from src.services.rag_service import RAGService
 from src.services.document_processor import DocumentProcessor
+from src.services.knowledge_sync import SyncInProgress, sync_knowledge_base
 from src.utils.responses import success_response, error_response
 from src.middleware.localhost import require_localhost
 
@@ -27,10 +28,11 @@ document_processor: DocumentProcessor = None
 
 @admin_router.post("/initialize", response_model=dict)
 async def initialize_knowledge_base(_: bool = Depends(require_localhost)):
-    """Initialize knowledge base by ingesting all files from knowledge_base directory.
+    """Synchronise the knowledge base with the files in the knowledge_base directory.
 
-    This endpoint walks through the knowledge base directory, reads all .md files,
-    processes them into chunks, and adds them to ChromaDB.
+    New .md files are ingested, modified ones replaced, deleted ones removed and
+    unchanged ones skipped, so the endpoint is safe to call repeatedly at runtime.
+    The periodic task started at startup runs the same function.
 
     SECURITY: This endpoint is restricted to localhost access only via require_localhost dependency.
 
@@ -48,70 +50,39 @@ async def initialize_knowledge_base(_: bool = Depends(require_localhost)):
         )
 
     try:
-        # Get knowledge base directory from config
-        kb_dir = Path(rag_service.config.KNOWLEDGE_BASE_DIR)
+        # Chunking, embedding and ChromaDB writes are blocking: keep them off the
+        # event loop so this worker still answers other requests meanwhile.
+        result = await asyncio.to_thread(sync_knowledge_base, rag_service, document_processor)
 
-        if not kb_dir.exists():
-            logger.error(f"Knowledge base directory not found: {kb_dir}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_response(
-                    code="DIRECTORY_NOT_FOUND",
-                    message=f"Knowledge base directory not found: {kb_dir}"
-                )
-            )
-
-        files_processed = 0
-        files_skipped = 0
-        total_chunks = 0
-        errors = []
-
-        # Walk through all subdirectories and find .md files
-        for md_file in kb_dir.rglob("*.md"):
-            try:
-                # Read file content
-                content = md_file.read_text(encoding="utf-8")
-
-                # Get relative path for source tracking
-                relative_path = md_file.relative_to(kb_dir)
-
-                # Process document into chunks
-                chunks = document_processor.process(
-                    content=content,
-                    metadata={
-                        "source_file": str(relative_path),
-                        "source_type": "knowledge_base"
-                    }
-                )
-
-                # Add to vector store
-                chunks_added = rag_service.add_documents(chunks)
-
-                files_processed += 1
-                total_chunks += chunks_added
-
-                logger.info(f"Ingested {relative_path}: {chunks_added} chunks")
-
-            except Exception as e:
-                files_skipped += 1
-                error_msg = f"{md_file.name}: {str(e)}"
-                errors.append(error_msg)
-                logger.error(f"Failed to ingest {md_file}: {e}", exc_info=True)
-
-        # Build response
         data = RAGBulkIngestResponse(
-            files_processed=files_processed,
-            total_chunks_created=total_chunks,
-            files_skipped=files_skipped,
-            errors=errors
+            files_processed=result.files_processed,
+            total_chunks_created=result.total_chunks_created,
+            files_skipped=result.files_skipped,
+            files_unchanged=result.files_unchanged,
+            files_removed=result.files_removed,
+            errors=result.errors
         )
-
-        logger.info(f"Bulk ingestion complete: {files_processed} files, {total_chunks} chunks")
 
         return success_response(data.model_dump())
 
-    except HTTPException:
-        raise
+    except SyncInProgress:
+        logger.info("Knowledge base ingestion already in progress")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=error_response(
+                code="INGESTION_IN_PROGRESS",
+                message="A knowledge base ingestion is already running. Retry shortly."
+            )
+        )
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_response(
+                code="DIRECTORY_NOT_FOUND",
+                message=str(e)
+            )
+        )
     except Exception as e:
         logger.error(f"Bulk ingestion failed: {e}", exc_info=True)
         raise HTTPException(

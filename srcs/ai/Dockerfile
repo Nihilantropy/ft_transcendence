@@ -15,9 +15,10 @@ RUN apt-get update && apt-get install -y \
 # CPU-only PyTorch, installed BEFORE requirements.txt so sentence-transformers finds it already
 # satisfied. Left to plain pip, it pulled the PyPI default — the CUDA build, with ~3.2 GB of nvidia
 # libraries and ~0.9 GB of triton — which made this image 10.5 GB. Nothing here uses a GPU: torch
-# only runs the small all-MiniLM-L6-v2 embedder (src/services/embedder.py), on the CPU already.
-# Same version as classification-service; pinned because the index is not the PyPI resolver.
-RUN pip install --no-cache-dir torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+# only runs the embedder (src/services/embedder.py), on the CPU already.
+# torchvision is required by the EmbeddingGemma 2 processor even when only text is embedded.
+# Same pinned pair as classification-service; pinned because the index is not the PyPI resolver.
+RUN pip install --no-cache-dir torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cpu
 
 # Copy and install requirements (baked into image)
 COPY requirements.txt .
@@ -29,7 +30,7 @@ COPY tests/ ./tests/
 COPY pytest.ini .
 
 # Create data directories for ChromaDB and knowledge base
-RUN mkdir -p /app/data/chroma /app/data/knowledge_base
+RUN mkdir -p /app/data/chroma /app/data/knowledge_base /app/.cache/huggingface
 
 # Create non-root user and set permissions
 RUN useradd -m -u 1000 aiuser && \
@@ -39,4 +40,9 @@ USER aiuser
 
 EXPOSE 3003
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3003", "--workers", "2"]
+# One worker on purpose. ChromaDB runs embedded (PersistentClient) and keeps its
+# vector index in process memory: a second worker never sees what the first one
+# ingests or deletes, so its RAG queries return stale or dangling results until a
+# restart. Requests stay concurrent — the slow work is awaited (LLM, classification)
+# or runs in a thread (knowledge base sync).
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3003", "--workers", "1"]

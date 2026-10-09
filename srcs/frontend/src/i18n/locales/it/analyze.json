@@ -26,6 +26,8 @@
     "energy_level": "Energia",
     "temperament": "Temperamento",
     "health": "Osservazioni sulla salute",
+    "sources": "Fonti consultate",
+    "sourcesHint": "Documenti recuperati per questa analisi, con la rilevanza rispetto alla razza e alle tue note.",
     "sizes": {
       "small": "Piccola",
       "medium": "Media",

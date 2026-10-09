@@ -35,7 +35,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up keys env trash show stop start down restart re clean fclean help test test-coverage gate elk elk-creds backup backup-verify restore $(TEST_FLAGS)
+.PHONY: all setup build up keys env trash show stop start down restart re clean fclean help test test-coverage gate test-rag elk elk-creds backup backup-verify restore $(TEST_FLAGS)
 
 # Default target
 all: build up elk show logs
@@ -266,6 +266,12 @@ rag:
 # Registers and then deletes a throwaway user. Stdlib-only Python: no venv required.
 e2e:
 	@python3 scripts/e2e-vision.py
+
+## test-rag: Knowledge base auto-ingestion end to end (also part of `make gate`)
+# Needs the stack up. Adds, modifies and deletes a probe .md in the knowledge base
+# directory and checks ai-service picks each change up without a restart.
+test-rag:
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --profile test run --rm --build tester pytest e2e/test_rag_autoingest.py -v
 
 ## superuser: Create superuser
 superuser:
