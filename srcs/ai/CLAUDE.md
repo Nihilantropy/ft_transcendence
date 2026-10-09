@@ -11,7 +11,7 @@ there is no direct Ollama call anywhere in this codebase, despite the file and t
 ## Essential Commands
 
 ```bash
-# tests (188). run --rm is fine: everything is mocked, no cross-service hostname needed.
+# tests (190). run --rm is fine: everything is mocked, no cross-service hostname needed.
 docker compose run --rm ai-service python -m pytest tests/ -v
 docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py -v
 docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=term  # pytest-cov is in the image
@@ -53,7 +53,7 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 | `src/utils/logger.py` | JSON log formatter, mutes uvicorn/fastapi/httpx to WARNING |
 | `data/knowledge_base/spiecies/` | 34 markdown docs (dogs/cats × purebreeds/crossbreeds/health). Mounted read-only. Directory name misspelled on purpose-by-accident — do not rename |
 | `data/chroma/` | ChromaDB persistence mount point (`ai-chroma-data` volume) |
-| `tests/` | 188 unit tests, no conftest.py |
+| `tests/` | 190 unit tests, no conftest.py |
 
 ## Request / Data Flow
 
@@ -209,7 +209,7 @@ tolerate it being `None` before startup.
 - `Embedder` tests patch `src.services.embedder.SentenceTransformer`; never let a test download a
   model.
 - `scripts/run-unit-tests.sh:119-121` still claims 37 tests for this service; the real collection is
-  188. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
+  190. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
 
 ## Config & Thresholds
 
@@ -260,6 +260,16 @@ collaborators' demo document): same value on both sides yet `match: false`, and 
 value checked ("golden" vs "blue") — then the passage about what the animal shows is quoted, if
 the context has one. Every analysis logs `context_check: [...]`, the model's raw comparison.
 `context_check` never leaves the client. Do not move this back into the prompt.
+
+**The report and the translation are schema-constrained** (structured outputs): `_chat_json`
+sends `response_format: {type: json_schema, strict: true}` with `REPORT_WITH_CHECK_SCHEMA` /
+`REPORT_SCHEMA` / `TRANSLATION_SCHEMA`, so the provider cannot emit malformed JSON or skip a
+field, and `context_check` is always generated before the prose. Verified on both Mistral models
+through LiteLLM; `drop_params: true` drops it for a backend without support, which is why
+`_parse_response` stays lenient and an unparseable reply is asked once more before the 500.
+`match` / `usual_for_breed` are `"true"`/`"false"` strings on purpose: as JSON booleans the model
+called a pink coat a match for the blue-coat fact 2 times in 10, as strings 0 in 26.
+`analyze_breed` (VLM-only path) is not constrained. Not verified on the `local` (Ollama) profile.
 
 **Embedding model: `google/embeddinggemma-2`**, text encoder only (`embedder.py`), 768-d, cosine.
 It replaced `all-MiniLM-L6-v2` because owner notes arrive in the user's language: Italian notes

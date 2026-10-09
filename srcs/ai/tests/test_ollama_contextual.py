@@ -100,6 +100,10 @@ async def test_analyze_with_context_purebred(
         prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "Golden Retriever" in prompt
         assert "confidence: 0.89" in prompt
+        # the reply is constrained to the report schema, comparison first
+        schema = call_args[1]["json"]["response_format"]["json_schema"]
+        assert schema["strict"] is True
+        assert list(schema["schema"]["properties"])[0] == "context_check"
         assert "BREED CONTEXT" in prompt
         assert "friendly temperament and golden coat" in prompt
 
@@ -210,6 +214,9 @@ async def test_analyze_with_context_no_rag(
         call_args = mock_async_client.post.call_args
         prompt = call_args[1]["json"]["messages"][0]["content"][0]["text"]
         assert "BREED CONTEXT: (unavailable)" in prompt
+        # nothing to compare without a context
+        schema = call_args[1]["json"]["response_format"]["json_schema"]["schema"]
+        assert "context_check" not in schema["properties"]
 
 
 @pytest.mark.asyncio
@@ -574,3 +581,31 @@ async def test_no_matched_fact_means_no_translation_call(
 
     ollama_client.translate_texts.assert_not_awaited()
     assert result["health_observations"] == []
+
+
+@pytest.mark.asyncio
+async def test_unparseable_reply_is_asked_once_more(
+    ollama_client, sample_breed_analysis_purebred, sample_rag_context_purebred
+):
+    """The schema rules out malformed JSON, not a reply cut short: 1 analysis in ~110 was a 500."""
+    ollama_client._chat = AsyncMock(side_effect=['{"context_check": [{"match": "t', _answer([])])
+
+    result = await ollama_client.analyze_with_context(
+        "data:image/jpeg;base64,abc", "dog", sample_breed_analysis_purebred, sample_rag_context_purebred
+    )
+
+    assert result["description"] == "A dog."
+    assert ollama_client._chat.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_two_unparseable_replies_are_a_service_fault(
+    ollama_client, sample_breed_analysis_purebred, sample_rag_context_purebred
+):
+    ollama_client._chat = AsyncMock(return_value="not json")
+
+    with pytest.raises(RuntimeError):
+        await ollama_client.analyze_with_context(
+            "data:image/jpeg;base64,abc", "dog", sample_breed_analysis_purebred, sample_rag_context_purebred
+        )
+    assert ollama_client._chat.await_count == 2

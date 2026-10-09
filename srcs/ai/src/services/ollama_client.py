@@ -18,6 +18,44 @@ OWNER_NOTES_CLOSE = "OWNER_NOTES>>>"
 TRAIT_VALUES = {"size": ("small", "medium", "large"), "energy_level": ("low", "medium", "high")}
 
 
+def _schema(properties: Dict[str, Any]) -> Dict[str, Any]:
+    """A strict JSON schema object: every property required, nothing else allowed."""
+    return {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
+
+
+_STRING = {"type": "string"}
+_STRINGS = {"type": "array", "items": _STRING}
+# Not a JSON boolean: typed as one, the model called "blue coat" against "bright pink" a
+# match 2 times in 10; as the string the prompt asks for, 0 in 26.
+_FLAG = {"type": "string", "enum": ["true", "false"]}
+# The provider decodes against these (structured outputs), so a reply cannot be malformed
+# JSON or miss a field. Properties are generated in this order: "context_check" has to
+# come before the prose it governs.
+CONTEXT_CHECK_SCHEMA = {
+    "type": "array",
+    "items": _schema({
+        "feature": _STRING,
+        "value_in_context": _STRING,
+        "usual_for_breed": _FLAG,
+        "value_on_this_animal": _STRING,
+        "match": _FLAG,
+        "meaning": _STRING,
+    }),
+}
+REPORT_PROPERTIES = {
+    "description": _STRING,
+    "traits": _schema({
+        "size": {"type": "string", "enum": list(TRAIT_VALUES["size"])},
+        "energy_level": {"type": "string", "enum": list(TRAIT_VALUES["energy_level"])},
+        "temperament": _STRING,
+    }),
+    "health_observations": _STRINGS,
+}
+REPORT_SCHEMA = _schema(REPORT_PROPERTIES)
+REPORT_WITH_CHECK_SCHEMA = _schema({"context_check": CONTEXT_CHECK_SCHEMA, **REPORT_PROPERTIES})
+TRANSLATION_SCHEMA = _schema({"texts": _STRINGS})
+
+
 def _normalize_traits(traits: Any) -> Dict[str, Any]:
     """Coerce LLM trait values onto TRAIT_VALUES: first allowed word wins, none → None.
 
@@ -154,8 +192,13 @@ class OllamaVisionClient:
             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{raw}"}},
         ]
 
-    async def _chat(self, messages: List[Dict[str, Any]], model: str) -> str:
-        """POST an OpenAI chat-completions request to the proxy; return the text content."""
+    async def _chat(
+        self, messages: List[Dict[str, Any]], model: str, schema: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """POST an OpenAI chat-completions request to the proxy; return the text content.
+
+        With `schema` the reply is constrained to that JSON schema by the provider.
+        """
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         payload = {
             "model": model,
@@ -163,6 +206,11 @@ class OllamaVisionClient:
             "temperature": self.temperature,
             "stream": False,
         }
+        if schema:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "reply", "strict": True, "schema": schema},
+            }
         timeout = httpx.Timeout(self.timeout, connect=self.timeout)
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
@@ -171,6 +219,20 @@ class OllamaVisionClient:
             response.raise_for_status()
             response_data = response.json()
         return response_data["choices"][0]["message"]["content"]
+
+    async def _chat_json(
+        self, messages: List[Dict[str, Any]], model: str, schema: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """A schema-constrained call, parsed; asked once more when the reply does not parse.
+
+        The schema rules out malformed JSON but not a reply cut short, and a proxy in
+        front of a backend without structured outputs drops the constraint silently.
+        """
+        try:
+            return self._parse_response(await self._chat(messages, model, schema))
+        except RuntimeError:
+            logger.warning("Unparseable LLM reply, asking once more")
+            return self._parse_response(await self._chat(messages, model, schema))
 
     async def analyze_breed(
         self,
@@ -287,7 +349,7 @@ Probabilities should sum to approximately 1.0."""
             except json.JSONDecodeError:
                 continue
 
-        logger.error(f"Failed to parse response: {response_text[:200]}")
+        logger.error(f"Failed to parse response: {response_text[:200]} [...] {response_text[-200:]}")
         raise RuntimeError("Failed to parse JSON from response")
 
     def _process_crossbreed_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
@@ -493,12 +555,13 @@ Reply with ONLY this JSON object, with exactly {len(texts)} strings in the same 
 {json.dumps(texts, ensure_ascii=False)}"""
 
         try:
-            content = await self._chat([{"role": "user", "content": prompt}], self.text_model)
+            result = await self._chat_json(
+                [{"role": "user", "content": prompt}], self.text_model, TRANSLATION_SCHEMA
+            )
         except httpx.HTTPError as e:
             logger.error(f"LLM translation failed: {e}")
             raise ConnectionError(f"Failed to connect to Ollama: {e}")
 
-        result = self._parse_response(content)
         translated = result.get("texts") if isinstance(result, dict) else None
         if (
             not isinstance(translated, list)
@@ -544,7 +607,9 @@ Reply with ONLY this JSON object, with exactly {len(texts)} strings in the same 
         # Call LLM via proxy (OpenAI format)
         try:
             messages = [{"role": "user", "content": self._image_content(prompt, image_base64)}]
-            content = await self._chat(messages, self.vision_model)
+            result = await self._chat_json(
+                messages, self.vision_model, REPORT_WITH_CHECK_SCHEMA if rag_context else REPORT_SCHEMA
+            )
 
         except httpx.ConnectError as e:
             logger.error(f"LLM connection failed: {e}")
@@ -553,8 +618,6 @@ Reply with ONLY this JSON object, with exactly {len(texts)} strings in the same 
             logger.error(f"LLM timeout: {e}")
             raise ConnectionError("Ollama service timeout")
 
-        # Parse JSON response
-        result = self._parse_response(content)
         result["traits"] = _normalize_traits(result.get("traits"))
 
         # Matched facts open the observations. They are quoted from the knowledge base,
