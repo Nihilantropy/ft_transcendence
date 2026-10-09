@@ -55,7 +55,26 @@ make rag           # Force a RAG knowledge base sync now and wait for it (ai-ser
 make test-rag      # e2e: knowledge base auto-ingestion (probe .md added/modified/deleted at runtime)
 make elk           # Start the ELK log management stack (generates credentials on first run)
 make elk-creds     # Reprint the ELK stack credentials without redeploying
+make backup        # pg_dump now via the db-backup sidecar + verify it by restoring into a scratch DB
+make backup-verify # re-verify the latest dump only
+make restore [FILE=…] [YES=1]  # restore a dump over the live DB (default: latest) — docs/DISASTER_RECOVERY.md
 ```
+
+### Health, status page, backups
+
+- **Two health endpoints, on purpose.** `/health` is shallow and backs every Docker healthcheck
+  (and `depends_on: service_healthy`). `/health/ready` (auth, user, recommendation: `SELECT 1`;
+  api-gateway: Redis `PING`) answers 503 when the dependency is down and is probed only by
+  Heartbeat. Never point a compose healthcheck at `/health/ready`: one DB blip would mark every
+  container unhealthy and wedge `up --wait`. All healthchecks set `start_interval: 2s`.
+- **Status page** = Heartbeat (`elk` profile, `srcs/elk/heartbeat/heartbeat.yml`) → `heartbeat-*` →
+  Kibana dashboard *SmartBreeds · Service Status* (generated) and the legacy Uptime app.
+- **Backups**: `db-backup` sidecar (no profile, always on) dumps hourly into **host dir**
+  `backups/postgres/` (survives `downv`/`purge`; root-owned under rootful Docker). Hook
+  `srcs/db/backup/50-verify` restores each dump into scratch DB `restore_check` and logs
+  `BACKUP_VERIFY OK|FAILED`. ES snapshots now also go to `backups/elasticsearch/`. `make gate` ends
+  with `make backup`. Runbook, RPO/RTO and the secrets that must be kept off-host:
+  `docs/DISASTER_RECOVERY.md`.
 
 ⚠️ **`make clean` and `make fclean` do not exist.** Both names appear in `.PHONY` (`Makefile:22`) but
 no rule defines them, so make just prints `Nothing to be done for 'clean'` and does nothing. Use

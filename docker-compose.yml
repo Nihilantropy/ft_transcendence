@@ -28,11 +28,13 @@ services:
         condition: service_healthy
     restart: on-failure
     healthcheck:
-      test: ["CMD", "nginx", "-t"]
+      # `nginx -t` only proved the config parses; this proves TLS + the server block answer.
+      test: ["CMD", "curl", "-fsk", "-o", "/dev/null", "https://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+      start_interval: 2s
   ### TESTER (make gate) ###
   # Integration + e2e suite in tests/. Profile `test`: never started by `make up`.
   # Run: docker compose --profile test run --rm tester [pytest args]
@@ -70,6 +72,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+      start_interval: 2s
 
   ### OLLAMA (local GPU inference — `local` profile only) ###
   ollama:
@@ -96,6 +99,13 @@ services:
       - ./srcs/ollama/:/workspace/:rw
     ports:
       - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
     logging:
       driver: json-file
       options:
@@ -125,6 +135,9 @@ services:
       # here, in the volume classification-service already uses for its own models.
       - huggingface-cache:/app/.cache/huggingface
     restart: unless-stopped
+    depends_on:
+      litellm:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
       interval: 30s
@@ -132,6 +145,7 @@ services:
       retries: 3
       # A first boot downloads the embedding model into the empty cache volume.
       start_period: 300s
+      start_interval: 2s
 ### CLASSIFICATION SERVICE ###
   classification-service:
     build:
@@ -172,6 +186,7 @@ services:
       # on CPU, and on a first boot that must also download ~1.3 GB of weights
       # into the empty huggingface-cache volume, it takes considerably longer.
       start_period: 300s
+      start_interval: 2s
   # open-webui:
   #   container_name: open-webui
   #   image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
@@ -216,6 +231,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+      start_interval: 2s
     depends_on:
       db:
         condition: service_healthy
@@ -240,6 +256,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+      start_interval: 2s
     depends_on:
       db:
         condition: service_healthy
@@ -259,6 +276,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+      start_interval: 2s
     logging:
       driver: json-file
       options:
@@ -277,11 +295,55 @@ services:
       - backend-network
     restart: on-failure
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER-smartbreeds_user} -d ${POSTGRES_DB-smartbreeds}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+      start_interval: 2s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+### DATABASE BACKUPS (disaster recovery — docs/DISASTER_RECOVERY.md) ###
+  # Hourly pg_dump of `smartbreeds`, rotated last/daily/weekly/monthly with hardlinks, written to
+  # ./backups/postgres on the HOST: a bind mount, so `make downv` / `purge` / `trash`, which wipe
+  # every named volume (db-data included), leave the backups alone. Every dump is restored into a
+  # scratch database by the post-backup hook (srcs/db/backup/50-verify) before it counts.
+  # Files are root-owned under rootful Docker — deliberate, a stray `rm` can't eat them.
+  db-backup:
+    container_name: ft_transcendence_db_backup
+    image: prodrigestivill/postgres-backup-local:15   # major must match the db image's (pg_dump 15)
+    env_file:
+      - ./srcs/db/.env
+    environment:
+      - POSTGRES_HOST=db
+      - SCHEDULE=@hourly
+      - BACKUP_ON_START=TRUE
+      - BACKUP_KEEP_MINS=1440   # last/: every hourly dump for 24 h
+      - BACKUP_KEEP_DAYS=7
+      - BACKUP_KEEP_WEEKS=4
+      - BACKUP_KEEP_MONTHS=6
+      # --clean --if-exists: the dump drops what it recreates, so it restores over a live database.
+      - POSTGRES_EXTRA_OPTS=-Z6 --clean --if-exists
+    volumes:
+      - ./backups/postgres:/backups
+      - ./srcs/db/backup/50-verify:/hooks/50-verify:ro
+    networks:
+      - backend-network
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      # go-cron's status endpoint; the image's own check polls every 5 min.
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 2s
     logging:
       driver: json-file
       options:
@@ -326,10 +388,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+      start_interval: 2s
     depends_on:
       auth-service:
         condition: service_healthy
       user-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 ### RECOMMENDATION SERVICE ###
@@ -342,7 +407,8 @@ services:
     networks:
       - backend-network
     depends_on:
-      - user-service
+      user-service:
+        condition: service_healthy
     env_file:
       - ./srcs/recommendation-service/.env
     volumes:
@@ -352,6 +418,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+      start_interval: 2s
 
 ### ELK LOGGING STACK (log management — `elk` profile only) ###
 # The four ELK secrets below default to empty rather than using Compose's
@@ -372,9 +440,10 @@ services:
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-}
       - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:-}
       - LOGSTASH_WRITER_PASSWORD=${LOGSTASH_WRITER_PASSWORD:-}
+      - HEARTBEAT_WRITER_PASSWORD=${HEARTBEAT_WRITER_PASSWORD:-}
     volumes:
       - elk-certs:/usr/share/elasticsearch/config/certs
-      - elk-snapshots:/usr/share/elasticsearch/snapshots
+      - ./backups/elasticsearch:/usr/share/elasticsearch/snapshots  # host dir: survives downv/purge
       - ./srcs/elk/setup:/setup:ro
       - ./srcs/elk/kibana:/kibana:ro
     networks:
@@ -428,7 +497,7 @@ services:
     volumes:
       - elk-certs:/usr/share/elasticsearch/config/certs
       - es-data:/usr/share/elasticsearch/data
-      - elk-snapshots:/usr/share/elasticsearch/snapshots
+      - ./backups/elasticsearch:/usr/share/elasticsearch/snapshots  # host dir: survives downv/purge
     networks:
       - backend-network
     restart: unless-stopped
@@ -438,6 +507,7 @@ services:
       timeout: 10s
       retries: 90
       start_period: 120s
+      start_interval: 2s
     logging:
       driver: json-file
       options:
@@ -484,6 +554,7 @@ services:
       timeout: 10s
       retries: 20
       start_period: 60s
+      start_interval: 2s
     logging:
       driver: json-file
       options:
@@ -516,6 +587,51 @@ services:
       timeout: 10s
       retries: 20
       start_period: 60s
+      start_interval: 2s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Uptime probes for the Kibana status page ("Service Status" dashboard + Uptime app).
+  # Monitors live in srcs/elk/heartbeat/heartbeat.yml.
+  heartbeat:
+    container_name: ft_transcendence_heartbeat
+    image: docker.elastic.co/beats/heartbeat:${STACK_VERSION:-8.17.0}
+    profiles: ["elk"]
+    # Same race as logstash: elk-setup creates heartbeat_writer and the `heartbeat` ILM policy
+    # only after Elasticsearch is up. Starting before that, Heartbeat would load its template
+    # with its own default ILM policy (no deletion) — so wait until our credentials work.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until curl -sf -o /dev/null --cacert certs/ca/ca.crt -u "heartbeat_writer:$${HEARTBEAT_WRITER_PASSWORD}" https://elasticsearch:9200/_ilm/policy/heartbeat; do
+          echo "Waiting for elk-setup to create heartbeat_writer..."
+          sleep 3
+        done
+        # --strict.perms=false: the config is a bind mount whose mode depends on the host checkout.
+        exec /usr/bin/tini -s -- /usr/local/bin/docker-entrypoint --environment=container --strict.perms=false
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - HEARTBEAT_WRITER_PASSWORD=${HEARTBEAT_WRITER_PASSWORD:-}
+    mem_limit: 256m
+    volumes:
+      - elk-certs:/usr/share/heartbeat/certs:ro
+      - ./srcs/elk/heartbeat/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml:ro
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://localhost:5066/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
     logging:
       driver: json-file
       options:
@@ -555,6 +671,14 @@ services:
     networks:
       - backend-network
     restart: unless-stopped
+    healthcheck:
+      # The API listens on 127.0.0.1 only (vector.toml [api]) — nothing outside the container sees it.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8686/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+      start_interval: 2s
 
 ### NETWORKS ###
 networks:
@@ -582,8 +706,6 @@ volumes:
   es-data:
     driver: local
   elk-certs:
-    driver: local
-  elk-snapshots:
     driver: local
   vector-data:
     driver: local

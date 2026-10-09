@@ -23,7 +23,7 @@ DOWN_PROFILES = local,cloud,elk,test
 # names. The two differ (service `api-gateway` runs as container
 # `ft_transcendence_api_gateway`, and `ollama` has no prefix at all), so deriving
 # one from the other silently matched nothing.
-TRANSCENDENCE_CONTAINERS = ft_transcendence_nginx ft_transcendence_litellm ollama ft_transcendence_ai_service ft_transcendence_classification_service ft_transcendence_auth_service ft_transcendence_user_service ft_transcendence_redis ft_transcendence_db ft_transcendence_api_gateway ft_transcendence_recommendation_service ft_transcendence_elk_setup ft_transcendence_elasticsearch ft_transcendence_logstash ft_transcendence_kibana ft_transcendence_vector
+TRANSCENDENCE_CONTAINERS = ft_transcendence_nginx ft_transcendence_litellm ollama ft_transcendence_ai_service ft_transcendence_classification_service ft_transcendence_auth_service ft_transcendence_user_service ft_transcendence_redis ft_transcendence_db ft_transcendence_api_gateway ft_transcendence_recommendation_service ft_transcendence_elk_setup ft_transcendence_elasticsearch ft_transcendence_logstash ft_transcendence_kibana ft_transcendence_vector ft_transcendence_heartbeat ft_transcendence_db_backup
 
 TRANSCENDENCE_VOLUMES = $(PROJECT_NAME)_db-data $(PROJECT_NAME)_redis-data $(PROJECT_NAME)_ollama $(PROJECT_NAME)_models $(PROJECT_NAME)_ai-chroma-data $(PROJECT_NAME)_huggingface-cache $(PROJECT_NAME)_es-data $(PROJECT_NAME)_elk-certs $(PROJECT_NAME)_elk-snapshots $(PROJECT_NAME)_vector-data $(PROJECT_NAME)_nginx-ssl
 
@@ -35,7 +35,7 @@ TRANSCENDENCE_NETWORKS = $(PROJECT_NAME)_proxy $(PROJECT_NAME)_backend-network
 # Flags consumed as extra goals by 'make test' and forwarded to run-unit-tests.sh
 TEST_FLAGS = gateway auth user ai classification recommendation init
 
-.PHONY: all setup build up keys env trash show stop start down restart re clean fclean help test test-coverage gate test-rag elk elk-creds $(TEST_FLAGS)
+.PHONY: all setup build up keys env trash show stop start down restart re clean fclean help test test-coverage gate test-rag elk elk-creds backup backup-verify restore $(TEST_FLAGS)
 
 # Default target
 all: build up elk show logs
@@ -291,6 +291,21 @@ elk:
 elk-creds:
 	@scripts/init-elk.sh --creds-only
 
+## backup: Dump the database now (same job as the hourly schedule) and verify it by restoring into a scratch DB
+backup:
+	@# tee to PID 1's stdout: `docker exec` output never reaches the container log, so without it a
+	@# manual run would be invisible to Vector/Kibana (only the scheduled runs were).
+	@out=$$(docker exec ft_transcendence_db_backup bash -o pipefail -c '/backup.sh 2>&1 | tee /proc/1/fd/1'); rc=$$?; \
+		echo "$$out" | grep -E 'Creating dump|BACKUP_VERIFY|ERROR|rror'; exit $$rc
+
+## backup-verify: Re-verify the latest existing dump without taking a new one
+backup-verify:
+	@docker exec ft_transcendence_db_backup bash -o pipefail -c '/hooks/50-verify post-backup 2>&1 | tee /proc/1/fd/1'
+
+## restore: Restore a dump over the live database (FILE=path, default: latest; YES=1 skips the prompt)
+restore:
+	@YES=$(YES) scripts/restore-db.sh $(FILE)
+
 ## test-integration: Run integration tests
 test-integration:
 	@echo "Running integration tests..."
@@ -313,6 +328,8 @@ gate: keys
 	@scripts/run-unit-tests.sh
 	@scripts/run-integration-tests.sh
 	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --profile test run --rm --build tester
+	@# Disaster recovery: a fresh dump of the migrated schema must restore cleanly.
+	@$(MAKE) --no-print-directory backup
 	@echo ""
 	@echo "✅ GATE PASSED — $$(git rev-parse --abbrev-ref HEAD) @ $$(git rev-parse --short HEAD)$$(git diff --quiet HEAD || echo ' (uncommitted changes)')"
 

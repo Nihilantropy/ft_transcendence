@@ -1,6 +1,6 @@
 #!/bin/bash
-# ELK zero-config bootstrap: CA + per-node certs, elastic/kibana_system/logstash_writer
-# credentials, ILM + SLM + index template + snapshot repo, Kibana data view,
+# ELK zero-config bootstrap: CA + per-node certs, elastic/kibana_system/logstash_writer/
+# heartbeat_writer credentials, ILM + SLM + index template + snapshot repo, Kibana data view,
 # saved searches and dashboards.
 # Idempotent: safe to re-run against an existing certs/data volume.
 set -e
@@ -10,7 +10,7 @@ SETUP_DIR=/setup
 ES_URL=https://elasticsearch:9200
 KIBANA_URL=https://kibana:5601
 
-for v in ELASTIC_PASSWORD KIBANA_SYSTEM_PASSWORD LOGSTASH_WRITER_PASSWORD; do
+for v in ELASTIC_PASSWORD KIBANA_SYSTEM_PASSWORD LOGSTASH_WRITER_PASSWORD HEARTBEAT_WRITER_PASSWORD; do
   if [ -z "${!v}" ]; then
     echo "✗ Missing required env var: $v"
     exit 1
@@ -166,6 +166,29 @@ put_es_json "/_security/user/logstash_writer" -d "{
   }"
 echo "✓ logstash_writer ready"
 
+# Heartbeat loads its own index template + data stream (the Uptime app relies on its exact
+# mappings), so beyond publishing it needs the setup privileges for heartbeat-* only — plus `read`:
+# 8.x looks up each monitor's last state there on start (up/down streak tracking). The ILM policy
+# goes in first: Heartbeat's container waits for it (docker-compose.yml) and, with
+# setup.ilm.overwrite: false, adopts it instead of its default never-delete policy.
+echo "[3/6] Creating heartbeat ILM policy + heartbeat_writer role + user..."
+put_es_json "/_ilm/policy/heartbeat" --data-binary "@${SETUP_DIR}/heartbeat-ilm-policy.json"
+put_es_json "/_security/role/heartbeat_writer" -d '{
+    "cluster": ["monitor", "read_ilm", "read_pipeline", "manage_ilm", "manage_index_templates"],
+    "indices": [
+      {
+        "names": ["heartbeat-*"],
+        "privileges": ["create_doc", "read", "view_index_metadata", "auto_configure", "manage"]
+      }
+    ]
+  }'
+put_es_json "/_security/user/heartbeat_writer" -d "{
+    \"password\": \"${HEARTBEAT_WRITER_PASSWORD}\",
+    \"roles\": [\"heartbeat_writer\"],
+    \"full_name\": \"Heartbeat uptime probes\"
+  }"
+echo "✓ heartbeat_writer ready"
+
 # --- 4. Archiving (SLM) + retention (ILM) + index template -----------------
 # Order matters: the ILM policy's `wait_for_snapshot` action references the
 # SLM policy by name, and the SLM policy references the snapshot repo by
@@ -233,6 +256,34 @@ if echo "$kb_response" | grep -q '"statusCode"'; then
   exit 1
 fi
 echo "✓ Data view ready"
+
+# Data view behind the "Service Status" dashboard (fixed id, referenced by build_dashboards.py).
+kb_response=$(${CURL_KB} -X POST "${KIBANA_URL}/api/data_views/data_view" \
+  -H 'Content-Type: application/json' -d '{
+    "data_view": {
+      "id": "smartbreeds-heartbeat-dataview",
+      "title": "heartbeat-*",
+      "timeFieldName": "@timestamp",
+      "name": "SmartBreeds Uptime"
+    },
+    "override": true
+  }')
+if echo "$kb_response" | grep -q '"statusCode"'; then
+  echo "✗ Heartbeat data view creation failed: ${kb_response}"
+  exit 1
+fi
+echo "✓ Uptime data view ready"
+
+# The Uptime app is deprecated since 8.15 and hides itself until it sees recent Heartbeat data;
+# force it into the navigation so the status page is reachable from the first minute.
+kb_response=$(${CURL_KB} -X POST "${KIBANA_URL}/api/kibana/settings" \
+  -H 'Content-Type: application/json' \
+  -d '{"changes":{"observability:enableLegacyUptimeApp":true}}')
+if echo "$kb_response" | grep -q '"statusCode"'; then
+  echo "✗ Enabling the Uptime app failed: ${kb_response}"
+  exit 1
+fi
+echo "✓ Uptime app enabled"
 
 # SLOs are a Platinum feature; this cluster runs the free basic license, so every
 # Observability page that lists SLOs showed "Something went wrong while fetching SLOs /

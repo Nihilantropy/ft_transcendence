@@ -1,0 +1,143 @@
+# Heartbeat — uptime probes behind the Kibana status page.
+#
+# Every monitor writes one document per run into the heartbeat-* data stream, read by the generated
+# "Service Status" dashboard (kibana/build_dashboards.py) and by Kibana's Uptime app. The app
+# services are probed on /health/ready, the deep check that runs SELECT 1 (Django services,
+# recommendation-service) or PINGs Redis (api-gateway) — that is the "DB heartbeat". Their Docker
+# healthchecks stay on the shallow /health, so an outage shows up here instead of cascading
+# through `depends_on`.
+#
+# Ollama is not probed: it only exists under the `local` profile and would read as a permanent
+# outage in `cloud`.
+
+heartbeat.monitors:
+  # --- Edge ----------------------------------------------------------------
+  - type: http
+    id: nginx
+    name: nginx (HTTPS edge)
+    schedule: "@every 30s"
+    urls: ["https://nginx/health"]
+    # Self-signed, regenerated on every nginx start — there is no stable CA to pin.
+    ssl.verification_mode: none
+    check.response.status: [200]
+    tags: [edge]
+
+  # --- Application: deep readiness -----------------------------------------
+  - type: http
+    id: api-gateway
+    name: api-gateway (+ Redis)
+    schedule: "@every 30s"
+    urls: ["http://api-gateway:8001/health/ready"]
+    check.response.status: [200]
+    tags: [app, readiness]
+
+  - type: http
+    id: auth-service
+    name: auth-service (+ Postgres)
+    schedule: "@every 30s"
+    urls: ["http://auth-service:3001/health/ready"]
+    check.response.status: [200]
+    tags: [app, readiness, db]
+
+  - type: http
+    id: user-service
+    name: user-service (+ Postgres)
+    schedule: "@every 30s"
+    urls: ["http://user-service:3002/health/ready"]
+    check.response.status: [200]
+    tags: [app, readiness, db]
+
+  - type: http
+    id: recommendation-service
+    name: recommendation-service (+ Postgres)
+    schedule: "@every 30s"
+    urls: ["http://recommendation-service:3005/health/ready"]
+    check.response.status: [200]
+    tags: [app, readiness, db]
+
+  # --- AI pipeline ---------------------------------------------------------
+  - type: http
+    id: ai-service
+    name: ai-service
+    schedule: "@every 30s"
+    urls: ["http://ai-service:3003/health"]
+    check.response.status: [200]
+    tags: [ai]
+
+  - type: http
+    id: classification-service
+    name: classification-service
+    schedule: "@every 30s"
+    urls: ["http://classification-service:3004/health"]
+    check.response.status: [200]
+    tags: [ai]
+
+  - type: http
+    id: litellm
+    name: litellm (LLM gateway)
+    schedule: "@every 30s"
+    urls: ["http://litellm:4000/health/liveliness"]
+    check.response.status: [200]
+    tags: [ai]
+
+  # --- Data stores ---------------------------------------------------------
+  - type: tcp
+    id: postgres
+    name: postgres (TCP)
+    schedule: "@every 30s"
+    hosts: ["db:5432"]
+    tags: [data, db]
+
+  - type: tcp
+    id: redis
+    name: redis (TCP)
+    schedule: "@every 30s"
+    hosts: ["redis:6379"]
+    tags: [data]
+
+  - type: http
+    id: db-backup
+    name: db-backup (scheduler)
+    schedule: "@every 60s"
+    urls: ["http://db-backup:8080/"]
+    check.response.status: [200]
+    tags: [data, backup]
+
+  # --- Observability -------------------------------------------------------
+  - type: http
+    id: kibana
+    name: kibana
+    schedule: "@every 60s"
+    urls: ["https://kibana:5601/api/status"]
+    ssl.certificate_authorities: ["/usr/share/heartbeat/certs/ca/ca.crt"]
+    check.response.status: [200]
+    tags: [observability]
+
+  # The ingest port Vector ships to. Logstash's own :9600 API binds to localhost only — kept that
+  # way rather than exposing an unauthenticated API on the backend network.
+  - type: tcp
+    id: logstash
+    name: logstash (ingest)
+    schedule: "@every 60s"
+    hosts: ["logstash:5044"]
+    tags: [observability]
+
+# Heartbeat loads its own index template (the Uptime app depends on its exact mappings), but under
+# the `heartbeat` ILM policy that elk-setup installs first with a 14-day retention — never
+# overwritten from here.
+setup.ilm.overwrite: false
+
+output.elasticsearch:
+  hosts: ["https://elasticsearch:9200"]
+  username: heartbeat_writer
+  password: "${HEARTBEAT_WRITER_PASSWORD}"
+  ssl.certificate_authorities: ["/usr/share/heartbeat/certs/ca/ca.crt"]
+
+# Local stats endpoint, used only by the container healthcheck.
+http.enabled: true
+http.host: localhost
+http.port: 5066
+
+logging.to_stderr: true
+# error, not warning: the nginx monitor's verification_mode: none logs a TLS warning on every run.
+logging.level: error
