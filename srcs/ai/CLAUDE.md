@@ -11,7 +11,7 @@ there is no direct Ollama call anywhere in this codebase, despite the file and t
 ## Essential Commands
 
 ```bash
-# tests (168). run --rm is fine: everything is mocked, no cross-service hostname needed.
+# tests (188). run --rm is fine: everything is mocked, no cross-service hostname needed.
 docker compose run --rm ai-service python -m pytest tests/ -v
 docker compose run --rm ai-service python -m pytest tests/test_vision_orchestrator.py -v
 docker compose run --rm ai-service python -m pytest tests/ --cov=src --cov-report=term  # pytest-cov is in the image
@@ -53,7 +53,7 @@ docker exec ft_transcendence_ai_service curl -s http://localhost:3003/health
 | `src/utils/logger.py` | JSON log formatter, mutes uvicorn/fastapi/httpx to WARNING |
 | `data/knowledge_base/spiecies/` | 34 markdown docs (dogs/cats × purebreeds/crossbreeds/health). Mounted read-only. Directory name misspelled on purpose-by-accident — do not rename |
 | `data/chroma/` | ChromaDB persistence mount point (`ai-chroma-data` volume) |
-| `tests/` | 168 unit tests, no conftest.py |
+| `tests/` | 188 unit tests, no conftest.py |
 
 ## Request / Data Flow
 
@@ -149,7 +149,7 @@ tolerate it being `None` before startup.
 - **torch is installed from the PyTorch CPU index in the Dockerfile, before `requirements.txt`.**
   Do not move it into `requirements.txt` or drop the `--index-url`: plain pip resolves the CUDA
   build (+3.2 GB `nvidia/`, +0.9 GB `triton`) and the image grows from ~2.9 GB to 10.5 GB for a
-  GPU nothing here uses — torch only runs the MiniLM embedder.
+  GPU nothing here uses — torch only runs the embedder.
 - **`uvicorn --workers 1`, and it must stay 1** (Dockerfile). ChromaDB is embedded
   (`PersistentClient`) and keeps its vector index in process memory. With 2 workers, the one that
   did not ingest never saw the new vectors and kept returning the ones the other had deleted —
@@ -209,7 +209,7 @@ tolerate it being `None` before startup.
 - `Embedder` tests patch `src.services.embedder.SentenceTransformer`; never let a test download a
   model.
 - `scripts/run-unit-tests.sh:119-121` still claims 37 tests for this service; the real collection is
-  168. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
+  188. The number is cosmetic (it only feeds a printed total), but do not treat it as ground truth.
 
 ## Config & Thresholds
 
@@ -228,8 +228,47 @@ it. Pipeline gates:
 Values that violate the convention and should be migrated to `config.py` if you touch them:
 `ollama_client.py:31-33` (`0.35` crossbreed second-breed probability, `0.75` purebred confidence,
 `0.30` purebred gap), `vision_orchestrator.py:83` (`top_k=5`), `vision_orchestrator.py:150`
-(`top_n_breeds=2`), `rag_service.py:261`/`:310` (`n_results` 5 / 3), `rag_service.py:285-287` and
-`:332-334` (500/300/300-character context truncation).
+(`top_n_breeds=2`).
+
+**Breed context is a vector search restricted by metadata** (`rag_service.py::_build_context`).
+Two searches run on every analysis: the chunks of the breed (`where breed == <classifier breed>`,
+or `parent_breeds` for a mix; top `RAG_BREED_TOP_K`, reassembled in file order into `description`)
+and the health documents of the species (`doc_type: health` + `species`; queried with
+"<Breed> common health problems" and, separately, with the owner notes; best `RAG_HEALTH_TOP_K`
+documents into `health_info`). The filter decides what is eligible, the embedding only ranks
+inside it: ranking the whole collection put the right document's health section in the prompt
+for 6 breeds out of 20. **There is no relevance threshold on purpose** — measured, a neutral note
+scores as high as a note describing a symptom, so the LLM decides what applies. Consequences: a
+breed document **must** declare `breed:` in its frontmatter (crossbreeds: `parent_breeds: [a, b]`)
+or the vision pipeline never sees it; a breed without a document still gets the health documents
+(`description` is then empty). `enriched_info.matches` lists the retrieved documents with their
+cosine similarity — the frontend shows it, and the orchestrator logs it as `RAG context: ...`.
+
+**A knowledge base fact about a visible feature is applied by the code, not by the model's prose**
+(`ollama_client.py::_matched_facts`). The prompt makes the model fill `context_check`: for each
+fact tied to one value of a visible feature, the value in the context, the value on this animal,
+and whether they match. That comparison is reliable (measured 16/16 on a blue and a pink dog
+against a "blue coat" fact); the model's own wording of the fact is not — it reported it 6 times
+out of 8, and after a rewording of the prompt it swapped the cause for a likelier one ("may have
+been dyed") 4 times out of 6. So for every `match: true` the code quotes the passage of the
+retrieved context that mentions `value_in_context` (`_quote_context`), puts it first in
+`health_observations`, and translates it with `translate_texts` when the report is not in
+English. An entry the model marks `usual_for_breed: true` is skipped: a healthy animal matches its
+own breed standard, and "Standard: shades of gold" used to open the health observations.
+Two shapes of a wrong check are repaired in code, both seen on a blue dog (3 in 10 with the
+collaborators' demo document): same value on both sides yet `match: false`, and only the usual
+value checked ("golden" vs "blue") — then the passage about what the animal shows is quoted, if
+the context has one. Every analysis logs `context_check: [...]`, the model's raw comparison.
+`context_check` never leaves the client. Do not move this back into the prompt.
+
+**Embedding model: `google/embeddinggemma-2`**, text encoder only (`embedder.py`), 768-d, cosine.
+It replaced `all-MiniLM-L6-v2` because owner notes arrive in the user's language: Italian notes
+found the right health document 2 times out of 8 with MiniLM, 8 out of 8 with this one. It needs
+`sentence-transformers>=6` and `torchvision` (its processor imports it even for text), is ~1.5 GB
+and is cached in the `huggingface-cache` volume (first boot downloads it — hence the 300 s
+`start_period`). Queries and documents are encoded with different prompts (`SearchQuery` /
+`Document`). The collection records the model in its metadata: changing `EMBEDDING_MODEL` drops
+and rebuilds it at startup (`_open_collection`), ~2 min on CPU for the 383 chunks.
 
 Profile-dependent settings: keep `CLASSIFICATION_ENABLED=true` in **both** profiles —
 classification-service runs in every stack, on CPU by default. `LLM_VISION_MODEL` /

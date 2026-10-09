@@ -27,11 +27,11 @@ KB_DIR = Path(os.environ.get("KNOWLEDGE_BASE_DIR", "/knowledge_base"))
 # Nothing an LLM or the existing documents could know.
 FACT = "zorblaxian moonberry allergy"
 
-# The opening paragraph is the retrieval query for the bundled golden retriever photo
-# ("Golden Retriever breed characteristics health care requirements") plus the fact, with no
-# header of its own. Measured against the real collection it is the closest chunk by a wide
-# margin (L2 0.47 against 0.67 for the best real one), so it comes back first and reaches
-# the response as enriched_info.description.
+# Written like any other document of the knowledge base: the fact sits in the last section and
+# nothing in the text is tuned to the retrieval. The context is looked up by the `breed`
+# declared in the frontmatter, so the whole document reaches the response in
+# enriched_info.description. (It used to be a similarity ranking, which only a document
+# repeating the query string could win.)
 PROBE = f"""---
 doc_type: breed
 species: dog
@@ -39,10 +39,13 @@ breed: golden_retriever
 topics: [health]
 ---
 
-Golden Retriever breed characteristics health care requirements. {FACT}.
+# Golden Retriever Field Notes
 
-## Second section
+## Overview
 Filler so the document spans more than one chunk.
+
+## Known Sensitivities
+- **Diet**: {FACT}
 """
 
 
@@ -99,7 +102,7 @@ def test_file_lifecycle_is_picked_up_at_runtime(probe):
     assert count() == with_probe
 
     # Shorter version: its extra chunks must not survive as orphans.
-    probe.write_text(PROBE.split("## Second section")[0])
+    probe.write_text(PROBE.split("## Known Sensitivities")[0])
     modified = sync()
     assert modified["files_processed"] == 1, modified
     assert base < count() < with_probe

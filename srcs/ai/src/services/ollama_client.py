@@ -31,6 +31,92 @@ def _normalize_traits(traits: Any) -> Dict[str, Any]:
         normalized[key] = match.group(1) if match else None
     return normalized
 
+def _quote_context(value: str, context: str) -> List[str]:
+    """Passages of the retrieved context that are about `value`, word for word.
+
+    Args:
+        value: The feature value a fact is about, as the model copied it ("blue coat")
+        context: The knowledge base text given to the model
+
+    Returns:
+        Up to two passages: the bullet that mentions the value, or the sentences of a
+        paragraph that do
+    """
+    def norm(text: str) -> str:
+        return re.sub(r"\s+", " ", text.replace("*", "")).strip().lower()
+
+    needle = norm(value)
+    if len(needle) < 3:
+        return []
+
+    quotes = []
+    for line in context.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(("-", "*")) and not line.startswith("**"):
+            passages = [line.lstrip("-* ")]
+        else:
+            passages = re.split(r"(?<=[.!?])\s+", line)
+        for passage in passages:
+            passage = passage.replace("**", "").strip()
+            # The model copies either the value ("blue coat") or the whole passage.
+            if not (needle in norm(passage) or (len(passage) > 10 and norm(passage) in needle)):
+                continue
+            if passage not in quotes:
+                quotes.append(passage)
+    return quotes[:2]
+
+
+def _matched_facts(result: Dict[str, Any], context: str) -> List[str]:
+    """Knowledge base facts the model matched to this animal, quoted from the knowledge base.
+
+    The model compares each fact with what it sees in "context_check" and gets the
+    comparison right (measured 16/16), but its own wording of the fact is unreliable:
+    it reported it 6 times out of 8, and a change of prompt wording made it swap a
+    surprising cause for a likelier one 4 times out of 6. So the model only selects
+    the fact; the text is the knowledge base's own, and a match is always reported,
+    unless the model marks the value as the usual look of the breed.
+
+    Args:
+        result: Parsed LLM answer; its "context_check" is consumed here
+        context: The knowledge base text given to the model
+
+    Returns:
+        The matching facts, without duplicates
+    """
+    def flag(value: Any) -> bool:
+        return str(value).strip().lower() == "true"  # the model answers booleans as strings too
+
+    checks = result.pop("context_check", None)
+    logger.info(f"context_check: {checks}")
+    facts = []
+    for check in checks if isinstance(checks, list) else []:
+        if not isinstance(check, dict):
+            continue
+        value = str(check.get("value_in_context") or "").strip()
+        seen = str(check.get("value_on_this_animal") or "").strip()
+        usual = flag(check.get("usual_for_breed"))
+        # "blue coat" against "blue coat" came back as match: false once in ten.
+        if flag(check.get("match")) or (value and value.lower() == seen.lower()):
+            # A healthy animal matches its own breed standard ("gold coat", "friendly"):
+            # that is not news, and it used to open the health observations.
+            if usual:
+                continue
+            # The model's own sentence only when the value cannot be found in the context.
+            quotes = _quote_context(value, context) or [str(check.get("meaning") or "").strip()]
+        elif usual:
+            # The animal departs from the breed's usual value, and the model checked only
+            # that one (2 in 10): the fact about what the animal shows, if there is one.
+            quotes = _quote_context(seen, context)
+        else:
+            continue
+        for fact in quotes:
+            if fact and fact not in facts:
+                facts.append(fact)
+    return facts
+
+
 class OllamaVisionClient:
     """Vision/text LLM client speaking the OpenAI chat-completions format.
 
@@ -471,6 +557,19 @@ Reply with ONLY this JSON object, with exactly {len(texts)} strings in the same 
         result = self._parse_response(content)
         result["traits"] = _normalize_traits(result.get("traits"))
 
+        # Matched facts open the observations. They are quoted from the knowledge base,
+        # so for another language they go through the translation call.
+        observations = result.get("health_observations")
+        observations = [str(o) for o in observations] if isinstance(observations, list) else []
+        context = f"{rag_context['description']}\n{rag_context.get('health_info', '')}" if rag_context else ""
+        facts = _matched_facts(result, context)
+        if facts and language != "en":
+            try:
+                facts = await self.translate_texts(facts, language)
+            except (ConnectionError, RuntimeError) as e:
+                logger.warning(f"Matched facts left untranslated: {e}")
+        result["health_observations"] = facts + observations
+
         logger.info(f"Visual analysis complete for {breed_analysis['primary_breed']}")
         return result
 
@@ -498,42 +597,64 @@ Reply with ONLY this JSON object, with exactly {len(texts)} strings in the same 
                 parent_breeds = breed_analysis["crossbreed_analysis"]["detected_breeds"]
                 context_section = f"""BREED CONTEXT (from database):
 Parent breeds: {', '.join(parent_breeds)}
-Typical characteristics: {rag_context['description']}
-Common health considerations: {rag_context['health_info']}"""
+{rag_context['description'] or '(no document for this breed)'}"""
             else:
                 breed_name = breed_analysis["primary_breed"].replace("_", " ").title()
                 context_section = f"""BREED CONTEXT (from database):
-{rag_context['description']}
-Common health considerations: {rag_context['health_info']}"""
+{rag_context['description'] or '(no document for this breed)'}"""
+            if rag_context.get("health_info"):
+                context_section += f"""
+
+HEALTH REFERENCE (from database — conditions retrieved for this breed and for the owner notes, if any):
+{rag_context['health_info']}"""
             # Retrieved knowledge has to change the answer, or the knowledge base is
             # decoration: without this rule the model described the image and ignored it.
+            # The rule is conditional on purpose: told to always report what the context
+            # says, the model recited a fact about a feature the animal did not have.
             context_section += """
 
-HOW TO USE THE BREED CONTEXT: it comes from the knowledge base and is authoritative for this breed.
-- When something you SEE matches a fact in it (a coat colour, a marking, a body feature, a condition), say what the context says it means, in "description" or "health_observations".
-- When it contains a notice for owners of this breed (conservation status, a registration or legal requirement, a specific care duty), report it as the last sentence of "description".
-Mention a fact only when this animal actually shows the feature: never write that something is absent or does not apply. State the notice once. Write these as plain information, without naming the breed context or the database.
-Do not copy the rest of the context: everything else must come from what you SEE."""
+HOW TO USE THE BREED CONTEXT AND THE HEALTH REFERENCE: they are reference knowledge about the breed, not a description of this animal.
+- Describe what you SEE first.
+- Some facts say what one value of a visible feature (a coat colour, a marking, a body feature, a condition) means, causes or requires. Check each of them in "context_check": the value the fact is about, copied from the context, the value this animal actually shows, and whether the two are the same. Plain descriptions of the breed standard are not such facts: do not check them.
+- A fact whose check matches applies to this animal: write in that entry's "meaning" the meaning or the cause the context gives, as one complete sentence, exactly as the context gives it even when it is surprising. Never replace it with a more plausible cause of your own. It is added to the report from there, so do not repeat it in "health_observations".
+- A fact whose check does not match is about other animals: leave it out of "description" and "health_observations" completely, do not mention it and do not say it does not apply.
+- Predispositions: end "health_observations" with the conditions the breed context or the health reference link to this breed, one entry each, worded as a predisposition to watch for and never as something observed. Leave out a condition they do not link to this breed, unless the owner notes describe its symptoms.
+- When the owner notes describe a symptom that the health reference explains, say in "health_observations" which condition it may point to, and that a veterinarian should check it. This is not a diagnosis.
+- When the breed context contains a notice for owners of this breed (conservation status, a registration or legal requirement), report it once, as the last sentence of "description". When it contains no such notice, write nothing about notices.
+Write these as plain information, without naming the breed context, the health reference or the database.
+Apart from the cases above, do not copy the context: everything else must come from what you SEE."""
             focus = "Focus on describing what you SEE; use the breed context only as described above."
-            # Small hosted models follow the output schema more closely than a rule
-            # in prose, so the same requirement is repeated where the answer is shaped.
+            # Small hosted models follow the output schema more closely than a rule in
+            # prose. Asked only in prose to apply a fact "when the animal shows the feature",
+            # the model either skipped it or recited it for an animal that did not; filling
+            # in the comparison first is what makes the condition hold.
             task_extra = (
-                "\n- What the BREED CONTEXT says about any feature you see, "
+                "\n- What the BREED CONTEXT says about a feature this animal actually shows (if anything), "
                 "and any notice it has for owners of this breed"
             )
+            context_check = (
+                '  "context_check": [{"feature": "a visible feature the BREED CONTEXT has a fact about", '
+                '"value_in_context": "the value that fact is about, in the words of the context", '
+                '"usual_for_breed": "true when that value is what this breed normally looks like or is like, '
+                'false when it is unusual for the breed", '
+                '"value_on_this_animal": "what this animal actually shows", '
+                '"match": "true only when the two values are the same, otherwise false", '
+                '"meaning": "what the context says it means"}],\n'
+            )
             description_hint = (
-                f"detailed visual description of this specific {species}, followed by what the "
-                "BREED CONTEXT says the features you see mean and by its notice for owners (if any)"
+                f"detailed visual description of this specific {species}, with nothing about the "
+                "context_check entries whose match is false; then the notice for owners (if any)"
             )
             health_hint = (
-                '"visible observation 1", '
-                '"what the BREED CONTEXT says a feature you see indicates (if it says so)"'
+                '"visible observation 1", "visible observation 2", '
+                '"a condition this breed is predisposed to, worded as a predisposition to watch for"'
             )
         else:
             breed_name = breed_analysis["primary_breed"].replace("_", " ").title()
             context_section = "BREED CONTEXT: (unavailable)"
             focus = "Focus on describing what you SEE, not general breed knowledge."
             task_extra = ""
+            context_check = ""
             description_hint = f"detailed visual description of this specific {species}"
             health_hint = '"visible observation 1", "visible observation 2"'
 
@@ -560,7 +681,7 @@ YOUR TASK: Describe THIS SPECIFIC {species} based on what you SEE in the image:
 
 Return ONLY valid JSON:
 {{
-  "description": "{description_hint}",
+{context_check}  "description": "{description_hint}",
   "traits": {{
     "size": "small/medium/large (based on visual proportions)",
     "energy_level": "low/medium/high (inferred from posture/expression)",

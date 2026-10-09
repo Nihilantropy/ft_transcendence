@@ -80,6 +80,11 @@ export function AnalysisResultCard({
 
   // LLM output: guard every list/string against null and whitespace-only values
   const healthObservations = (report.health_observations ?? []).filter((o) => o.trim() !== '')
+  // what the RAG retrieved: 'spiecies/dogs/health/hip_dysplasia.md' -> 'hip dysplasia'
+  const sources = (report.enriched_info?.matches ?? []).map((m) => ({
+    name: (m.source.split('/').pop() ?? m.source).replace(/\.md$/, '').replaceAll('_', ' '),
+    relevance: Math.round(m.relevance * 100),
+  }))
 
   return (
     <Card radius="lg" background="elevated" padding="md" className="space-y-6">
@@ -159,6 +164,21 @@ export function AnalysisResultCard({
               ))}
             </ul>
           </TranslatingText>
+        </ResultSection>
+      )}
+
+      {/* knowledge base documents the analysis was grounded on */}
+      {sources.length > 0 && (
+        <ResultSection title={t('analyze:result.sources')}>
+          <p className="text-text-lo text-xs">{t('analyze:result.sourcesHint')}</p>
+          <ul className="text-text-mid mt-2 space-y-1 text-sm">
+            {sources.map((s) => (
+              <li key={s.name} className="flex items-baseline justify-between gap-4">
+                <span className="first-letter:uppercase">{s.name}</span>
+                <span className="text-text-lo tabular-nums">{s.relevance}%</span>
+              </li>
+            ))}
+          </ul>
         </ResultSection>
       )}
 

@@ -26,6 +26,8 @@
     "energy_level": "Energy",
     "temperament": "Temperament",
     "health": "Health observations",
+    "sources": "Knowledge base sources",
+    "sourcesHint": "Documents retrieved for this analysis, with their relevance to the breed and to your notes.",
     "sizes": {
       "small": "Small",
       "medium": "Medium",

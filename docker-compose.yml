@@ -112,6 +112,8 @@ services:
     container_name: ft_transcendence_ai_service
     env_file:
       - ./srcs/ai/.env
+    environment:
+      - HF_HOME=/app/.cache/huggingface
     networks:
       - backend-network
     volumes:
@@ -119,13 +121,17 @@ services:
       - ./srcs/ai/tests:/app/tests
       - ./srcs/ai/data/knowledge_base:/app/data/knowledge_base:ro
       - ai-chroma-data:/app/data/chroma
+      # The embedding model (EmbeddingGemma 2, ~1.5 GB) is downloaded once and kept
+      # here, in the volume classification-service already uses for its own models.
+      - huggingface-cache:/app/.cache/huggingface
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      # A first boot downloads the embedding model into the empty cache volume.
+      start_period: 300s
 ### CLASSIFICATION SERVICE ###
   classification-service:
     build:

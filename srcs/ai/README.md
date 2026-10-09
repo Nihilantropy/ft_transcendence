@@ -79,7 +79,9 @@ returns 503.
 3. `classification.detect_species` → reject if species ∉ {dog, cat} or confidence < `SPECIES_MIN_CONFIDENCE`.
 4. `classification.detect_breed(top_k=5)` → reject if confidence < `BREED_MIN_CONFIDENCE`.
 5. `rag.get_breed_context(primary_breed)` or `rag.get_crossbreed_context(detected_breeds)` —
-   wrapped in `try/except Exception`, so any RAG failure yields `enriched_info: null` rather than
+   two vector searches restricted by metadata: the chunks of the breed (`breed` /
+   `parent_breeds` frontmatter) and the health documents of the species, queried with the breed
+   and with the owner notes (`null` when nothing is retrieved); wrapped in `try/except Exception`, so any RAG failure yields `enriched_info: null` rather than
    an error.
 6. `ollama.analyze_with_context(image, species, breed_analysis, rag_context)` — the vision LLM
    describes the individual animal; the classification result and RAG facts are injected into the
@@ -241,7 +243,7 @@ the ChromaDB collection.
 | Path | `CHROMA_PERSIST_DIR` (default `./data/chroma` → `/app/data/chroma`) |
 | Volume | named volume `ai-chroma-data` (docker-compose.yml:92, :363) |
 | Collection | `CHROMA_COLLECTION_NAME`, default `pet_knowledge`, `get_or_create_collection` |
-| Embeddings | `all-MiniLM-L6-v2` via sentence-transformers, 384 dims |
+| Embeddings | `google/embeddinggemma-2` (text encoder only) via sentence-transformers, 768 dims, cosine |
 | Chunk ID | `"<source_file>::<index in the document>"` (`RAGService._chunk_id`), written with `upsert` — the same file always maps to the same IDs, in any process |
 | Chunk metadata | frontmatter keys + `source_file` (path relative to the KB root) + `source_type` + `content_hash` (SHA-256 of the file) + `chunk_index` |
 
@@ -322,11 +324,14 @@ container also receives `srcs/ai/.env` through compose `env_file`. `.env` is git
 | `BREED_MIN_CONFIDENCE` | `0.05` (:35) | yes | Breed gate in both pipelines (low on purpose for crossbreeds) |
 | `CHROMA_PERSIST_DIR` | `./data/chroma` (:38) | no | ChromaDB on-disk path |
 | `CHROMA_COLLECTION_NAME` | `pet_knowledge` (:39) | no | Collection name |
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` (:42) | no | sentence-transformers model id |
-| `EMBEDDING_DIMENSION` | `384` (:43) | no | Stored on the embedder; not enforced |
+| `EMBEDDING_MODEL` | `google/embeddinggemma-2` | no | sentence-transformers model id |
+| `EMBEDDING_DIMENSION` | `768` | no | Stored on the embedder; not enforced |
 | `CHUNK_SIZE` | `500` (:46) | no | Tokens per chunk |
 | `CHUNK_OVERLAP` | `50` (:47) | no | Token overlap between chunks |
 | `RAG_TOP_K` | `5` (:50) | no | Default `n_results` for `/api/v1/rag/query` |
+| `RAG_CONTEXT_MAX_CHARS` | `8000` | no | Breed context sent to the vision LLM, shared between the breed's documents |
+| `RAG_BREED_TOP_K` | `12` | no | Chunks retrieved among the documents of the breed |
+| `RAG_HEALTH_TOP_K` | `2` | no | Health documents retrieved for the breed and the owner notes |
 | `RAG_MIN_RELEVANCE` | `0.3` (:51) | no | Declared but never read by the code |
 | `KNOWLEDGE_BASE_DIR` | `./data/knowledge_base` | no | Root for bulk ingestion |
 | `RAG_SYNC_ENABLED` | `true` | yes | Periodic knowledge base sync at startup and on a timer; `false` leaves only `make rag` |
@@ -349,8 +354,6 @@ These are **not** environment-driven, contrary to the repo-wide threshold conven
 | `0.30` | `src/services/ollama_client.py:33` | max top-vs-second gap that still means crossbreed |
 | `top_k=5` | `src/services/vision_orchestrator.py:83` | breed predictions requested from classification |
 | `top_n_breeds=2` | `src/services/vision_orchestrator.py:150` | breeds requested from the VLM |
-| `n_results=5` / `3` | `src/services/rag_service.py:261`, `:310` | chunks retrieved per breed / per parent breed |
-| `500` / `300` / `300` | `src/services/rag_service.py:285-287`, `:332-334` | truncation of description / care / health context |
 
 ## Running
 
@@ -383,10 +386,10 @@ The Makefile sets `COMPOSE_PROFILES ?= cloud` (Makefile:9); the root `.env.examp
 `COMPOSE_PROFILES=local`. Pass the profile explicitly if you care which stack comes up.
 
 `ai-service` declares no `depends_on`, so it starts regardless of LiteLLM/Ollama/classification
-state. It also downloads the `all-MiniLM-L6-v2` sentence-transformers model from the HuggingFace
-hub during startup (`Embedder.__init__` runs in the FastAPI lifespan); there is no HF cache volume
-for this container, so a fresh container needs outbound network access and will take longer to
-become healthy (hence the 60s `start_period`).
+state. It loads the `google/embeddinggemma-2` sentence-transformers model during startup
+(`Embedder.__init__` runs in the FastAPI lifespan). The model (~1.5 GB) is kept in the
+`huggingface-cache` volume: only a first boot on an empty volume needs outbound network access
+and takes longer to become healthy (hence the 300s `start_period`).
 
 ### Reaching the service
 

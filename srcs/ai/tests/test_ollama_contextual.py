@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from unittest.mock import AsyncMock, patch, Mock
 import httpx
@@ -99,7 +101,7 @@ async def test_analyze_with_context_purebred(
         assert "Golden Retriever" in prompt
         assert "confidence: 0.89" in prompt
         assert "BREED CONTEXT" in prompt
-        assert "hip dysplasia" in prompt
+        assert "friendly temperament and golden coat" in prompt
 
 
 @pytest.mark.asyncio
@@ -362,14 +364,18 @@ def test_contextual_prompt_applies_breed_context_to_what_is_seen(
         "dog", sample_breed_analysis_purebred, sample_rag_context_purebred, "en"
     )
     assert "HOW TO USE THE BREED CONTEXT" in prompt
-    assert "say what the context says it means" in prompt
+    assert "exactly as the context gives it even when it is surprising" in prompt
     assert "notice for owners" in prompt
     assert prompt.index("BREED CONTEXT (from database)") < prompt.index("HOW TO USE THE BREED CONTEXT")
-    assert "never write that something is absent or does not apply" in prompt
+    # A fact applies only to an animal that shows the feature it is about: told to always
+    # report what the context says, the model recited a blue-coat fact for a pink dog.
+    assert "do not mention it and do not say it does not apply" in prompt
+    assert '"usual_for_breed"' in prompt
+    assert prompt.index('"context_check"') < prompt.index('"description"', prompt.index("Return ONLY valid JSON"))
     # The requirement is repeated in the task list and in the output schema.
     assert "any notice it has for owners of this breed" in prompt
-    assert "followed by what the BREED CONTEXT says the features you see mean" in prompt
-    assert "what the BREED CONTEXT says a feature you see indicates" in prompt
+    assert "It is added to the report from there" in prompt
+    assert "nothing about the context_check entries whose match is false" in prompt
     assert "not general breed knowledge" not in prompt
 
 
@@ -403,6 +409,168 @@ def test_contextual_prompt_without_breed_context_stays_visual_only(
     """No retrieved knowledge, nothing to apply: the model must not fall back on its own."""
     prompt = ollama_client._build_contextual_prompt("dog", sample_breed_analysis_purebred, None, "en")
     assert "HOW TO USE THE BREED CONTEXT" not in prompt
+    assert "context_check" not in prompt
     assert "not general breed knowledge" in prompt
     assert '"description": "detailed visual description of this specific dog"' in prompt
     assert '"health_observations": ["visible observation 1", "visible observation 2"]' in prompt
+
+
+# --- the model's own check is applied by the code, not left to its prose ---
+
+def _answer(checks, observations=("The coat looks healthy.",)):
+    return json.dumps({
+        "context_check": checks,
+        "description": "A dog.",
+        "traits": {"size": "large", "energy_level": "medium", "temperament": "calm"},
+        "health_observations": observations if isinstance(observations, str) else list(observations),
+    })
+
+
+CHECKS = [
+    {"feature": "coat colour", "value_in_context": "gold", "value_on_this_animal": "blue",
+     "match": False, "meaning": "The standard coat is gold."},
+    # the model answers the boolean as a string as often as not
+    {"feature": "coat colour", "value_in_context": "blue coat", "value_on_this_animal": "blue",
+     "match": "true", "meaning": "A blue coat means X."},
+]
+
+
+@pytest.mark.asyncio
+async def test_matched_fact_is_always_reported_first(
+    ollama_client, sample_breed_analysis_purebred, sample_rag_context_purebred
+):
+    ollama_client._chat = AsyncMock(return_value=_answer(CHECKS))
+
+    result = await ollama_client.analyze_with_context(
+        "data:image/jpeg;base64,abc", "dog", sample_breed_analysis_purebred, sample_rag_context_purebred
+    )
+
+    # "blue coat" is not in this context: the model's own sentence is the fallback.
+    assert result["health_observations"] == ["A blue coat means X.", "The coat looks healthy."]
+    assert "context_check" not in result
+
+
+@pytest.mark.asyncio
+async def test_matched_fact_is_quoted_from_the_knowledge_base(ollama_client, sample_breed_analysis_purebred):
+    """The model selects the fact, the text is the knowledge base's: its own wording of a
+    surprising fact drifted to a likelier cause ("may have been dyed")."""
+    rag_context = {
+        "breed": "Golden Retriever", "parent_breeds": None, "care_summary": "", "sources": [],
+        "description": "## Golden Retriever blue coat\n- **Standard**: Shades of gold\n"
+                       "- **Blue coat**: Not a natural colour; it means X. Do Y",
+        "health_info": "",
+    }
+    checks = [{"value_in_context": "Blue coat", "value_on_this_animal": "blue", "match": True,
+               "meaning": "The dog may have been dyed."}]
+    ollama_client._chat = AsyncMock(return_value=_answer(checks))
+
+    result = await ollama_client.analyze_with_context(
+        "data:image/jpeg;base64,abc", "dog", sample_breed_analysis_purebred, rag_context
+    )
+
+    assert result["health_observations"][0] == "Blue coat: Not a natural colour; it means X. Do Y"
+
+
+def test_quote_context_takes_the_sentences_of_a_paragraph():
+    from src.services.ollama_client import _quote_context
+
+    context = "The normal coat is golden. A blue coat is not natural: it means X. Owners should do Y."
+    assert _quote_context("blue coat", context) == ["A blue coat is not natural: it means X."]
+    assert _quote_context("green coat", context) == []
+    assert _quote_context("a", context) == []
+
+
+def test_quote_context_finds_a_passage_the_model_copied_whole():
+    """The model sometimes copies the whole bullet as the value, without its Markdown."""
+    from src.services.ollama_client import _quote_context
+
+    context = "- **Standard**: Shades of gold\n- **Blue coat**: Not natural; it means X. Do Y"
+    assert _quote_context("Blue coat: Not natural; it means X. Do Y", context) == [
+        "Blue coat: Not natural; it means X. Do Y"
+    ]
+    assert _quote_context("**Blue  coat**", context) == ["Blue coat: Not natural; it means X. Do Y"]
+
+
+@pytest.mark.asyncio
+async def test_matched_fact_is_translated_for_another_language(
+    ollama_client, sample_breed_analysis_purebred, sample_rag_context_purebred
+):
+    """The fact is quoted from the knowledge base, then translated: written straight in
+    Italian, the model swapped a surprising cause for a likelier one."""
+    ollama_client._chat = AsyncMock(return_value=_answer(CHECKS, ["Il pelo è sano."]))
+    ollama_client.translate_texts = AsyncMock(return_value=["Un mantello blu significa X."])
+
+    result = await ollama_client.analyze_with_context(
+        "data:image/jpeg;base64,abc", "dog", sample_breed_analysis_purebred, sample_rag_context_purebred, "it"
+    )
+
+    ollama_client.translate_texts.assert_awaited_once_with(["A blue coat means X."], "it")
+    assert result["health_observations"] == ["Un mantello blu significa X.", "Il pelo è sano."]
+
+
+@pytest.mark.asyncio
+async def test_matched_fact_survives_a_failed_translation(
+    ollama_client, sample_breed_analysis_purebred, sample_rag_context_purebred
+):
+    ollama_client._chat = AsyncMock(return_value=_answer(CHECKS, ["Il pelo è sano."]))
+    ollama_client.translate_texts = AsyncMock(side_effect=RuntimeError("bad reply"))
+
+    result = await ollama_client.analyze_with_context(
+        "data:image/jpeg;base64,abc", "dog", sample_breed_analysis_purebred, sample_rag_context_purebred, "it"
+    )
+
+    assert result["health_observations"] == ["A blue coat means X.", "Il pelo è sano."]
+
+
+def test_matched_facts_recovers_a_fact_the_model_did_not_check():
+    """Both shapes came back from ministral-14b on a blue dog, 3 times in 10."""
+    from src.services.ollama_client import _matched_facts
+
+    context = "The normal coat is golden. A blue coat means X."
+    # only the usual value was checked, the animal shows another one
+    only_usual = [{"value_in_context": "golden", "usual_for_breed": "true",
+                   "value_on_this_animal": "blue", "match": "false"}]
+    assert _matched_facts({"context_check": only_usual}, context) == ["A blue coat means X."]
+    # same value on both sides, yet match: false
+    contradiction = [{"value_in_context": "blue coat", "usual_for_breed": "false",
+                      "value_on_this_animal": "Blue coat", "match": "false"}]
+    assert _matched_facts({"context_check": contradiction}, context) == ["A blue coat means X."]
+    # a fact about another value says nothing about an animal with the usual one
+    other = [{"value_in_context": "blue coat", "usual_for_breed": "false",
+              "value_on_this_animal": "golden", "match": "false"}]
+    assert _matched_facts({"context_check": other}, context) == []
+    # an unusual value the knowledge base says nothing about
+    unknown = [{"value_in_context": "golden", "usual_for_breed": "true",
+                "value_on_this_animal": "pink", "match": "false"}]
+    assert _matched_facts({"context_check": unknown}, context) == []
+
+
+@pytest.mark.parametrize("checks, expected", [
+    ([{"match": "false", "meaning": "Fact."}], []),
+    ([{"match": True, "meaning": ""}, {"match": True}, "junk", {"match": True, "meaning": "Fact."},
+      {"match": True, "meaning": "Fact."}], ["Fact."]),
+    # the animal matches its own breed standard: nothing to report
+    ([{"match": True, "usual_for_breed": "true", "meaning": "The coat is gold."},
+      {"match": True, "usual_for_breed": False, "meaning": "Fact."}], ["Fact."]),
+    (None, []),
+    ("not a list", []),
+])
+def test_matched_facts_tolerates_what_the_model_returns(checks, expected):
+    from src.services.ollama_client import _matched_facts
+
+    assert _matched_facts({"context_check": checks}, "") == expected
+
+
+@pytest.mark.asyncio
+async def test_no_matched_fact_means_no_translation_call(
+    ollama_client, sample_breed_analysis_purebred, sample_rag_context_purebred
+):
+    ollama_client._chat = AsyncMock(return_value=_answer(CHECKS[:1], "not a list"))
+    ollama_client.translate_texts = AsyncMock()
+
+    result = await ollama_client.analyze_with_context(
+        "data:image/jpeg;base64,abc", "dog", sample_breed_analysis_purebred, sample_rag_context_purebred, "it"
+    )
+
+    ollama_client.translate_texts.assert_not_awaited()
+    assert result["health_observations"] == []

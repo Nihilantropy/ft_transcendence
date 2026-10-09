@@ -105,13 +105,21 @@ class VisionOrchestrator:
             if breed_result["breed_analysis"]["is_likely_crossbreed"]:
                 detected_breeds = breed_result["breed_analysis"]["crossbreed_analysis"]["detected_breeds"]
                 logger.info(f"Retrieving crossbreed context for: {detected_breeds}")
-                rag_context = await self.rag.get_crossbreed_context(detected_breeds)
+                rag_context = await self.rag.get_crossbreed_context(
+                    detected_breeds, species_result["species"], user_context
+                )
             else:
                 logger.info(f"Retrieving breed context for: {breed_result['breed_analysis']['primary_breed']}")
                 rag_context = await self.rag.get_breed_context(
-                    breed_result["breed_analysis"]["primary_breed"]
+                    breed_result["breed_analysis"]["primary_breed"], species_result["species"], user_context
                 )
-            logger.info("RAG enrichment successful")
+            if rag_context:
+                logger.info(
+                    f"RAG context: {len(rag_context['description'])} + {len(rag_context['health_info'])} chars "
+                    f"from {rag_context.get('matches') or rag_context['sources']}"
+                )
+            else:
+                logger.info("RAG context: none, nothing retrieved for this breed")
         except Exception as e:
             logger.warning(f"RAG enrichment failed (graceful degradation): {e}")
             rag_context = None
@@ -175,9 +183,11 @@ class VisionOrchestrator:
         try:
             if breed_analysis["is_likely_crossbreed"]:
                 detected_breeds = breed_analysis["crossbreed_analysis"]["detected_breeds"]
-                rag_context = await self.rag.get_crossbreed_context(detected_breeds)
+                rag_context = await self.rag.get_crossbreed_context(detected_breeds, species, user_context)
             else:
-                rag_context = await self.rag.get_breed_context(breed_analysis["primary_breed"])
+                rag_context = await self.rag.get_breed_context(
+                    breed_analysis["primary_breed"], species, user_context
+                )
         except Exception as e:
             logger.warning(f"RAG enrichment failed (graceful degradation): {e}")
             rag_context = None

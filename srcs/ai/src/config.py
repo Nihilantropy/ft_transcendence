@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     CHROMA_COLLECTION_NAME: str = "pet_knowledge"
 
     # RAG - Embeddings
-    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
-    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_MODEL: str = "google/embeddinggemma-2"  # multilingual; changing it rebuilds the collection
+    EMBEDDING_DIMENSION: int = 768
 
     # RAG - Document Processing
     CHUNK_SIZE: int = 500
@@ -51,6 +51,9 @@ class Settings(BaseSettings):
 
     # RAG - Query
     RAG_TOP_K: int = 5
+    RAG_CONTEXT_MAX_CHARS: int = 8000  # Breed context sent to the vision LLM, shared by its documents
+    RAG_BREED_TOP_K: int = 12  # Chunks retrieved among the documents of the breed
+    RAG_HEALTH_TOP_K: int = 2  # Health documents retrieved for the breed and the owner notes
 
     # RAG - Knowledge Base
     KNOWLEDGE_BASE_DIR: str = "./data/knowledge_base"

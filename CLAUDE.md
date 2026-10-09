@@ -189,7 +189,7 @@ docker compose run --rm auth-service python -m pytest tests/ -v
 # User Service tests (89 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# AI Service tests (168 tests total)
+# AI Service tests (188 tests total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
@@ -344,7 +344,7 @@ other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 168 passing tests]
+**AI Service (FastAPI - internal port 3003):** [Complete - 188 passing tests]
 - Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
 - LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
@@ -454,7 +454,8 @@ no species allow-list on this path.**
 - Device: GPU-accelerated (RTX 5060 Ti Blackwell via stable PyTorch 2.11.0 + CUDA 12.8)
 
 **ChromaDB Vector Store:**
-- Embeddings: 384-dimensional (sentence-transformers/all-MiniLM-L6-v2)
+- Embeddings: 768-dimensional (`google/embeddinggemma-2`, text encoder only, multilingual; cached in
+  the `huggingface-cache` volume). Details and the measurements behind the choice: `srcs/ai/CLAUDE.md`
 - Collection: `pet_knowledge` (species info, breed standards, health conditions)
 - Knowledge Base: Markdown documents in `srcs/ai/data/knowledge_base/`
   - Layout: `spiecies/{dogs,cats}/{purebreeds,crossbreeds,health}/*.md` — **34 files total**,
@@ -736,7 +737,7 @@ make test [init] [flags]                              # make shortcut (no -- pre
   (verify with `make -n test init`). Prefer `./scripts/init-and-test.sh --init` if you only want the
   script's build/start/migrate phase
 
-Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 168, `:121`),
+Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 188, `:121`),
 recommendation 42 (real 48, `:129`), gateway 45 (real 48, `:113`), auth 357 (real 409, `:117`). They only
 feed a printed total; do not trust them.
 
@@ -787,7 +788,7 @@ feed a printed total; do not trust them.
 - API Gateway (FastAPI) with full middleware stack - 48 passing tests
 - Auth Service (Django) with authentication, profile (PATCH /auth/me), TOTP 2FA and Log in with 42 - 409 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 168 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 188 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
 - Crossbreed detection with intelligent thresholding
