@@ -16,6 +16,15 @@ Integration and e2e tests against the real running stack. Run everything with `m
    the test. Changing the password? Set `user["password"]` so teardown can log back in.
 3. Assert with `helpers.ok(resp, status)` — failures show the response body.
 
+## Knowledge base auto-ingestion
+`e2e/test_rag_autoingest.py` (alone: `make test-rag`) writes a probe `.md` into
+`srcs/ai/data/knowledge_base/` — mounted read-write in the tester as `/knowledge_base` — and removes
+it in the fixture teardown. It calls ai-service directly (`http://ai-service:3003`) to trigger the
+synchronisation instead of waiting for the timer. The lifecycle test needs only ai-service; the
+analysis test needs the full vision pipeline (classification-service, LiteLLM, `MISTRAL_API_KEY`),
+like `e2e/test_vision.py`. If a run is killed mid-test, delete any leftover
+`zz_gate_probe_*.md` and run `make rag`.
+
 No rebuild needed for test files: `tests/` is bind-mounted. Changing `tests/requirements.txt`
 or `tests/Dockerfile` needs `--build` when you run the tester directly (`make gate` always builds).
 One file:

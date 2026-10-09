@@ -87,7 +87,7 @@ async def test_purebred_pipeline_success(mock_classification, mock_ollama, mock_
     mock_classification.check_content.assert_called_once()
     mock_classification.detect_species.assert_called_once()
     mock_classification.detect_breed.assert_called_once()
-    mock_rag.get_breed_context.assert_called_once_with("golden_retriever")
+    mock_rag.get_breed_context.assert_called_once_with("golden_retriever", "dog", None)
     mock_ollama.analyze_with_context.assert_called_once()
 
 
@@ -142,7 +142,7 @@ async def test_crossbreed_pipeline_success(mock_classification, mock_ollama, moc
     assert "Poodle" in result["breed_analysis"]["crossbreed_analysis"]["detected_breeds"]
 
     # Verify crossbreed RAG method called
-    mock_rag.get_crossbreed_context.assert_called_once_with(["Golden Retriever", "Poodle"])
+    mock_rag.get_crossbreed_context.assert_called_once_with(["Golden Retriever", "Poodle"], "dog", None)
 
 
 @pytest.mark.asyncio

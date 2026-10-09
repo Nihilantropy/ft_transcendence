@@ -148,6 +148,8 @@ export type EnrichedInfo = {
   care_summary: string
   health_info: string
   sources: string[]
+  // knowledge base documents retrieved for the analysis, best first (absent on older analyses)
+  matches?: { source: string; relevance: number }[]
 }
 
 export type BreedTraits = {

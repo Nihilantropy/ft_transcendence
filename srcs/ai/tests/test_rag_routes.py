@@ -1,5 +1,8 @@
 """Tests for RAG API routes."""
 
+import fcntl
+import hashlib
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from fastapi.testclient import TestClient
@@ -10,13 +13,15 @@ from src.main import app
 from src.routes import rag
 from src.config import Settings
 from src.middleware.localhost import require_localhost
+from src.services.knowledge_sync import lock_path
 
 
 @pytest.fixture
-def mock_rag_service():
+def mock_rag_service(tmp_path):
     """Mock RAG service."""
     service = Mock()
-    service.config = Settings()
+    service.config = Settings(CHROMA_PERSIST_DIR=str(tmp_path / "chroma"))
+    service.get_indexed_files = Mock(return_value={})
     service.get_stats = Mock(return_value={
         "collection_name": "pet_knowledge",
         "document_count": 10
@@ -197,6 +202,53 @@ class TestInitializeEndpoint:
         assert data["data"]["files_skipped"] == 1
         assert len(data["data"]["errors"]) == 1
         assert "invalid.md" in data["data"]["errors"][0]
+
+    def test_initialize_reports_unchanged_and_removed_files(
+        self, client_localhost, mock_rag_service, mock_document_processor, tmp_path
+    ):
+        """A repeated call skips known files and drops the ones gone from disk."""
+        kb_dir = tmp_path / "knowledge_base"
+        kb_dir.mkdir()
+        content = "# Same\nContent"
+        (kb_dir / "same.md").write_text(content)
+
+        mock_rag_service.config.KNOWLEDGE_BASE_DIR = str(kb_dir)
+        mock_rag_service.get_indexed_files.return_value = {
+            "same.md": hashlib.sha256(content.encode()).hexdigest(),
+            "gone.md": "whatever",
+        }
+
+        response = client_localhost.post("/api/v1/admin/rag/initialize")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["files_processed"] == 0
+        assert data["files_unchanged"] == 1
+        assert data["files_removed"] == 1
+        mock_document_processor.process.assert_not_called()
+        mock_rag_service.add_documents.assert_not_called()
+        mock_rag_service.delete_document.assert_called_once_with("gone.md")
+
+    def test_initialize_while_another_ingestion_runs_returns_409(
+        self, client_localhost, mock_rag_service, mock_document_processor, tmp_path
+    ):
+        """The lock is held by the other worker: answer 409 and write nothing."""
+        kb_dir = tmp_path / "knowledge_base"
+        kb_dir.mkdir()
+        (kb_dir / "doc.md").write_text("# Doc\nContent")
+        mock_rag_service.config.KNOWLEDGE_BASE_DIR = str(kb_dir)
+
+        path = lock_path(mock_rag_service.config)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as other_worker:
+            fcntl.flock(other_worker, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            response = client_localhost.post("/api/v1/admin/rag/initialize")
+
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert detail["success"] is False
+        assert detail["error"]["code"] == "INGESTION_IN_PROGRESS"
+        mock_rag_service.add_documents.assert_not_called()
 
     def test_initialize_directory_not_found(self, client_localhost, mock_rag_service):
         """Test initialization fails gracefully when directory doesn't exist."""

@@ -51,7 +51,8 @@ make init          # build + up + migration + seed + superuser + rag (Makefile:2
 make test [flags]  # Run tests; flags: init gateway auth user ai classification recommendation
 make test-integration  # recommendation-service tests/integration via docker exec
 make gate          # Merge gate: unit + integration + e2e on the live stack — required before merging
-make rag           # Initialize RAG knowledge base (ingest all markdown docs into ChromaDB)
+make rag           # Force a RAG knowledge base sync now and wait for it (ai-service also syncs by itself)
+make test-rag      # e2e: knowledge base auto-ingestion (probe .md added/modified/deleted at runtime)
 make elk           # Start the ELK log management stack (generates credentials on first run)
 make elk-creds     # Reprint the ELK stack credentials without redeploying
 make backup        # pg_dump now via the db-backup sidecar + verify it by restoring into a scratch DB
@@ -115,7 +116,7 @@ API.** Several models listed by `GET /v1/models` (`mistral-medium`, `mistral-sma
 `magistral-*`) answer 429 immediately with `x-ratelimit-limit-req-minute: 0` — a limit of
 **zero**, not an exhausted quota, so no retry can outlast it. `srcs/litellm/config.yaml`
 therefore uses `ministral-14b-latest` (30 req/min) as primary and `ministral-8b-latest`
-(188 req/min) as fallback, both vision-capable, ~1-3 s per call. Limits are per model, so the
+(190 req/min) as fallback, both vision-capable, ~1-3 s per call. Limits are per model, so the
 fallback is a genuine escape from a 429. **Before switching to another model, check its
 `x-ratelimit-limit-req-minute` header** — appearing in the model list proves nothing.
 
@@ -207,7 +208,7 @@ docker compose run --rm auth-service python -m pytest tests/ -v
 # User Service tests (89 tests total)
 docker compose run --rm user-service python -m pytest tests/ -v
 
-# AI Service tests (131 tests total)
+# AI Service tests (190 tests total)
 docker compose run --rm ai-service python -m pytest tests/ -v
 
 # Classification Service tests (28 tests total)
@@ -362,7 +363,7 @@ other than the one they expect. Details: `srcs/auth-service/README.md` → *Two-
 - Ownership-based permissions (IsOwnerOrAdmin)
 - Location: `srcs/user-service/`
 
-**AI Service (FastAPI - internal port 3003):** [Complete - 131 passing tests]
+**AI Service (FastAPI - internal port 3003):** [Complete - 190 passing tests]
 - Multi-stage vision pipeline via VisionOrchestrator (full + VLM-only paths)
 - LLM access via LiteLLM proxy (OpenAI chat-completions) — local Ollama or hosted Mistral
 - RAG system: ChromaDB + sentence-transformers for breed knowledge enrichment
@@ -472,15 +473,26 @@ no species allow-list on this path.**
 - Device: GPU-accelerated (RTX 5060 Ti Blackwell via stable PyTorch 2.11.0 + CUDA 12.8)
 
 **ChromaDB Vector Store:**
-- Embeddings: 384-dimensional (sentence-transformers/all-MiniLM-L6-v2)
+- Embeddings: 768-dimensional (`google/embeddinggemma-2`, text encoder only, multilingual; cached in
+  the `huggingface-cache` volume). Details and the measurements behind the choice: `srcs/ai/CLAUDE.md`
 - Collection: `pet_knowledge` (species info, breed standards, health conditions)
 - Knowledge Base: Markdown documents in `srcs/ai/data/knowledge_base/`
   - Layout: `spiecies/{dogs,cats}/{purebreeds,crossbreeds,health}/*.md` — **34 files total**,
     per species 10 purebreeds + 3 crossbreeds + 4 health. There are no top-level `dogs.md` / `cats.md`
   - The directory is spelled `spiecies` (sic). Do not rename it — `KNOWLEDGE_BASE_DIR` and the
     read-only mount at docker-compose.yml:91 depend on the misspelling
-- ChromaDB starts empty - use `make rag` to bulk ingest (calls `scripts/init-rag-kb.sh` which hits the localhost-only endpoint)
-- Initialization: `make rag` (preferred) or directly: `docker exec ft_transcendence_ai_service curl -X POST http://localhost:3003/api/v1/admin/rag/initialize`
+- **The knowledge base syncs itself.** ai-service aligns ChromaDB with the directory once at startup
+  and then every `RAG_SYNC_INTERVAL_MINUTES` (default 5, `srcs/ai/.env`; `RAG_SYNC_ENABLED=false`
+  turns the timer off): new `.md` files are ingested, modified ones replaced, deleted ones removed,
+  unchanged ones skipped. No restart, and a fresh volume fills up on its own after `make up`
+- `make rag` forces a round now and waits for it (`scripts/init-rag-kb.sh` → the localhost-only
+  `POST /api/v1/admin/rag/initialize`, same function as the timer). Safe to repeat: chunk IDs are
+  deterministic (`<source_file>::<index>`) and written with `upsert`. While a round is running the
+  endpoint answers 409 `INGESTION_IN_PROGRESS`; the script retries
+- ai-service runs **one** uvicorn worker and must: ChromaDB is embedded and keeps its vector index
+  in process memory, so a second worker never sees what the first ingested or deleted (RAG context
+  silently missing on half the requests until a restart). The sync runs in a thread, so requests
+  are still served meanwhile. Details: `srcs/ai/README.md` → *Knowledge base auto-sync*
 - Workflow: Document → chunk → embed → store → semantic search
 - RAG retrieval enriches the LLM context with factual breed knowledge
 - Volume mount: `/app/data/chroma` (persisted in `ai-chroma-data` volume)
@@ -744,7 +756,7 @@ make test [init] [flags]                              # make shortcut (no -- pre
   (verify with `make -n test init`). Prefer `./scripts/init-and-test.sh --init` if you only want the
   script's build/start/migrate phase
 
-Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 131, `:121`),
+Note: `run-unit-tests.sh` hardcodes expected test counts that are stale — ai 37 (real 190, `:121`),
 recommendation 42 (real 48, `:129`), gateway 45 (real 48, `:113`), auth 357 (real 409, `:117`). They only
 feed a printed total; do not trust them.
 
@@ -795,7 +807,7 @@ feed a printed total; do not trust them.
 - API Gateway (FastAPI) with full middleware stack - 48 passing tests
 - Auth Service (Django) with authentication, profile (PATCH /auth/me), TOTP 2FA and Log in with 42 - 409 passing tests
 - User Service (Django) with profile and pet management - 89 passing tests
-- AI Service (FastAPI) with multi-stage vision pipeline - 131 passing tests
+- AI Service (FastAPI) with multi-stage vision pipeline - 190 passing tests
 - Classification Service (FastAPI) with HuggingFace models - 28 passing tests
 - Multi-stage vision pipeline (Classification → RAG → LLM orchestration via LiteLLM)
 - Crossbreed detection with intelligent thresholding

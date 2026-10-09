@@ -1,3 +1,5 @@
+import hashlib
+
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -29,129 +31,127 @@ def rag_service(mock_embedder, mock_ollama):
         return service
 
 
-@pytest.mark.asyncio
-async def test_get_breed_context_purebred(rag_service):
-    """Test retrieving context for single breed."""
-    # Mock ChromaDB query
-    mock_results = {
-        "documents": [
-            ["Golden Retrievers are large sporting dogs known for friendly temperament."],
-            ["They require daily exercise and regular grooming."],
-            ["Common health issues include hip dysplasia and cancer."]
-        ],
-        "metadatas": [
-            [{"source": "akc_golden_retriever.md"}],
-            [{"source": "care_guide.md"}],
-            [{"source": "health_guide.md"}]
-        ],
-        "distances": [[0.2], [0.3], [0.4]]
-    }
-    rag_service._collection.query = Mock(return_value=mock_results)
+# --- breed context: vector search restricted by metadata ---
+# The embedder is mocked to one constant vector, so the ranking cannot tell chunks apart:
+# what these tests pin down is what the metadata filter lets through.
 
-    result = await rag_service.get_breed_context("golden_retriever")
+def _kb(source_file, texts, **metadata):
+    return [
+        Chunk(
+            content=text,
+            metadata={"source_file": source_file, "source_type": "knowledge_base", "chunk_index": i, **metadata},
+        )
+        for i, text in enumerate(texts)
+    ]
+
+
+@pytest.fixture
+def kb_service(chroma_rag_service):
+    """Golden retriever, labrador, a goldendoodle mix, and health documents for both species."""
+    add = chroma_rag_service.add_documents
+    add(list(reversed(_kb(
+        "dogs/golden_retriever.md",
+        ["# Golden Retriever", "## Overview\nFriendly.", "## Coat Colour\nA fact in the last section."],
+        doc_type="breed", species="dog", breed="golden_retriever",
+    ))))
+    add(_kb("dogs/labrador.md", ["# Labrador"], doc_type="breed", species="dog", breed="labrador_retriever"))
+    add(_kb("dogs/poodle.md", ["# Poodle"], doc_type="breed", species="dog", breed="poodle"))
+    add(_kb("dogs/goldendoodle.md", ["# Goldendoodle"], doc_type="crossbreed", species="dog",
+            parent_breeds="golden_retriever, poodle"))
+    add(_kb("dogs/health/hip_dysplasia.md", ["# Hip Dysplasia in Dogs", "## Symptoms\nLimping."],
+            doc_type="health", species="dog"))
+    add(_kb("cats/health/hcm.md", ["# HCM in Cats"], doc_type="health", species="cat"))
+    return chroma_rag_service
+
+
+@pytest.mark.asyncio
+async def test_get_breed_context_keeps_to_the_breed_and_the_species(kb_service):
+    result = await kb_service.get_breed_context("golden_retriever", "dog")
 
     assert result["breed"] == "Golden Retriever"
     assert result["parent_breeds"] is None
-    assert "sporting dogs" in result["description"].lower()
-    assert "daily exercise" in result["care_summary"].lower()
-    assert "hip dysplasia" in result["health_info"].lower()
-    assert len(result["sources"]) > 0
+    # Every chunk of the breed's document, back in file order; no other breed.
+    assert result["description"] == (
+        "# Golden Retriever\n\n## Overview\nFriendly.\n\n## Coat Colour\nA fact in the last section."
+    )
+    # Health documents of the same species only.
+    assert result["health_info"] == "# Hip Dysplasia in Dogs\n\n## Symptoms\nLimping."
+    assert set(result["sources"]) == {"dogs/golden_retriever.md", "dogs/health/hip_dysplasia.md"}
+    assert [m["source"] for m in result["matches"]] == result["sources"]
+    assert all(0 <= m["relevance"] <= 1 for m in result["matches"])
 
 
 @pytest.mark.asyncio
-async def test_get_crossbreed_context(rag_service):
-    """Test retrieving context for crossbreed (multiple parent breeds)."""
-    # Mock ChromaDB query (called twice, once per breed)
-    mock_results = {
-        "documents": [
-            ["Golden Retrievers are large friendly dogs."],
-            ["Poodles are intelligent and hypoallergenic."]
-        ],
-        "metadatas": [
-            [{"source": "golden.md"}],
-            [{"source": "poodle.md"}]
-        ],
-        "distances": [[0.2], [0.3]]
-    }
-    rag_service._collection.query = Mock(return_value=mock_results)
+async def test_get_breed_context_without_a_breed_document_still_retrieves_health(kb_service):
+    """Most classifier breeds have no document: they get the health documents, never another breed's text."""
+    result = await kb_service.get_breed_context("cocker_spaniel", "dog")
 
-    result = await rag_service.get_crossbreed_context(["Golden Retriever", "Poodle"])
+    assert result["description"] == ""
+    assert result["sources"] == ["dogs/health/hip_dysplasia.md"]
+
+
+@pytest.mark.asyncio
+async def test_get_breed_context_nothing_retrieved_is_none(chroma_rag_service):
+    assert await chroma_rag_service.get_breed_context("golden_retriever", "dog") is None
+
+
+@pytest.mark.asyncio
+async def test_owner_notes_are_searched_among_the_health_documents(kb_service):
+    await kb_service.get_breed_context("golden_retriever", "dog", "He limps after walks")
+
+    queries = [call.args[0] for call in kb_service.embedder.embed.call_args_list]
+    assert queries == [
+        "Golden Retriever breed characteristics, health and care",
+        "Golden Retriever common health problems",
+        "He limps after walks",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_health_documents_are_capped(kb_service):
+    kb_service.config.RAG_HEALTH_TOP_K = 1
+    kb_service.add_documents(_kb("dogs/health/ivdd.md", ["# IVDD in Dogs"], doc_type="health", species="dog"))
+
+    result = await kb_service.get_breed_context("golden_retriever", "dog")
+
+    assert len([s for s in result["sources"] if "/health/" in s]) == 1
+
+
+@pytest.mark.asyncio
+async def test_breed_documents_share_the_budget(kb_service):
+    """A long document cannot push a second document of the same breed out of the context."""
+    kb_service.config.RAG_CONTEXT_MAX_CHARS = 20
+    kb_service.add_documents(_kb("dogs/zz.md", ["Z" * 50], doc_type="breed", species="dog", breed="golden_retriever"))
+
+    description = (await kb_service.get_breed_context("golden_retriever", "dog"))["description"]
+
+    assert sorted(description.split("\n\n")) == sorted(["# Golden R", "Z" * 10])
+
+
+@pytest.mark.asyncio
+async def test_get_crossbreed_context_returns_the_mix_and_its_parents(kb_service):
+    # Parents in the opposite order to the document's frontmatter.
+    result = await kb_service.get_crossbreed_context(["Poodle", "Golden Retriever"], "dog")
 
     assert result["breed"] is None
-    assert result["parent_breeds"] == ["Golden Retriever", "Poodle"]
-    assert "friendly" in result["description"].lower() or "intelligent" in result["description"].lower()
-    assert len(result["sources"]) > 0
-
-
-@pytest.mark.asyncio
-async def test_get_breed_context_normalizes_name(rag_service):
-    """Test breed name normalization (snake_case to Title Case)."""
-    mock_results = {
-        "documents": [["Golden Retriever info"]],
-        "metadatas": [[{"source": "test.md"}]],
-        "distances": [[0.2]]
+    assert result["parent_breeds"] == ["Poodle", "Golden Retriever"]
+    assert set(result["sources"]) == {
+        "dogs/goldendoodle.md", "dogs/golden_retriever.md", "dogs/poodle.md", "dogs/health/hip_dysplasia.md"
     }
-    rag_service._collection.query = Mock(return_value=mock_results)
-
-    result = await rag_service.get_breed_context("golden_retriever")
-
-    # Verify breed name was normalized to Title Case
-    assert result["breed"] == "Golden Retriever"
-
-    # Verify query was called
-    assert rag_service._collection.query.called
+    assert "# Labrador" not in result["description"]
 
 
-@pytest.mark.asyncio
-async def test_get_breed_context_extracts_source_file_from_metadata(rag_service):
-    """Test that source_file metadata is correctly extracted (not 'source')."""
-    # This is the ACTUAL metadata format from document_processor
-    mock_results = {
-        "documents": [
-            ["Golden Retrievers are friendly and intelligent."],
-            ["They need regular exercise and grooming."],
-            ["Common health issues include hip dysplasia."]
-        ],
-        "metadatas": [
-            [{"source_file": "breeds/dogs/golden_retriever.md", "source_type": "knowledge_base"}],
-            [{"source_file": "care/exercise.md", "source_type": "knowledge_base"}],
-            [{"source_file": "health/hip_dysplasia.md", "source_type": "knowledge_base"}]
-        ],
-        "distances": [[0.2], [0.3], [0.4]]
-    }
-    rag_service._collection.query = Mock(return_value=mock_results)
+def test_collection_built_with_another_embedding_model_is_rebuilt(tmp_path, mock_ollama):
+    """Vectors of two models cannot be compared; the knowledge base sync refills the collection."""
+    def service(model):
+        settings = Settings(CHROMA_PERSIST_DIR=str(tmp_path / "chroma"), EMBEDDING_MODEL=model)
+        embedder = Mock()
+        embedder.embed_batch = Mock(side_effect=lambda texts: [[0.1] * 8 for _ in texts])
+        return RAGService(settings, embedder, mock_ollama)
 
-    result = await rag_service.get_breed_context("golden_retriever")
-
-    # Should extract source_file, not fall back to "unknown"
-    assert "breeds/dogs/golden_retriever.md" in result["sources"]
-    assert "care/exercise.md" in result["sources"]
-    assert "health/hip_dysplasia.md" in result["sources"]
-    assert "unknown" not in result["sources"]
-
-
-@pytest.mark.asyncio
-async def test_get_crossbreed_context_extracts_source_file_from_metadata(rag_service):
-    """Test crossbreed source extraction uses correct metadata key."""
-    mock_results = {
-        "documents": [
-            ["Golden Retrievers are friendly."],
-            ["Poodles are intelligent and hypoallergenic."]
-        ],
-        "metadatas": [
-            [{"source_file": "breeds/dogs/golden_retriever.md", "chunk_index": 0}],
-            [{"source_file": "breeds/dogs/poodle.md", "chunk_index": 0}]
-        ],
-        "distances": [[0.2], [0.3]]
-    }
-    rag_service._collection.query = Mock(return_value=mock_results)
-
-    result = await rag_service.get_crossbreed_context(["Golden Retriever", "Poodle"])
-
-    # Should extract source_file correctly
-    assert "breeds/dogs/golden_retriever.md" in result["sources"]
-    assert "breeds/dogs/poodle.md" in result["sources"]
-    assert "unknown" not in result["sources"]
+    service("model-a").add_documents(_kb("a.md", ["one", "two"]))
+    assert service("model-a").get_stats()["document_count"] == 2
+    assert service("model-b").get_stats()["document_count"] == 0
 
 
 # --- query ---
@@ -261,13 +261,101 @@ def test_add_documents_with_chunks(rag_service, mock_embedder):
     ]
     count = rag_service.add_documents(chunks)
     assert count == 2
-    rag_service._collection.add.assert_called_once()
+    rag_service._collection.upsert.assert_called_once()
+    rag_service._collection.add.assert_not_called()
 
 
 def test_add_documents_empty_list_returns_zero(rag_service):
     count = rag_service.add_documents([])
     assert count == 0
-    rag_service._collection.add.assert_not_called()
+    rag_service._collection.upsert.assert_not_called()
+
+
+def test_add_documents_ids_are_source_file_and_index(rag_service, mock_embedder):
+    """IDs must be reproducible across processes: no salted hash() in them."""
+    mock_embedder.embed_batch = Mock(return_value=[[0.1] * 384, [0.2] * 384])
+    chunks = [
+        Chunk(content="First chunk", metadata={"source_file": "dogs/beagle.md"}),
+        Chunk(content="Second chunk", metadata={"source_file": "dogs/beagle.md"}),
+    ]
+    rag_service.add_documents(chunks)
+    ids = rag_service._collection.upsert.call_args.kwargs["ids"]
+    assert ids == ["dogs/beagle.md::0", "dogs/beagle.md::1"]
+
+
+def test_add_documents_ids_without_source_file_use_content_digest(rag_service, mock_embedder):
+    mock_embedder.embed_batch = Mock(return_value=[[0.1] * 384, [0.2] * 384])
+    chunks = [Chunk(content="same", metadata={}), Chunk(content="same", metadata={})]
+    rag_service.add_documents(chunks)
+    ids = rag_service._collection.upsert.call_args.kwargs["ids"]
+    digest = hashlib.sha256(b"same").hexdigest()[:16]
+    assert ids == [f"{digest}::0", f"{digest}::1"]
+
+
+# --- real ChromaDB on tmp_path: re-ingest, index listing, delete ---
+
+@pytest.fixture
+def chroma_rag_service(tmp_path, mock_ollama):
+    """RAG service on a real, throwaway ChromaDB with a fake embedder."""
+    settings = Settings(CHROMA_PERSIST_DIR=str(tmp_path / "chroma"))
+    embedder = Mock()
+    embedder.embed_batch = Mock(side_effect=lambda texts: [[0.1] * 384 for _ in texts])
+    embedder.embed = Mock(return_value=[0.1] * 384)
+    return RAGService(settings, embedder, mock_ollama)
+
+
+def _kb_chunks(source_file, content_hash, n):
+    return [
+        Chunk(
+            content=f"{source_file} chunk {i}",
+            metadata={
+                "source_file": source_file,
+                "source_type": "knowledge_base",
+                "content_hash": content_hash,
+                "chunk_index": i,
+            },
+        )
+        for i in range(n)
+    ]
+
+
+def test_reingesting_same_chunks_does_not_duplicate(chroma_rag_service):
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 3))
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 3))
+    assert chroma_rag_service.get_stats()["document_count"] == 3
+
+
+def test_get_indexed_files_maps_source_file_to_hash(chroma_rag_service):
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 2))
+    chroma_rag_service.add_documents(_kb_chunks("dogs/b.md", "h2", 1))
+    assert chroma_rag_service.get_indexed_files() == {"a.md": "h1", "dogs/b.md": "h2"}
+
+
+def test_get_indexed_files_empty_collection(chroma_rag_service):
+    assert chroma_rag_service.get_indexed_files() == {}
+
+
+def test_get_indexed_files_ignores_other_source_types(chroma_rag_service):
+    chroma_rag_service.add_documents(
+        [Chunk(content="manual", metadata={"source_file": "manual.md", "source_type": "document"})]
+    )
+    assert chroma_rag_service.get_indexed_files() == {}
+
+
+def test_get_indexed_files_reports_chunks_without_hash_as_empty(chroma_rag_service):
+    """Chunks ingested before content_hash existed must look 'changed'."""
+    chroma_rag_service.add_documents(
+        [Chunk(content="old", metadata={"source_file": "old.md", "source_type": "knowledge_base"})]
+    )
+    assert chroma_rag_service.get_indexed_files() == {"old.md": ""}
+
+
+def test_delete_document_removes_only_that_file(chroma_rag_service):
+    chroma_rag_service.add_documents(_kb_chunks("a.md", "h1", 3))
+    chroma_rag_service.add_documents(_kb_chunks("b.md", "h2", 2))
+    chroma_rag_service.delete_document("a.md")
+    assert chroma_rag_service.get_stats()["document_count"] == 2
+    assert chroma_rag_service.get_indexed_files() == {"b.md": "h2"}
 
 
 # --- get_stats ---

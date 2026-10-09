@@ -33,14 +33,21 @@ class BreedTraits(BaseModel):
     temperament: str = Field("", description="Brief temperament description")
 
 
+class RetrievedSource(BaseModel):
+    """A knowledge base document retrieved for the analysis."""
+    source: str
+    relevance: float  # Cosine similarity of its best chunk with the query
+
+
 class EnrichedInfo(BaseModel):
     """RAG-enriched breed information."""
     breed: Optional[str] = None  # Single breed
     parent_breeds: Optional[List[str]] = None  # Crossbreed parents
-    description: str
+    description: str  # Documents of the breed
     care_summary: str
-    health_info: str
+    health_info: str  # Health documents retrieved for the breed and the owner notes
     sources: List[str]
+    matches: List[RetrievedSource] = []
 
 
 class VisionAnalysisData(BaseModel):
@@ -94,4 +101,6 @@ class RAGBulkIngestResponse(BaseModel):
     files_processed: int
     total_chunks_created: int
     files_skipped: int
+    files_unchanged: int = 0
+    files_removed: int = 0
     errors: List[str]

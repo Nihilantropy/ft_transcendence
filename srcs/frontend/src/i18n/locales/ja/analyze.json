@@ -26,6 +26,8 @@
     "energy_level": "活発さ",
     "temperament": "性格",
     "health": "健康に関する所見",
+    "sources": "参照した資料",
+    "sourcesHint": "この分析のために検索された資料と、品種やメモとの関連度です。",
     "sizes": {
       "small": "小型",
       "medium": "中型",

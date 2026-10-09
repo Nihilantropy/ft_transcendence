@@ -22,7 +22,7 @@ python-multipart==0.0.22
 chromadb==1.4.1
 
 # RAG - Embeddings
-sentence-transformers==5.2.0
+sentence-transformers==6.1.0
 
 # RAG - Document Processing
 pyyaml==6.0.2
